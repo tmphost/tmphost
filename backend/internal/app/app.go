@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package app wires the services, controllers and handlers into a server.
 package app
 

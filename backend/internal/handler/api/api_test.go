@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package api
 
 import (
@@ -20,7 +24,7 @@ import (
 	mapper "github.com/tmphost/tmphost/backend/internal/mapper/api"
 )
 
-var _errBoom = errors.New("boom")
+var errBoom = errors.New("boom")
 
 func newApp(t *testing.T) (*fiber.App, *mockauth.MockController) {
 	app, ctrl, _ := newFullApp(t)
@@ -96,7 +100,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("controller error", func(t *testing.T) {
 		app, ctrl := newApp(t)
-		ctrl.EXPECT().StartLogin(gomock.Any(), gomock.Any()).Return(nil, _errBoom)
+		ctrl.EXPECT().StartLogin(gomock.Any(), gomock.Any()).Return(nil, errBoom)
 		res, _ := do(t, app, http.MethodGet, "/api/v1/auth/google/login")
 		assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
 	})
@@ -142,7 +146,7 @@ func TestCallback_Errors(t *testing.T) {
 		{authctrl.ErrInvalidState, LoginErrorInvalidState},
 		{authctrl.ErrEmailNotVerified, LoginErrorEmailNotVerified},
 		{authctrl.ErrProviderExchange, LoginErrorProvider},
-		{_errBoom, LoginErrorServer},
+		{errBoom, LoginErrorServer},
 	}
 	for _, tc := range cases {
 		t.Run(tc.code, func(t *testing.T) {
@@ -201,7 +205,7 @@ func TestUsersMe(t *testing.T) {
 	t.Run("server error", func(t *testing.T) {
 		app, ctrl := newApp(t)
 		ctrl.EXPECT().Authenticate(gomock.Any(), gomock.Any()).Return(&entity.AuthenticateResponse{UserID: 5}, nil)
-		ctrl.EXPECT().GetCurrentUser(gomock.Any(), gomock.Any()).Return(nil, _errBoom)
+		ctrl.EXPECT().GetCurrentUser(gomock.Any(), gomock.Any()).Return(nil, errBoom)
 		res, body := do(t, app, http.MethodGet, "/api/v1/users/me", session)
 		assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
 		assert.JSONEq(t, `{"error":"failed to load user"}`, body)

@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package repository
 
 //go:generate mockgen -source=settings.go -destination=mocks/settings.go -package=mocks
@@ -93,7 +97,8 @@ func (r *settingsRepository) SaveSettings(s model.Settings) error {
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return fmt.Errorf("write settings: %w", err)
 	}
-	defer os.Remove(tmp)
+	// Gone already after a successful rename; this only cleans up a failed one.
+	defer func() { _ = os.Remove(tmp) }()
 	if err := os.Rename(tmp, r.path); err != nil {
 		return fmt.Errorf("replace settings: %w", err)
 	}

@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package setup
 
 import (
@@ -17,7 +21,7 @@ import (
 	mocktoken "github.com/tmphost/tmphost/backend/internal/service/token/mocks"
 )
 
-var _errBoom = errors.New("boom")
+var errBoom = errors.New("boom")
 
 func defaults() entity.Settings {
 	return entity.Settings{
@@ -72,9 +76,9 @@ func TestNew(t *testing.T) {
 
 	t.Run("load error", func(t *testing.T) {
 		repo := mockrepo.NewMockSettingsRepository(mc)
-		repo.EXPECT().LoadSettings().Return(model.Settings{}, _errBoom)
+		repo.EXPECT().LoadSettings().Return(model.Settings{}, errBoom)
 		_, err := New(Params{Repository: repo, RootAccessToken: "x"})
-		assert.ErrorIs(t, err, _errBoom)
+		assert.ErrorIs(t, err, errBoom)
 	})
 }
 
@@ -99,9 +103,9 @@ func TestLogin(t *testing.T) {
 
 	t.Run("session error", func(t *testing.T) {
 		e := newEnv(t)
-		e.token.EXPECT().CreateRootToken().Return("", _errBoom)
+		e.token.EXPECT().CreateRootToken().Return("", errBoom)
 		_, err := e.ctrl.Login(ctx, &entity.RootLoginRequest{Token: "root-token"})
-		assert.ErrorIs(t, err, _errBoom)
+		assert.ErrorIs(t, err, errBoom)
 	})
 }
 
@@ -110,7 +114,7 @@ func TestAuthenticate(t *testing.T) {
 	e := newEnv(t)
 	assert.ErrorIs(t, e.ctrl.Authenticate(ctx, &entity.AuthenticateRootRequest{}), ErrUnauthorized)
 
-	e.token.EXPECT().ValidateRootToken("bad").Return(_errBoom)
+	e.token.EXPECT().ValidateRootToken("bad").Return(errBoom)
 	assert.ErrorIs(t, e.ctrl.Authenticate(ctx, &entity.AuthenticateRootRequest{SessionToken: "bad"}), ErrUnauthorized)
 
 	e.token.EXPECT().ValidateRootToken("good").Return(nil)
@@ -174,9 +178,9 @@ func TestUpdateSettings_SaveFails(t *testing.T) {
 	e := newEnv(t)
 	next := e.ctrl.GetSettings(ctx).Settings
 	next.Credits.MonthlyGrant = 1
-	e.repo.EXPECT().SaveSettings(gomock.Any()).Return(_errBoom)
+	e.repo.EXPECT().SaveSettings(gomock.Any()).Return(errBoom)
 	_, err := e.ctrl.UpdateSettings(ctx, &entity.UpdateSettingsRequest{Settings: next})
-	assert.ErrorIs(t, err, _errBoom)
+	assert.ErrorIs(t, err, errBoom)
 	assert.Equal(t, 250, e.ctrl.MonthlyGrant(), "unchanged on failure")
 }
 
