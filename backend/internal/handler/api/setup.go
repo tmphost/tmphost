@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	setupctrl "github.com/tmphost/tmphost/backend/internal/controller/setup"
 	mapper "github.com/tmphost/tmphost/backend/internal/mapper/api"
@@ -19,7 +19,7 @@ type Setup struct {
 }
 
 // Login exchanges the root access token for a root session cookie.
-func (h *Setup) Login(c *fiber.Ctx) error {
+func (h *Setup) Login(c fiber.Ctx) error {
 	rq := mapper.FromHTTPRequestToRootLoginRequestEntity(c)
 	if rq == nil {
 		return fiber.ErrBadRequest
@@ -36,19 +36,19 @@ func (h *Setup) Login(c *fiber.Ctx) error {
 }
 
 // Logout clears the root session cookie.
-func (h *Setup) Logout(c *fiber.Ctx) error {
+func (h *Setup) Logout(c fiber.Ctx) error {
 	c.Cookie(h.cookie("", -1))
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // Get returns the settings, without secrets.
-func (h *Setup) Get(c *fiber.Ctx) error {
+func (h *Setup) Get(c fiber.Ctx) error {
 	rs := h.controller.GetSettings(c.Context())
 	return sendJSON(c, fiber.StatusOK, mapper.FromGetSettingsResponseEntityToHTTPResponse(rs))
 }
 
 // Update validates and saves the settings.
-func (h *Setup) Update(c *fiber.Ctx) error {
+func (h *Setup) Update(c fiber.Ctx) error {
 	rq := mapper.FromHTTPRequestToUpdateSettingsRequestEntity(c)
 	if rq == nil {
 		return fiber.ErrBadRequest
@@ -85,7 +85,7 @@ func (h *Setup) cookie(value string, ttl time.Duration) *fiber.Cookie {
 
 // AuthenticateRoot rejects requests without a valid root session.
 func AuthenticateRoot(controller setupctrl.Controller) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		rq := mapper.FromHTTPRequestToAuthenticateRootRequestEntity(c)
 		if rq == nil || controller.Authenticate(c.Context(), rq) != nil {
 			return sendError(c, fiber.StatusUnauthorized, "unauthorized")

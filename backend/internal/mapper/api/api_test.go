@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/mustafaturan/monoflake"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,10 +15,10 @@ import (
 )
 
 // run executes fn inside a real fiber request built from req.
-func run(t *testing.T, route string, req *http.Request, fn func(c *fiber.Ctx)) {
+func run(t *testing.T, route string, req *http.Request, fn func(c fiber.Ctx)) {
 	t.Helper()
 	app := fiber.New()
-	app.Get(route, func(c *fiber.Ctx) error {
+	app.Get(route, func(c fiber.Ctx) error {
 		fn(c)
 		return nil
 	})
@@ -28,12 +28,12 @@ func run(t *testing.T, route string, req *http.Request, fn func(c *fiber.Ctx)) {
 
 func TestFromHTTPRequestToStartLoginRequestEntity(t *testing.T) {
 	var got *entity.StartLoginRequest
-	run(t, "/auth/:provider/login", httptest.NewRequest(http.MethodGet, "/auth/google/login?redirect_url=/x", nil), func(c *fiber.Ctx) {
+	run(t, "/auth/:provider/login", httptest.NewRequest(http.MethodGet, "/auth/google/login?redirect_url=/x", nil), func(c fiber.Ctx) {
 		got = FromHTTPRequestToStartLoginRequestEntity(c)
 	})
 	assert.Equal(t, &entity.StartLoginRequest{Provider: "google", RedirectURL: "/x"}, got)
 
-	run(t, "/login", httptest.NewRequest(http.MethodGet, "/login", nil), func(c *fiber.Ctx) {
+	run(t, "/login", httptest.NewRequest(http.MethodGet, "/login", nil), func(c fiber.Ctx) {
 		got = FromHTTPRequestToStartLoginRequestEntity(c)
 	})
 	assert.Nil(t, got)
@@ -43,12 +43,12 @@ func TestFromHTTPRequestToCompleteLoginRequestEntity(t *testing.T) {
 	var got *entity.CompleteLoginRequest
 	req := httptest.NewRequest(http.MethodGet, "/auth/github/callback?code=c&state=s", nil)
 	req.AddCookie(&http.Cookie{Name: StateCookie, Value: "s"})
-	run(t, "/auth/:provider/callback", req, func(c *fiber.Ctx) {
+	run(t, "/auth/:provider/callback", req, func(c fiber.Ctx) {
 		got = FromHTTPRequestToCompleteLoginRequestEntity(c)
 	})
 	assert.Equal(t, &entity.CompleteLoginRequest{Provider: "github", Code: "c", State: "s", StateCookie: "s"}, got)
 
-	run(t, "/auth/:provider/callback", httptest.NewRequest(http.MethodGet, "/auth/github/callback?error=access_denied", nil), func(c *fiber.Ctx) {
+	run(t, "/auth/:provider/callback", httptest.NewRequest(http.MethodGet, "/auth/github/callback?error=access_denied", nil), func(c fiber.Ctx) {
 		got = FromHTTPRequestToCompleteLoginRequestEntity(c)
 	})
 	assert.Nil(t, got)
@@ -58,10 +58,10 @@ func TestFromHTTPRequestToAuthenticateRequestEntity(t *testing.T) {
 	var got *entity.AuthenticateRequest
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(&http.Cookie{Name: SessionCookie, Value: "tok"})
-	run(t, "/", req, func(c *fiber.Ctx) { got = FromHTTPRequestToAuthenticateRequestEntity(c) })
+	run(t, "/", req, func(c fiber.Ctx) { got = FromHTTPRequestToAuthenticateRequestEntity(c) })
 	assert.Equal(t, &entity.AuthenticateRequest{SessionToken: "tok"}, got)
 
-	run(t, "/", httptest.NewRequest(http.MethodGet, "/", nil), func(c *fiber.Ctx) { got = FromHTTPRequestToAuthenticateRequestEntity(c) })
+	run(t, "/", httptest.NewRequest(http.MethodGet, "/", nil), func(c fiber.Ctx) { got = FromHTTPRequestToAuthenticateRequestEntity(c) })
 	assert.Nil(t, got)
 }
 
@@ -78,7 +78,7 @@ func TestFromHTTPRequestToGetCurrentUserRequestEntity(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			var got *entity.GetCurrentUserRequest
-			run(t, "/", httptest.NewRequest(http.MethodGet, "/", nil), func(c *fiber.Ctx) {
+			run(t, "/", httptest.NewRequest(http.MethodGet, "/", nil), func(c fiber.Ctx) {
 				if tc.local != nil {
 					c.Locals(LocalUserID, tc.local)
 				}

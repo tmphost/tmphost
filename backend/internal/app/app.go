@@ -7,13 +7,12 @@ import (
 	"io/fs"
 	"log"
 	"net"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/recover"
 	"gorm.io/gorm"
 
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
@@ -31,6 +30,9 @@ import (
 )
 
 const _renewalTimeout = 10 * time.Minute
+
+// _listenConfig is how every server listens; main logs the address.
+var _listenConfig = fiber.ListenConfig{DisableStartupMessage: true}
 
 type (
 	// Config is the server configuration, one field per config section.
@@ -161,7 +163,7 @@ type (
 		certs    tlscert.Service
 		hosts    hosts
 		tlsPort  int
-		redirect *http.Server
+		redirect *fiber.App
 	}
 )
 
@@ -204,7 +206,7 @@ func New(cfg Config, web fs.FS) (*App, error) {
 	})
 
 	h := newHosts(cfg.App.BaseURL, cfg.App.SitesDomain)
-	f := fiber.New(fiber.Config{DisableStartupMessage: true})
+	f := fiber.New()
 	f.Use(recover.New())
 	f.Use(hostRouter(h))
 	// A session cookie for an https app must never travel over plain http.
@@ -237,7 +239,7 @@ func (a *App) Listen() error {
 	go a.renewCredits()
 	a.scheduler.Start()
 	if a.certs == nil {
-		return a.fiber.Listen(a.addr)
+		return a.fiber.Listen(a.addr, _listenConfig)
 	}
 	return a.listenTLS()
 }
@@ -247,7 +249,7 @@ func (a *App) Listen() error {
 func (a *App) Shutdown(ctx context.Context) error {
 	err := a.fiber.ShutdownWithContext(ctx)
 	if a.certs != nil {
-		err = errors.Join(err, a.redirect.Shutdown(ctx))
+		err = errors.Join(err, a.redirect.ShutdownWithContext(ctx))
 		a.certs.Stop()
 	}
 	a.scheduler.Stop()

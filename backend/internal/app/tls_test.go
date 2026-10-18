@@ -161,8 +161,3 @@ func appPort(t *testing.T, a *App) int {
 }
 
 func itoaPort(n int) string { return strconv.Itoa(n) }
-
-func TestIgnoreClosed(t *testing.T) {
-	assert.NoError(t, ignoreClosed(http.ErrServerClosed))
-	assert.ErrorIs(t, ignoreClosed(net.ErrClosed), net.ErrClosed)
-}

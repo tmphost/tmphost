@@ -7,7 +7,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tmphost/tmphost/backend/internal/handler/api"
 )
@@ -38,7 +38,7 @@ func spaHandler(web fs.FS, basePath string) fiber.Handler {
 	if err == nil {
 		index = injectBasePath(index, basePath)
 	}
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		if strings.HasPrefix(c.Path(), api.RoutePrefix+"/") {
 			return fiber.ErrNotFound
 		}

@@ -2,12 +2,11 @@ package app
 
 import (
 	"net"
-	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	setupctrl "github.com/tmphost/tmphost/backend/internal/controller/setup"
 	mapper "github.com/tmphost/tmphost/backend/internal/mapper/api"
@@ -79,7 +78,7 @@ func isLocal(name string) bool {
 // hostRouter lets app host requests through, answers dynamic subdomains, and
 // refuses every other host.
 func hostRouter(h hosts) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		kind, siteID := h.classify(string(c.Request().Host()))
 		switch kind {
 		case hostApp:
@@ -94,26 +93,27 @@ func hostRouter(h hosts) fiber.Handler {
 	}
 }
 
-func sendJSONError(c *fiber.Ctx, status int, msg string) error {
+func sendJSONError(c fiber.Ctx, status int, msg string) error {
 	c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
 	return c.Status(status).Send(mapper.FromErrorToHTTPResponse(msg))
 }
 
-// httpsRedirect sends plain http requests for known hosts to https on port.
-func httpsRedirect(h hosts, port int) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		kind, _ := h.classify(r.Host)
-		if kind == hostUnknown {
-			http.Error(w, "host not allowed", http.StatusNotFound)
-			return
+// httpsRedirect is the plain http server while TLS is on: it sends
+// requests for known hosts to https on port.
+func httpsRedirect(h hosts, port int) *fiber.App {
+	f := fiber.New()
+	f.Use(func(c fiber.Ctx) error {
+		host := string(c.Request().Host())
+		if kind, _ := h.classify(host); kind == hostUnknown {
+			return sendJSONError(c, fiber.StatusNotFound, "host not allowed")
 		}
-		host := r.Host
 		if n, _, err := net.SplitHostPort(host); err == nil {
 			host = n
 		}
 		if port != 443 {
 			host = net.JoinHostPort(host, strconv.Itoa(port))
 		}
-		http.Redirect(w, r, "https://"+host+r.URL.RequestURI(), http.StatusMovedPermanently)
+		return c.Redirect().Status(fiber.StatusMovedPermanently).To("https://" + host + string(c.Request().RequestURI()))
 	})
+	return f
 }

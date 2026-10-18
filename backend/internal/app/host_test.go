@@ -6,7 +6,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -108,15 +108,15 @@ func TestHTTPSRedirect(t *testing.T) {
 	for _, tc := range cases {
 		req := httptest.NewRequest(http.MethodGet, "/x?y=1", nil)
 		req.Host = tc.host
-		rec := httptest.NewRecorder()
-		httpsRedirect(h, tc.port).ServeHTTP(rec, req)
-		assert.Equal(t, http.StatusMovedPermanently, rec.Code)
-		assert.Equal(t, tc.want, rec.Header().Get("Location"))
+		res, err := httpsRedirect(h, tc.port).Test(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusMovedPermanently, res.StatusCode)
+		assert.Equal(t, tc.want, res.Header.Get("Location"))
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Host = "evil.com"
-	rec := httptest.NewRecorder()
-	httpsRedirect(h, 443).ServeHTTP(rec, req)
-	assert.Equal(t, http.StatusNotFound, rec.Code)
+	res, err := httpsRedirect(h, 443).Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 }

@@ -1,6 +1,6 @@
 # tmphost.io
 
-Go (Fiber, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
+Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
 
 ## Sign-in and credits
 

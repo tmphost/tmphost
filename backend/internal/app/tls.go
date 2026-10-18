@@ -2,18 +2,13 @@ package app
 
 import (
 	"crypto/tls"
-	"errors"
 	"net"
-	"net/http"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"github.com/tmphost/tmphost/backend/internal/service/encryption"
 	"github.com/tmphost/tmphost/backend/internal/service/tlscert"
 )
-
-const _readHeaderTimeout = 10 * time.Second
 
 // setupTLS prepares the certificates and the http-to-https redirect.
 func (a *App) setupTLS(cfg Config, enc encryption.Service, h hosts) {
@@ -31,7 +26,7 @@ func (a *App) setupTLS(cfg Config, enc encryption.Service, h hosts) {
 	a.certs = certs
 	a.tlsPort = cfg.TLS.Port
 	a.tlsAddr = net.JoinHostPort("", strconv.Itoa(cfg.TLS.Port))
-	a.redirect = &http.Server{Addr: a.addr, Handler: httpsRedirect(h, cfg.TLS.Port), ReadHeaderTimeout: _readHeaderTimeout}
+	a.redirect = httpsRedirect(h, cfg.TLS.Port)
 }
 
 // listenTLS serves HTTPS on the TLS port and the redirect on the app port.
@@ -48,15 +43,7 @@ func (a *App) listenTLS() error {
 	}
 	// Whichever server stops first ends Listen: a failure, or Shutdown.
 	errs := make(chan error, 2)
-	go func() { errs <- ignoreClosed(a.redirect.ListenAndServe()) }()
-	go func() { errs <- a.fiber.Listener(ln) }()
+	go func() { errs <- a.redirect.Listen(a.addr, _listenConfig) }()
+	go func() { errs <- a.fiber.Listener(ln, _listenConfig) }()
 	return <-errs
-}
-
-// ignoreClosed drops the error a server returns once Shutdown closes it.
-func ignoreClosed(err error) error {
-	if errors.Is(err, http.ErrServerClosed) {
-		return nil
-	}
-	return err
 }

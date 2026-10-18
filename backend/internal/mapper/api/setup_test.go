@@ -6,17 +6,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
 )
 
-func runBody(t *testing.T, body string, fn func(c *fiber.Ctx)) {
+func runBody(t *testing.T, body string, fn func(c fiber.Ctx)) {
 	t.Helper()
 	app := fiber.New()
-	app.Post("/", func(c *fiber.Ctx) error {
+	app.Post("/", func(c fiber.Ctx) error {
 		fn(c)
 		return nil
 	})
@@ -32,7 +32,7 @@ func TestFromHTTPRequestToRootLoginRequestEntity(t *testing.T) {
 	}
 	for body, want := range cases {
 		var got *entity.RootLoginRequest
-		runBody(t, body, func(c *fiber.Ctx) { got = FromHTTPRequestToRootLoginRequestEntity(c) })
+		runBody(t, body, func(c fiber.Ctx) { got = FromHTTPRequestToRootLoginRequestEntity(c) })
 		assert.Equal(t, want, got, body)
 	}
 }
@@ -41,10 +41,10 @@ func TestFromHTTPRequestToAuthenticateRootRequestEntity(t *testing.T) {
 	var got *entity.AuthenticateRootRequest
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(&http.Cookie{Name: RootCookie, Value: "r"})
-	run(t, "/", req, func(c *fiber.Ctx) { got = FromHTTPRequestToAuthenticateRootRequestEntity(c) })
+	run(t, "/", req, func(c fiber.Ctx) { got = FromHTTPRequestToAuthenticateRootRequestEntity(c) })
 	assert.Equal(t, &entity.AuthenticateRootRequest{SessionToken: "r"}, got)
 
-	run(t, "/", httptest.NewRequest(http.MethodGet, "/", nil), func(c *fiber.Ctx) { got = FromHTTPRequestToAuthenticateRootRequestEntity(c) })
+	run(t, "/", httptest.NewRequest(http.MethodGet, "/", nil), func(c fiber.Ctx) { got = FromHTTPRequestToAuthenticateRootRequestEntity(c) })
 	assert.Nil(t, got)
 }
 
@@ -63,7 +63,7 @@ const _settingsJSON = `{
 
 func TestSettingsMapping(t *testing.T) {
 	var got *entity.UpdateSettingsRequest
-	runBody(t, `{"settings":`+_settingsJSON+`}`, func(c *fiber.Ctx) { got = FromHTTPRequestToUpdateSettingsRequestEntity(c) })
+	runBody(t, `{"settings":`+_settingsJSON+`}`, func(c fiber.Ctx) { got = FromHTTPRequestToUpdateSettingsRequestEntity(c) })
 	require.NotNil(t, got)
 	assert.Equal(t, 300, got.Settings.Credits.MonthlyGrant)
 	assert.Equal(t, "postgres://u:p@h/d", got.Settings.Database.Postgres.DSN)
@@ -79,7 +79,7 @@ func TestSettingsMapping(t *testing.T) {
 	// Entity -> view -> entity keeps the new sections too.
 	assert.Equal(t, got.Settings, FromSettingsViewToSettingsEntity(FromSettingsEntityToSettingsView(got.Settings)))
 
-	runBody(t, `nope`, func(c *fiber.Ctx) { got = FromHTTPRequestToUpdateSettingsRequestEntity(c) })
+	runBody(t, `nope`, func(c fiber.Ctx) { got = FromHTTPRequestToUpdateSettingsRequestEntity(c) })
 	assert.Nil(t, got)
 
 	// Entity -> view -> entity is lossless.

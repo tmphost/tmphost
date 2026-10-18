@@ -3,7 +3,7 @@ package api
 import (
 	"encoding/json"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
 	"github.com/tmphost/tmphost/backend/internal/data/view"
@@ -13,7 +13,7 @@ import (
 const RootCookie = "tmphost_root"
 
 // FromHTTPRequestToRootLoginRequestEntity reads POST /setup/login.
-func FromHTTPRequestToRootLoginRequestEntity(c *fiber.Ctx) *entity.RootLoginRequest {
+func FromHTTPRequestToRootLoginRequestEntity(c fiber.Ctx) *entity.RootLoginRequest {
 	var rq view.RootLoginRequest
 	if err := json.Unmarshal(c.Body(), &rq); err != nil || rq.Token == "" {
 		return nil
@@ -22,7 +22,7 @@ func FromHTTPRequestToRootLoginRequestEntity(c *fiber.Ctx) *entity.RootLoginRequ
 }
 
 // FromHTTPRequestToAuthenticateRootRequestEntity reads the root cookie.
-func FromHTTPRequestToAuthenticateRootRequestEntity(c *fiber.Ctx) *entity.AuthenticateRootRequest {
+func FromHTTPRequestToAuthenticateRootRequestEntity(c fiber.Ctx) *entity.AuthenticateRootRequest {
 	tok := c.Cookies(RootCookie)
 	if tok == "" {
 		return nil
@@ -31,7 +31,7 @@ func FromHTTPRequestToAuthenticateRootRequestEntity(c *fiber.Ctx) *entity.Authen
 }
 
 // FromHTTPRequestToUpdateSettingsRequestEntity reads PUT /setup/settings.
-func FromHTTPRequestToUpdateSettingsRequestEntity(c *fiber.Ctx) *entity.UpdateSettingsRequest {
+func FromHTTPRequestToUpdateSettingsRequestEntity(c fiber.Ctx) *entity.UpdateSettingsRequest {
 	var rq view.SettingsRequest
 	if err := json.Unmarshal(c.Body(), &rq); err != nil {
 		return nil
