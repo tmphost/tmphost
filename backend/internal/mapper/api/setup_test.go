@@ -50,8 +50,8 @@ func TestFromHTTPRequestToAuthenticateRootRequestEntity(t *testing.T) {
 
 const _settingsJSON = `{
 	"domain": {"appUrl": "https://app.tmphost.io", "sitesDomain": "tmphost.io"},
-	"tls": {"enabled": true, "port": 8443, "certificate": "cert", "privateKey": "key",
-		"lego": {"enabled": true, "email": "ops@tmphost.io", "cloudflareApiToken": "cf"}},
+	"tls": {"enabled": true, "port": 8443, "email": "ops@tmphost.io",
+		"lego": {"enabled": true, "cloudflareApiToken": "cf"}},
 	"credits": {"monthlyGrant": 300},
 	"database": {"driver": "postgres", "sqlite": {"dsn": "x.db"},
 		"postgres": {"dsn": "postgres://u:p@h/d"}},
@@ -70,8 +70,8 @@ func TestSettingsMapping(t *testing.T) {
 	assert.Equal(t, "hs", got.Settings.Auth.GitHub.ClientSecret)
 	assert.Equal(t, entity.DomainSettings{AppURL: "https://app.tmphost.io", SitesDomain: "tmphost.io"}, got.Settings.Domain)
 	assert.Equal(t, entity.TLSSettings{
-		Enabled: true, Port: 8443, Certificate: "cert", PrivateKey: "key",
-		Lego: entity.LegoSettings{Enabled: true, Email: "ops@tmphost.io", CloudflareAPIToken: "cf"},
+		Enabled: true, Port: 8443, Email: "ops@tmphost.io",
+		Lego: entity.LegoSettings{Enabled: true, CloudflareAPIToken: "cf"},
 	}, got.Settings.TLS)
 	assert.Equal(t, []entity.OAuthProviderSettings{{
 		ID: "okta", Name: "Okta", Icon: "<svg/>", ClientID: "o", ClientSecret: "os", AuthURL: "https://okta.example.com",
@@ -100,11 +100,11 @@ func TestFromSettingsResponseEntityToHTTPResponse(t *testing.T) {
 	body := string(FromUpdateSettingsResponseEntityToHTTPResponse(rs))
 	assert.Contains(t, body, `"monthlyGrant":7`)
 	assert.Contains(t, body, `"secretsSet":{"postgresDsn":true,"s3SecretAccessKey":true,"googleClientSecret":true,"githubClientSecret":true,`+
-		`"tlsPrivateKey":false,"cloudflareApiToken":false,"providerClientSecrets":{}}`)
+		`"cloudflareApiToken":false,"providerClientSecrets":{}}`)
 	assert.Contains(t, body, `"providers":[]`)
 
-	rs.SecretsSet = entity.SecretsSet{TLSPrivateKey: true, CloudflareAPIToken: true, ProviderClientSecrets: map[string]bool{"okta": true}}
+	rs.SecretsSet = entity.SecretsSet{CloudflareAPIToken: true, ProviderClientSecrets: map[string]bool{"okta": true}}
 	body = string(FromGetSettingsResponseEntityToHTTPResponse(rs))
-	assert.Contains(t, body, `"tlsPrivateKey":true,"cloudflareApiToken":true,"providerClientSecrets":{"okta":true}`)
+	assert.Contains(t, body, `"cloudflareApiToken":true,"providerClientSecrets":{"okta":true}`)
 	assert.Contains(t, body, `"restartRequired":true`)
 }

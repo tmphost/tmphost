@@ -48,7 +48,6 @@ func FromGetSettingsResponseEntityToHTTPResponse(rs *entity.GetSettingsResponse)
 			S3SecretAccessKey:     rs.SecretsSet.S3SecretAccessKey,
 			GoogleClientSecret:    rs.SecretsSet.GoogleClientSecret,
 			GitHubClientSecret:    rs.SecretsSet.GitHubClientSecret,
-			TLSPrivateKey:         rs.SecretsSet.TLSPrivateKey,
 			CloudflareAPIToken:    rs.SecretsSet.CloudflareAPIToken,
 			ProviderClientSecrets: providerSecretsSet(rs.SecretsSet.ProviderClientSecrets),
 		},
@@ -66,13 +65,11 @@ func FromSettingsViewToSettingsEntity(v view.Settings) entity.Settings {
 	return entity.Settings{
 		Domain: entity.DomainSettings{AppURL: v.Domain.AppURL, SitesDomain: v.Domain.SitesDomain},
 		TLS: entity.TLSSettings{
-			Enabled:     v.TLS.Enabled,
-			Port:        v.TLS.Port,
-			Certificate: v.TLS.Certificate,
-			PrivateKey:  v.TLS.PrivateKey,
+			Enabled: v.TLS.Enabled,
+			Port:    v.TLS.Port,
+			Email:   v.TLS.Email,
 			Lego: entity.LegoSettings{
 				Enabled:            v.TLS.Lego.Enabled,
-				Email:              v.TLS.Lego.Email,
 				CloudflareAPIToken: v.TLS.Lego.CloudflareAPIToken,
 			},
 		},
@@ -104,13 +101,11 @@ func FromSettingsEntityToSettingsView(e entity.Settings) view.Settings {
 	return view.Settings{
 		Domain: view.DomainSettings{AppURL: e.Domain.AppURL, SitesDomain: e.Domain.SitesDomain},
 		TLS: view.TLSSettings{
-			Enabled:     e.TLS.Enabled,
-			Port:        e.TLS.Port,
-			Certificate: e.TLS.Certificate,
-			PrivateKey:  e.TLS.PrivateKey,
+			Enabled: e.TLS.Enabled,
+			Port:    e.TLS.Port,
+			Email:   e.TLS.Email,
 			Lego: view.LegoSettings{
 				Enabled:            e.TLS.Lego.Enabled,
-				Email:              e.TLS.Lego.Email,
 				CloudflareAPIToken: e.TLS.Lego.CloudflareAPIToken,
 			},
 		},

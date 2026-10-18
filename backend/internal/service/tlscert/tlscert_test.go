@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,6 +25,8 @@ import (
 
 	"github.com/tmphost/tmphost/backend/internal/service/encryption"
 )
+
+const _site = "f0123456789a.example.com"
 
 func newPair(t *testing.T, validFor time.Duration, names ...string) ([]byte, []byte) {
 	t.Helper()
@@ -51,193 +54,239 @@ func newEnc(t *testing.T) encryption.Service {
 	return enc
 }
 
+// fakeObtainer stands in for the CA: it issues a self-signed certificate
+// for whatever is asked, unless err is set.
 type fakeObtainer struct {
-	res      *certificate.Resource
+	t        *testing.T
 	err      error
-	requests []certificate.ObtainRequest
-	called   chan struct{}
+	validFor time.Duration
+	garbage  bool
+	requests atomic.Int32
+	called   chan string
 }
 
 func (f *fakeObtainer) Obtain(req certificate.ObtainRequest) (*certificate.Resource, error) {
-	f.requests = append(f.requests, req)
+	f.requests.Add(1)
 	if f.called != nil {
-		f.called <- struct{}{}
+		f.called <- req.Domains[0]
 	}
-	return f.res, f.err
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.garbage {
+		return &certificate.Resource{Certificate: []byte("x"), PrivateKey: []byte("y")}, nil
+	}
+	validFor := f.validFor
+	if validFor == 0 {
+		validFor = 90 * 24 * time.Hour
+	}
+	certPEM, keyPEM := newPair(f.t, validFor, req.Domains...)
+	return &certificate.Resource{Certificate: certPEM, PrivateKey: keyPEM}, nil
 }
 
-func legoService(t *testing.T, obtainer certObtainer) *service {
+type testEnv struct {
+	s         *service
+	alpn, dns *fakeObtainer
+}
+
+func newTestService(t *testing.T, sites SitesConfig) *testEnv {
 	t.Helper()
-	s, err := New(Config{
-		AppHost:  "App.Example.com",
-		Lego:     LegoConfig{Enabled: true, Domain: "Example.com", CloudflareAPIToken: "cf"},
-		CacheDir: filepath.Join(t.TempDir(), "certs"),
-	}, newEnc(t))
-	require.NoError(t, err)
-	svc := s.(*service)
-	svc.newObtainer = func() (certObtainer, error) { return obtainer, nil }
-	return svc
+	if sites.Allow == nil {
+		sites.Allow = func(host string) bool { return host == _site }
+	}
+	s := New(Config{AppHost: "App.Example.com", Sites: sites, CacheDir: filepath.Join(t.TempDir(), "certs")}, newEnc(t)).(*service)
+	e := &testEnv{s: s, alpn: &fakeObtainer{t: t}, dns: &fakeObtainer{t: t}}
+	s.newObtainer = func(wildcard bool) (certObtainer, error) {
+		if wildcard {
+			return e.dns, nil
+		}
+		return e.alpn, nil
+	}
+	return e
 }
 
-func served(t *testing.T, s Service, name string) []string {
+func names(t *testing.T, s Service, name string) []string {
 	t.Helper()
 	c, err := s.GetCertificate(&tls.ClientHelloInfo{ServerName: name})
 	require.NoError(t, err)
 	return c.Leaf.DNSNames
 }
 
-func TestNew_AppCertificate(t *testing.T) {
-	certPEM, keyPEM := newPair(t, time.Hour, "app.example.com")
-	_, otherKey := newPair(t, time.Hour, "x")
-	_, err := New(Config{AppCertificate: string(certPEM), AppPrivateKey: string(otherKey)}, nil)
-	assert.ErrorContains(t, err, "not a matching PEM pair")
-	assert.NotContains(t, err.Error(), "PRIVATE KEY")
+func TestRefresh_AppHostOnly(t *testing.T) {
+	e := newTestService(t, SitesConfig{})
+	_, err := e.s.GetCertificate(&tls.ClientHelloInfo{ServerName: "app.example.com"})
+	assert.ErrorContains(t, err, "no certificate")
 
-	s, err := New(Config{AppHost: "APP.example.com", AppCertificate: string(certPEM), AppPrivateKey: string(keyPEM)}, nil)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"app.example.com"}, served(t, s, "App.Example.com"))
-	assert.Equal(t, []string{"app.example.com"}, served(t, s, ""), "no SNI means the app")
-	_, err = s.GetCertificate(&tls.ClientHelloInfo{ServerName: "evil.com"})
-	assert.ErrorContains(t, err, `no certificate for "evil.com"`)
+	e.s.refresh()
+	assert.Equal(t, []string{"app.example.com"}, names(t, e.s, "APP.example.com"))
+	assert.Equal(t, []string{"app.example.com"}, names(t, e.s, ""), "no SNI means the app")
+	_, err = e.s.GetCertificate(&tls.ClientHelloInfo{ServerName: _site})
+	assert.ErrorContains(t, err, "no certificate", "subdomains off")
 
-	// Without lego, Start and Stop do nothing.
-	s.Start()
-	s.Stop()
-	s.Stop()
-}
+	// Still valid: the CA is not asked again.
+	e.s.refresh()
+	assert.EqualValues(t, 1, e.alpn.requests.Load())
 
-func TestGetCertificate_WildcardUploadCoversSites(t *testing.T) {
-	certPEM, keyPEM := newPair(t, time.Hour, "*.example.com")
-	s, err := New(Config{AppHost: "app.example.com", AppCertificate: string(certPEM), AppPrivateKey: string(keyPEM)}, nil)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"*.example.com"}, served(t, s, "f0123456789a.example.com"))
-}
-
-func TestRefresh_ObtainsInstallsAndCaches(t *testing.T) {
-	certPEM, keyPEM := newPair(t, 90*24*time.Hour, "*.example.com")
-	obtainer := &fakeObtainer{res: &certificate.Resource{Certificate: certPEM, PrivateKey: keyPEM}}
-	s := legoService(t, obtainer)
-
-	_, err := s.GetCertificate(&tls.ClientHelloInfo{ServerName: "f0123456789a.example.com"})
-	assert.Error(t, err, "nothing yet")
-
-	s.refresh()
-	require.Len(t, obtainer.requests, 1)
-	assert.Equal(t, []string{"*.example.com"}, obtainer.requests[0].Domains)
-	assert.True(t, obtainer.requests[0].Bundle)
-	assert.Equal(t, []string{"*.example.com"}, served(t, s, "f0123456789a.example.com"))
-	assert.Equal(t, []string{"*.example.com"}, served(t, s, "app.example.com"), "covers the app host without an upload")
-
-	// The cache is encrypted and owner-only.
-	raw, err := os.ReadFile(s.cachePath())
+	// The cache is encrypted and owner-only, and a restart serves it.
+	path := filepath.Join(e.s.cfg.CacheDir, "app.example.com.cert")
+	raw, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.NotContains(t, string(raw), "PRIVATE KEY")
-	info, err := os.Stat(s.cachePath())
+	info, err := os.Stat(path)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 
-	// Still valid: the CA is not asked again.
-	s.refresh()
-	assert.Len(t, obtainer.requests, 1)
-
-	// A restart serves the cached certificate.
-	restarted := legoService(t, &fakeObtainer{err: errors.New("the CA must not be asked")})
-	restarted.cfg.CacheDir = s.cfg.CacheDir
-	require.NoError(t, restarted.loadCache())
-	assert.Equal(t, []string{"*.example.com"}, served(t, restarted, "f0123456789a.example.com"))
+	restarted := newTestService(t, SitesConfig{})
+	restarted.s.cfg.CacheDir = e.s.cfg.CacheDir
+	restarted.s.loadCache()
+	assert.Equal(t, []string{"app.example.com"}, names(t, restarted.s, "app.example.com"))
 }
 
-func TestRefresh_RenewsExpiringOrWrong(t *testing.T) {
-	for name, names := range map[string][]string{"expiring": {"*.example.com"}, "wrong domain": {"*.other.com"}} {
-		t.Run(name, func(t *testing.T) {
-			validFor := 90 * 24 * time.Hour
-			if name == "expiring" {
-				validFor = 24 * time.Hour
-			}
-			oldCert, oldKey := newPair(t, validFor, names...)
-			newCert, newKey := newPair(t, 90*24*time.Hour, "*.example.com")
-			obtainer := &fakeObtainer{res: &certificate.Resource{Certificate: newCert, PrivateKey: newKey}}
-			s := legoService(t, obtainer)
-			require.NoError(t, s.install(oldCert, oldKey))
-			s.refresh()
-			assert.Len(t, obtainer.requests, 1)
-		})
-	}
+func TestRefresh_RenewsExpiring(t *testing.T) {
+	e := newTestService(t, SitesConfig{})
+	e.alpn.validFor = 24 * time.Hour
+	e.s.refresh()
+	e.s.refresh()
+	assert.EqualValues(t, 2, e.alpn.requests.Load())
+}
+
+func TestRefresh_Wildcard(t *testing.T) {
+	e := newTestService(t, SitesConfig{Enabled: true, Domain: "Example.com", CloudflareAPIToken: "cf"})
+	e.s.refresh()
+	assert.EqualValues(t, 1, e.dns.requests.Load())
+	assert.Equal(t, []string{"*.example.com"}, names(t, e.s, _site))
+	assert.Equal(t, []string{"app.example.com"}, names(t, e.s, "app.example.com"))
+
+	// Restarted, the wildcard comes from the cache.
+	restarted := newTestService(t, SitesConfig{Enabled: true, Domain: "example.com", CloudflareAPIToken: "cf"})
+	restarted.s.cfg.CacheDir = e.s.cfg.CacheDir
+	restarted.s.loadCache()
+	assert.Equal(t, []string{"*.example.com"}, names(t, restarted.s, _site))
+	// With a wildcard, nothing is obtained per subdomain.
+	_, err := restarted.s.GetCertificate(&tls.ClientHelloInfo{ServerName: "fzzzzzzzzzzz.other.com"})
+	assert.Error(t, err)
+	assert.EqualValues(t, 0, restarted.alpn.requests.Load())
+}
+
+func TestGetCertificate_OnDemand(t *testing.T) {
+	e := newTestService(t, SitesConfig{Enabled: true, Domain: "example.com"})
+	assert.Equal(t, []string{_site}, names(t, e.s, _site))
+	assert.Equal(t, []string{_site}, names(t, e.s, _site))
+	assert.EqualValues(t, 1, e.alpn.requests.Load(), "obtained once")
+
+	_, err := e.s.GetCertificate(&tls.ClientHelloInfo{ServerName: "evil.example.com"})
+	assert.ErrorContains(t, err, "no certificate", "only allowed hosts go to the CA")
+	assert.EqualValues(t, 1, e.alpn.requests.Load())
+
+	// The daily check keeps the subdomain's certificate.
+	assert.ElementsMatch(t, []string{"app.example.com", _site}, e.s.names())
+}
+
+func TestGetCertificate_OnDemandBackoff(t *testing.T) {
+	e := newTestService(t, SitesConfig{Enabled: true, Domain: "example.com"})
+	now := time.Now()
+	e.s.now = func() time.Time { return now }
+	e.alpn.err = errors.New("refused")
+
+	_, err := e.s.GetCertificate(&tls.ClientHelloInfo{ServerName: _site})
+	assert.ErrorContains(t, err, "refused")
+	_, err = e.s.GetCertificate(&tls.ClientHelloInfo{ServerName: _site})
+	assert.ErrorContains(t, err, "failed recently")
+	assert.EqualValues(t, 1, e.alpn.requests.Load())
+
+	now = now.Add(_failureBackoff)
+	e.alpn.err = nil
+	assert.Equal(t, []string{_site}, names(t, e.s, _site))
+	assert.Empty(t, e.s.failed)
+}
+
+func TestChallenge(t *testing.T) {
+	e := newTestService(t, SitesConfig{})
+	hello := &tls.ClientHelloInfo{ServerName: "App.example.com", SupportedProtos: []string{ACMEProtocol}}
+	_, err := e.s.GetCertificate(hello)
+	assert.ErrorContains(t, err, "no ACME challenge")
+
+	require.NoError(t, e.s.Present("app.example.com", "token", "key-auth"))
+	cert, err := e.s.GetCertificate(hello)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"app.example.com"}, cert.Leaf.DNSNames)
+
+	require.NoError(t, e.s.CleanUp("app.example.com", "token", "key-auth"))
+	_, err = e.s.GetCertificate(hello)
+	assert.Error(t, err)
 }
 
 func TestRefresh_Failures(t *testing.T) {
 	t.Run("obtainer setup fails", func(t *testing.T) {
-		s := legoService(t, nil)
-		s.newObtainer = func() (certObtainer, error) { return nil, errors.New("no CA") }
-		s.refresh()
-		assert.Nil(t, s.obtainer)
-	})
-
-	t.Run("CA refuses", func(t *testing.T) {
-		s := legoService(t, &fakeObtainer{err: errors.New("refused")})
-		s.refresh()
-		assert.Nil(t, s.legoCert)
+		e := newTestService(t, SitesConfig{})
+		e.s.newObtainer = func(bool) (certObtainer, error) { return nil, errors.New("no CA") }
+		e.s.refresh()
+		assert.Empty(t, e.s.obtainers)
+		assert.Empty(t, e.s.certs)
 	})
 
 	t.Run("CA returns garbage", func(t *testing.T) {
-		s := legoService(t, &fakeObtainer{res: &certificate.Resource{Certificate: []byte("x"), PrivateKey: []byte("y")}})
-		s.refresh()
-		assert.Nil(t, s.legoCert)
+		e := newTestService(t, SitesConfig{})
+		e.alpn.garbage = true
+		e.s.refresh()
+		assert.Empty(t, e.s.certs)
 	})
 
-	t.Run("cache not writable", func(t *testing.T) {
-		certPEM, keyPEM := newPair(t, 90*24*time.Hour, "*.example.com")
-		s := legoService(t, &fakeObtainer{res: &certificate.Resource{Certificate: certPEM, PrivateKey: keyPEM}})
+	t.Run("cache dir not creatable", func(t *testing.T) {
+		e := newTestService(t, SitesConfig{})
 		notADir := filepath.Join(t.TempDir(), "file")
 		require.NoError(t, os.WriteFile(notADir, nil, 0o600))
-		s.cfg.CacheDir = filepath.Join(notADir, "certs")
-		s.refresh()
-		assert.Nil(t, s.legoCert, "not served when it cannot be cached")
+		e.s.cfg.CacheDir = filepath.Join(notADir, "certs")
+		e.s.refresh()
+		assert.Empty(t, e.s.certs, "not served when it cannot be cached")
 	})
 
 	t.Run("cache file not writable", func(t *testing.T) {
-		certPEM, keyPEM := newPair(t, 90*24*time.Hour, "*.example.com")
-		s := legoService(t, nil)
-		require.NoError(t, os.MkdirAll(s.cachePath()+".tmp", 0o700))
-		assert.Error(t, s.install(certPEM, keyPEM))
+		e := newTestService(t, SitesConfig{})
+		require.NoError(t, os.MkdirAll(filepath.Join(e.s.cfg.CacheDir, "app.example.com.cert.tmp"), 0o700))
+		e.s.refresh()
+		assert.Empty(t, e.s.certs)
 	})
 }
 
-func TestLoadCache_Failures(t *testing.T) {
-	s := legoService(t, nil)
-	assert.ErrorIs(t, s.loadCache(), os.ErrNotExist)
+func TestLoadCache_SkipsWhatItCannotOpen(t *testing.T) {
+	e := newTestService(t, SitesConfig{})
+	e.s.loadCache() // no directory yet
 
-	require.NoError(t, os.MkdirAll(s.cfg.CacheDir, 0o700))
-	write := func(plain string) {
-		require.NoError(t, os.WriteFile(s.cachePath(), s.enc.Encrypt([]byte(plain), s.cacheAAD()), 0o600))
+	dir := e.s.cfg.CacheDir
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	seal := func(name, plain string) {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, cacheFile(name)), e.s.enc.Encrypt([]byte(plain), cacheAAD(name)), 0o600))
 	}
-	require.NoError(t, os.WriteFile(s.cachePath(), []byte("tampered"), 0o600))
-	assert.ErrorIs(t, s.loadCache(), encryption.ErrDecrypt)
-	write("not json")
-	assert.Error(t, s.loadCache())
-	write(`{"certificate":"x","privateKey":"y"}`)
-	assert.Error(t, s.loadCache())
+	certPEM, keyPEM := newPair(t, time.Hour, "a.example.com")
+	pair := fmt.Sprintf(`{"certificate":%q,"privateKey":%q}`, certPEM, keyPEM)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.txt"), nil, 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, cacheFile("tampered.example.com")), []byte("x"), 0o600))
+	seal("json.example.com", "not json")
+	seal("pair.example.com", `{"certificate":"x","privateKey":"y"}`)
+	seal("other.example.com", pair) // a.example.com's certificate under another name
+	require.NoError(t, os.Mkdir(filepath.Join(dir, cacheFile("dir.example.com")), 0o700))
+	seal("a.example.com", pair)
 
-	// Another domain's cache does not open.
-	other := legoService(t, nil)
-	other.cfg.Lego.Domain = "other.com"
-	other.cfg.CacheDir = s.cfg.CacheDir
-	write(`{}`)
-	require.NoError(t, os.Rename(s.cachePath(), other.cachePath()))
-	assert.ErrorIs(t, other.loadCache(), encryption.ErrDecrypt)
+	e.s.loadCache()
+	assert.Len(t, e.s.certs, 1)
+	assert.NotNil(t, e.s.certs["a.example.com"])
+	assert.Equal(t, "_wildcard.example.com.cert", cacheFile("*.example.com"))
 }
 
 func TestStartChecksAtOnceAndStops(t *testing.T) {
-	obtainer := &fakeObtainer{err: errors.New("CA unavailable"), called: make(chan struct{}, 1)}
-	s := legoService(t, obtainer)
-	s.Start()
+	e := newTestService(t, SitesConfig{})
+	e.alpn.err = errors.New("CA unavailable")
+	e.alpn.called = make(chan string, 1)
+	e.s.Start()
 	select {
-	case <-obtainer.called:
+	case name := <-e.alpn.called:
+		assert.Equal(t, "app.example.com", name)
 	case <-time.After(5 * time.Second):
-		t.Fatal("the certificate was not checked at start")
+		t.Fatal("the certificates were not checked at start")
 	}
-	s.Stop()
-	s.Stop()
+	e.s.Stop()
+	e.s.Stop()
 }
 
 func TestCheckIntervalIsADayPlusJitter(t *testing.T) {
@@ -257,9 +306,10 @@ func TestLegoUser(t *testing.T) {
 
 // fakeACME is just enough of an ACME server for an account to register.
 // Orders are refused.
-func fakeACME(t *testing.T, accountStatus int) *httptest.Server {
+func fakeACME(t *testing.T, accountStatus int) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
 	var srv *httptest.Server
+	accounts := new(atomic.Int32)
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Replay-Nonce", fmt.Sprintf("nonce-%d", time.Now().UnixNano()))
 		switch r.URL.Path {
@@ -269,6 +319,7 @@ func fakeACME(t *testing.T, accountStatus int) *httptest.Server {
 		case "/nonce":
 			w.WriteHeader(http.StatusOK)
 		case "/account":
+			accounts.Add(1)
 			if accountStatus != http.StatusCreated {
 				w.Header().Set("Content-Type", "application/problem+json")
 				w.WriteHeader(accountStatus)
@@ -290,7 +341,7 @@ func fakeACME(t *testing.T, accountStatus int) *httptest.Server {
 	ca := filepath.Join(t.TempDir(), "ca.pem")
 	require.NoError(t, os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: srv.Certificate().Raw}), 0o600))
 	t.Setenv("LEGO_CA_CERTIFICATES", ca)
-	return srv
+	return srv, accounts
 }
 
 func useACMEDirectory(t *testing.T, url string) {
@@ -304,44 +355,48 @@ func useACMEDirectory(t *testing.T, url string) {
 	}
 }
 
-func acmeService(t *testing.T, email string) *service {
+func acmeService(t *testing.T) *service {
 	t.Helper()
-	s, err := New(Config{Lego: LegoConfig{Enabled: true, Domain: "example.com", Email: email, CloudflareAPIToken: "cf"}}, newEnc(t))
-	require.NoError(t, err)
-	return s.(*service)
+	return New(Config{AppHost: "app.example.com", Email: "ops@example.com", Sites: SitesConfig{
+		Enabled: true, Domain: "example.com", CloudflareAPIToken: "cf",
+	}}, newEnc(t)).(*service)
 }
 
-func TestObtain_SetsUpTheACMEClientOnce(t *testing.T) {
-	srv := fakeACME(t, http.StatusCreated)
+func TestObtain_OneAccountTwoClients(t *testing.T) {
+	srv, accounts := fakeACME(t, http.StatusCreated)
 	useACMEDirectory(t, srv.URL+"/directory")
-	s := acmeService(t, "")
+	s := acmeService(t)
 
-	_, err := s.obtain()
+	_, err := s.obtain("app.example.com")
 	assert.ErrorContains(t, err, "orders refused")
-	first := s.obtainer
-	require.NotNil(t, first)
-	_, _ = s.obtain()
-	assert.Same(t, first, s.obtainer)
+	_, err = s.obtain("*.example.com")
+	assert.ErrorContains(t, err, "orders refused")
+	assert.Len(t, s.obtainers, 2)
+	assert.EqualValues(t, 1, accounts.Load(), "the account is registered once")
+
+	first := s.obtainers[false]
+	_, _ = s.obtain("app.example.com")
+	assert.Same(t, first, s.obtainers[false], "clients are kept")
 }
 
 func TestNewACMEObtainer_Failures(t *testing.T) {
 	t.Run("directory unreachable", func(t *testing.T) {
-		srv := fakeACME(t, http.StatusCreated)
+		srv, _ := fakeACME(t, http.StatusCreated)
 		useACMEDirectory(t, srv.URL+"/no-directory-here")
-		_, err := acmeService(t, "ops@example.com").newACMEObtainer()
+		_, err := acmeService(t).newACMEObtainer(false)
 		assert.ErrorContains(t, err, "lego client")
 	})
 	t.Run("cloudflare misconfigured", func(t *testing.T) {
-		srv := fakeACME(t, http.StatusCreated)
+		srv, _ := fakeACME(t, http.StatusCreated)
 		useACMEDirectory(t, srv.URL+"/directory")
 		t.Setenv("CLOUDFLARE_TTL", "1")
-		_, err := acmeService(t, "").newACMEObtainer()
+		_, err := acmeService(t).newACMEObtainer(true)
 		assert.ErrorContains(t, err, "cloudflare DNS provider")
 	})
 	t.Run("registration refused", func(t *testing.T) {
-		srv := fakeACME(t, http.StatusBadRequest)
+		srv, _ := fakeACME(t, http.StatusBadRequest)
 		useACMEDirectory(t, srv.URL+"/directory")
-		_, err := acmeService(t, "").newACMEObtainer()
+		_, err := acmeService(t).newACMEObtainer(false)
 		assert.ErrorContains(t, err, "ACME registration")
 	})
 }

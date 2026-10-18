@@ -218,7 +218,10 @@ onMounted(refresh)
           <div class="flex items-start justify-between gap-4">
             <div>
               <h2 class="text-sm font-bold text-gray-900">TLS</h2>
-              <p class="text-xs text-gray-500 mb-4">Serve HTTPS directly; the app port redirects to it. Requires a restart.</p>
+              <p class="text-xs text-gray-500 mb-4">
+                Serve HTTPS directly with Let's Encrypt certificates, obtained and renewed automatically. Let's Encrypt must
+                reach this server on port 443 for the app host (and each subdomain). Requires a restart.
+              </p>
             </div>
             <label class="flex items-center gap-2 text-xs font-bold text-gray-700">
               <input v-model="form.tls.enabled" type="checkbox" class="accent-black" data-test="setup-tls-enabled" />
@@ -226,40 +229,15 @@ onMounted(refresh)
             </label>
           </div>
           <div class="space-y-4" :class="{ 'opacity-50': !form.tls.enabled }">
-            <div>
-              <label for="tls-port" :class="LABEL">HTTPS port</label>
-              <input id="tls-port" v-model.number="form.tls.port" type="number" min="1" max="65535" :class="[INPUT, 'max-w-[12rem]']" />
-            </div>
-
-            <div class="rounded-lg border border-gray-100 p-4">
-              <h3 class="text-xs font-bold text-gray-900">App certificate</h3>
-              <p class="text-[11px] text-gray-400 mb-3">
-                For the app host. Optional when lego is on and the app host is directly under the sites domain (e.g. app.tmphost.io).
-              </p>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label for="tls-cert" :class="LABEL">Certificate (PEM)</label>
-                  <textarea
-                    id="tls-cert"
-                    v-model="form.tls.certificate"
-                    rows="4"
-                    spellcheck="false"
-                    placeholder="-----BEGIN CERTIFICATE-----"
-                    :class="TEXTAREA"
-                  />
-                </div>
-                <div>
-                  <label for="tls-key" :class="LABEL">Private key (PEM)</label>
-                  <textarea
-                    id="tls-key"
-                    v-model="form.tls.privateKey"
-                    rows="4"
-                    spellcheck="false"
-                    autocomplete="off"
-                    :placeholder="secretPlaceholder(secretsSet.tlsPrivateKey)"
-                    :class="TEXTAREA"
-                  />
-                </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label for="tls-port" :class="LABEL">HTTPS port</label>
+                <input id="tls-port" v-model.number="form.tls.port" type="number" min="1" max="65535" :class="[INPUT, 'max-w-[12rem]']" />
+              </div>
+              <div>
+                <label for="tls-email" :class="LABEL">Let's Encrypt email</label>
+                <input id="tls-email" v-model="form.tls.email" type="email" placeholder="ops@tmphost.io" :class="INPUT" />
+                <p class="mt-1 text-[11px] text-gray-400">Optional. Let's Encrypt sends expiry notices here.</p>
               </div>
             </div>
 
@@ -268,7 +246,9 @@ onMounted(refresh)
                 <div>
                   <h3 class="text-xs font-bold text-gray-900">Dynamic subdomains (lego)</h3>
                   <p class="text-[11px] text-gray-400 mb-3">
-                    Let's Encrypt wildcard certificate for *.{{ form.domain.sitesDomain || '<sites domain>' }} via Cloudflare DNS-01, renewed automatically.
+                    Blank: each subdomain gets its own certificate on its first visit (Let's Encrypt allows about 50 new ones per
+                    week per domain). With a Cloudflare API token (Zone DNS edit): one wildcard
+                    *.{{ form.domain.sitesDomain || 'sites domain' }} certificate via DNS-01, no weekly limit.
                   </p>
                 </div>
                 <label class="flex items-center gap-2 text-xs font-bold text-gray-700">
@@ -278,23 +258,13 @@ onMounted(refresh)
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" :class="{ 'opacity-50': !form.tls.lego.enabled }">
                 <div>
-                  <label for="lego-email" :class="LABEL">ACME email</label>
-                  <input
-                    id="lego-email"
-                    v-model="form.tls.lego.email"
-                    type="email"
-                    :placeholder="`admin@${form.domain.sitesDomain || 'example.com'}`"
-                    :class="INPUT"
-                  />
-                </div>
-                <div>
-                  <label for="lego-token" :class="LABEL">Cloudflare API token</label>
+                  <label for="lego-token" :class="LABEL">Cloudflare API token (optional)</label>
                   <input
                     id="lego-token"
                     v-model="form.tls.lego.cloudflareApiToken"
                     type="password"
                     autocomplete="new-password"
-                    :placeholder="secretPlaceholder(secretsSet.cloudflareApiToken)"
+                    :placeholder="secretsSet.cloudflareApiToken ? secretPlaceholder(true) : 'Optional'"
                     :class="INPUT"
                   />
                 </div>

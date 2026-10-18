@@ -2,16 +2,8 @@ package setup
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
-	"math/big"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -22,26 +14,6 @@ import (
 )
 
 const _icon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>`
-
-// testPair is a self-signed PEM pair for names, expiring at notAfter.
-func testPair(t *testing.T, notAfter time.Time, names ...string) (string, string) {
-	t.Helper()
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	tmpl := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{CommonName: names[0]},
-		DNSNames:     names,
-		NotBefore:    time.Now().Add(-48 * time.Hour),
-		NotAfter:     notAfter,
-	}
-	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
-	require.NoError(t, err)
-	keyDER, err := x509.MarshalECPrivateKey(key)
-	require.NoError(t, err)
-	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})),
-		string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}))
-}
 
 func okta() entity.OAuthProviderSettings {
 	return entity.OAuthProviderSettings{
@@ -92,46 +64,22 @@ func TestUpdateSettings_DomainAndProviders(t *testing.T) {
 }
 
 func TestUpdateSettings_TLS(t *testing.T) {
-	appCert, appKey := testPair(t, time.Now().Add(90*24*time.Hour), "app.example.com")
 	tlsOn := func(s *entity.Settings) {
 		s.Domain = entity.DomainSettings{AppURL: "https://app.example.com", SitesDomain: "example.com"}
-		s.TLS = entity.TLSSettings{Enabled: true, Certificate: appCert, PrivateKey: appKey}
+		s.TLS = entity.TLSSettings{Enabled: true, Email: " ops@example.com "}
 	}
 
-	t.Run("uploaded certificate", func(t *testing.T) {
+	t.Run("automatic certificates", func(t *testing.T) {
 		e := newEnv(t)
 		next := defaults()
 		tlsOn(&next)
 		next.TLS.Port = 0
+		next.TLS.Lego = entity.LegoSettings{Enabled: true, CloudflareAPIToken: " cf "}
 		e.repo.EXPECT().SaveSettings(gomock.Any()).Return(nil).Times(2)
 		rs, err := update(t, e, next)
 		require.NoError(t, err)
 		assert.Equal(t, DefaultTLSPort, rs.Settings.TLS.Port)
-		assert.Empty(t, rs.Settings.TLS.PrivateKey)
-		assert.Equal(t, strings.TrimSpace(appCert), rs.Settings.TLS.Certificate)
-		assert.True(t, rs.SecretsSet.TLSPrivateKey)
-
-		// The key is kept while the certificate stays, and goes with it.
-		rs, err = update(t, e, rs.Settings)
-		require.NoError(t, err)
-		assert.Equal(t, strings.TrimSpace(appKey), e.ctrl.Current().TLS.PrivateKey)
-		cleared := rs.Settings
-		cleared.TLS = entity.TLSSettings{}
-		e.repo.EXPECT().SaveSettings(gomock.Any()).Return(nil)
-		rs, err = update(t, e, cleared)
-		require.NoError(t, err)
-		assert.False(t, rs.SecretsSet.TLSPrivateKey)
-	})
-
-	t.Run("lego covers the app host", func(t *testing.T) {
-		e := newEnv(t)
-		next := defaults()
-		tlsOn(&next)
-		next.TLS.Certificate, next.TLS.PrivateKey = "", ""
-		next.TLS.Lego = entity.LegoSettings{Enabled: true, Email: "ops@example.com", CloudflareAPIToken: "cf"}
-		e.repo.EXPECT().SaveSettings(gomock.Any()).Return(nil).Times(2)
-		rs, err := update(t, e, next)
-		require.NoError(t, err)
+		assert.Equal(t, "ops@example.com", rs.Settings.TLS.Email)
 		assert.Empty(t, rs.Settings.TLS.Lego.CloudflareAPIToken)
 		assert.True(t, rs.SecretsSet.CloudflareAPIToken)
 		_, err = update(t, e, rs.Settings)
@@ -139,48 +87,41 @@ func TestUpdateSettings_TLS(t *testing.T) {
 		assert.Equal(t, "cf", e.ctrl.Current().TLS.Lego.CloudflareAPIToken, "token kept")
 	})
 
-	t.Run("disabled TLS is not validated", func(t *testing.T) {
+	t.Run("lego without a Cloudflare token", func(t *testing.T) {
 		e := newEnv(t)
 		next := defaults()
-		next.TLS = entity.TLSSettings{Certificate: "junk", PrivateKey: "junk", Lego: entity.LegoSettings{Enabled: true}}
+		tlsOn(&next)
+		next.TLS.Lego = entity.LegoSettings{Enabled: true}
 		e.repo.EXPECT().SaveSettings(gomock.Any()).Return(nil)
 		_, err := update(t, e, next)
 		require.NoError(t, err)
 	})
 
-	expired, expiredKey := testPair(t, time.Now().Add(-time.Hour), "app.example.com")
-	other, otherKey := testPair(t, time.Now().Add(time.Hour), "other.example.com")
+	t.Run("disabled TLS is not validated", func(t *testing.T) {
+		e := newEnv(t)
+		next := defaults()
+		next.TLS = entity.TLSSettings{Email: "junk", Lego: entity.LegoSettings{Enabled: true}}
+		e.repo.EXPECT().SaveSettings(gomock.Any()).Return(nil)
+		_, err := update(t, e, next)
+		require.NoError(t, err)
+	})
+
 	cases := map[string]func(*entity.Settings){
-		"http app URL":  func(s *entity.Settings) { s.Domain.AppURL = "http://app.example.com" },
-		"port too high": func(s *entity.Settings) { s.TLS.Port = 70000 },
-		"lego without domain": func(s *entity.Settings) {
-			s.Domain.SitesDomain = ""
-			s.TLS.Lego = entity.LegoSettings{Enabled: true, CloudflareAPIToken: "cf"}
-		},
-		"lego without token": func(s *entity.Settings) { s.TLS.Lego = entity.LegoSettings{Enabled: true} },
-		"lego bad email": func(s *entity.Settings) {
-			s.TLS.Lego = entity.LegoSettings{Enabled: true, CloudflareAPIToken: "cf", Email: "not an email"}
-		},
-		"no certificate, no lego": func(s *entity.Settings) { s.TLS.Certificate, s.TLS.PrivateKey = "", "" },
-		"lego cannot cover a nested app host": func(s *entity.Settings) {
-			s.Domain.AppURL = "https://a.b.example.com"
-			s.TLS.Certificate, s.TLS.PrivateKey = "", ""
-			s.TLS.Lego = entity.LegoSettings{Enabled: true, CloudflareAPIToken: "cf"}
-		},
-		"certificate without key": func(s *entity.Settings) { s.TLS.PrivateKey = "" },
-		"mismatched key":          func(s *entity.Settings) { s.TLS.PrivateKey = otherKey },
-		"not covering app host":   func(s *entity.Settings) { s.TLS.Certificate, s.TLS.PrivateKey = other, otherKey },
-		"expired":                 func(s *entity.Settings) { s.TLS.Certificate, s.TLS.PrivateKey = expired, expiredKey },
+		"http app URL":        func(s *entity.Settings) { s.Domain.AppURL = "http://app.example.com" },
+		"IP app URL":          func(s *entity.Settings) { s.Domain.AppURL = "https://10.0.0.1" },
+		"localhost app URL":   func(s *entity.Settings) { s.Domain.AppURL = "https://localhost" },
+		"port too high":       func(s *entity.Settings) { s.TLS.Port = 70000 },
+		"bad email":           func(s *entity.Settings) { s.TLS.Email = "not an email" },
+		"lego without domain": func(s *entity.Settings) { s.Domain.SitesDomain = ""; s.TLS.Lego.Enabled = true },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
-			e := newEnvWith(t, func(s *entity.Settings) {})
+			e := newEnv(t)
 			next := defaults()
 			tlsOn(&next)
 			mutate(&next)
 			_, err := update(t, e, next)
 			assert.ErrorIs(t, err, ErrInvalidSettings)
-			assert.NotContains(t, err.Error(), "PRIVATE KEY")
 		})
 	}
 }
@@ -249,10 +190,6 @@ func TestHelpers(t *testing.T) {
 	assert.Equal(t, "okta-sso-2", ProviderID("  Okta SSO #2! "))
 	assert.Equal(t, "app.tmphost.io", AppHost("https://app.tmphost.io:8443"))
 	assert.Equal(t, "", AppHost("http://[::1"))
-	assert.True(t, LegoCovers("tmphost.io", "app.tmphost.io"))
-	assert.False(t, LegoCovers("tmphost.io", "a.b.tmphost.io"))
-	assert.False(t, LegoCovers("tmphost.io", "tmphost.io"))
-	assert.False(t, LegoCovers("", "app."))
 	assert.Equal(t, "not a url", normalizeAppURL("not a url"))
 	assert.Equal(t, "https://x.io:8443", normalizeAppURL("HTTPS://X.io:8443/"))
 }

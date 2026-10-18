@@ -26,17 +26,15 @@ type (
 
 	// TLSSettings is the tls section.
 	TLSSettings struct {
-		Enabled     bool         `json:"enabled"`
-		Port        int          `json:"port"`
-		Certificate string       `json:"certificate"`
-		PrivateKey  string       `json:"privateKey"`
-		Lego        LegoSettings `json:"lego"`
+		Enabled bool         `json:"enabled"`
+		Port    int          `json:"port"`
+		Email   string       `json:"email"`
+		Lego    LegoSettings `json:"lego"`
 	}
 
 	// LegoSettings is the tls.lego section.
 	LegoSettings struct {
 		Enabled            bool   `json:"enabled"`
-		Email              string `json:"email"`
 		CloudflareAPIToken string `json:"cloudflareApiToken"`
 	}
 
@@ -107,7 +105,6 @@ type (
 		S3SecretAccessKey     bool            `json:"s3SecretAccessKey"`
 		GoogleClientSecret    bool            `json:"googleClientSecret"`
 		GitHubClientSecret    bool            `json:"githubClientSecret"`
-		TLSPrivateKey         bool            `json:"tlsPrivateKey"`
 		CloudflareAPIToken    bool            `json:"cloudflareApiToken"`
 		ProviderClientSecrets map[string]bool `json:"providerClientSecrets"`
 	}

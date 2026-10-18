@@ -10,13 +10,11 @@ func FromSettingsModelToSettingsEntity(m model.Settings) entity.Settings {
 	return entity.Settings{
 		Domain: entity.DomainSettings{AppURL: m.Domain.AppURL, SitesDomain: m.Domain.SitesDomain},
 		TLS: entity.TLSSettings{
-			Enabled:     m.TLS.Enabled,
-			Port:        m.TLS.Port,
-			Certificate: m.TLS.Certificate,
-			PrivateKey:  m.TLS.PrivateKey,
+			Enabled: m.TLS.Enabled,
+			Port:    m.TLS.Port,
+			Email:   m.TLS.Email,
 			Lego: entity.LegoSettings{
 				Enabled:            m.TLS.Lego.Enabled,
-				Email:              m.TLS.Lego.Email,
 				CloudflareAPIToken: m.TLS.Lego.CloudflareAPIToken,
 			},
 		},
@@ -48,13 +46,11 @@ func FromSettingsEntityToSettingsModel(e entity.Settings) model.Settings {
 	return model.Settings{
 		Domain: model.DomainSettings{AppURL: e.Domain.AppURL, SitesDomain: e.Domain.SitesDomain},
 		TLS: model.TLSSettings{
-			Enabled:     e.TLS.Enabled,
-			Port:        e.TLS.Port,
-			Certificate: e.TLS.Certificate,
-			PrivateKey:  e.TLS.PrivateKey,
+			Enabled: e.TLS.Enabled,
+			Port:    e.TLS.Port,
+			Email:   e.TLS.Email,
 			Lego: model.LegoSettings{
 				Enabled:            e.TLS.Lego.Enabled,
-				Email:              e.TLS.Lego.Email,
 				CloudflareAPIToken: e.TLS.Lego.CloudflareAPIToken,
 			},
 		},

@@ -13,8 +13,8 @@ func TestSettingsRoundTrip(t *testing.T) {
 	e := entity.Settings{
 		Domain: entity.DomainSettings{AppURL: "https://app.tmphost.io", SitesDomain: "tmphost.io"},
 		TLS: entity.TLSSettings{
-			Enabled: true, Port: 443, Certificate: "cert", PrivateKey: "key",
-			Lego: entity.LegoSettings{Enabled: true, Email: "ops@tmphost.io", CloudflareAPIToken: "cf"},
+			Enabled: true, Port: 443, Email: "ops@tmphost.io",
+			Lego: entity.LegoSettings{Enabled: true, CloudflareAPIToken: "cf"},
 		},
 		Credits: entity.CreditSettings{MonthlyGrant: 300},
 		Database: entity.DatabaseSettings{

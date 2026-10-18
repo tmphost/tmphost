@@ -66,22 +66,22 @@ type (
 		SettingsFile string `yaml:"settingsFile"`
 	}
 
-	// TLSConfig is the "tls" section. The app certificate is set only on
-	// the setup page.
+	// TLSConfig is the "tls" section: HTTPS with Let's Encrypt
+	// certificates, obtained and renewed automatically.
 	TLSConfig struct {
 		Enabled bool `yaml:"enabled"`
 		// Port is the HTTPS port; the app port then redirects to it.
-		Port        int        `yaml:"port"`
-		Certificate string     `yaml:"-"`
-		PrivateKey  string     `yaml:"-"`
-		Lego        LegoConfig `yaml:"lego"`
+		Port int `yaml:"port"`
+		// Email is the optional ACME account email.
+		Email string     `yaml:"email"`
+		Lego  LegoConfig `yaml:"lego"`
 	}
 
-	// LegoConfig is the "tls.lego" section: a Let's Encrypt wildcard
-	// certificate for the dynamic subdomains, over Cloudflare DNS-01.
+	// LegoConfig is the "tls.lego" section: certificates for the dynamic
+	// subdomains, one per subdomain, or a wildcard over Cloudflare DNS-01
+	// when the token is set.
 	LegoConfig struct {
 		Enabled            bool   `yaml:"enabled"`
-		Email              string `yaml:"email"`
 		CloudflareAPIToken string `yaml:"cloudflareApiToken"`
 	}
 
@@ -222,9 +222,7 @@ func New(cfg Config, web fs.FS) (*App, error) {
 	// RenewalSchedule is a valid constant spec, so this cannot fail.
 	_ = a.scheduler.AddFunc(credit.RenewalSchedule, a.renewCredits)
 	if cfg.TLS.Enabled {
-		if err := a.setupTLS(cfg, enc, h); err != nil {
-			return nil, errors.Join(err, a.closeDB())
-		}
+		a.setupTLS(cfg, enc, h)
 	}
 	return a, nil
 }

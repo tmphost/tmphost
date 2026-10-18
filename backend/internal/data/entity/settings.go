@@ -22,24 +22,24 @@ type (
 		SitesDomain string
 	}
 
-	// TLSSettings make the server terminate HTTPS itself.
+	// TLSSettings make the server terminate HTTPS itself, with Let's
+	// Encrypt certificates it obtains and renews over the TLS-ALPN-01
+	// challenge.
 	TLSSettings struct {
 		Enabled bool
 		// Port is the HTTPS port; the app port then redirects to it.
 		Port int
-		// Certificate and PrivateKey are the PEM pair served for the app
-		// host. PrivateKey is a secret.
-		Certificate string
-		PrivateKey  string
-		Lego        LegoSettings
+		// Email is the optional ACME account email.
+		Email string
+		Lego  LegoSettings
 	}
 
-	// LegoSettings obtain a wildcard certificate for the dynamic subdomains
-	// from Let's Encrypt with lego, over the Cloudflare DNS-01 challenge.
+	// LegoSettings serve the dynamic subdomains over HTTPS. Without a
+	// Cloudflare API token each subdomain gets its own certificate on its
+	// first visit; with one, a single *.<sites domain> wildcard is obtained
+	// over the Cloudflare DNS-01 challenge.
 	LegoSettings struct {
-		Enabled bool
-		// Email is the ACME account email; admin@<sites domain> when empty.
-		Email              string
+		Enabled            bool
 		CloudflareAPIToken string
 	}
 
@@ -119,7 +119,6 @@ type (
 		S3SecretAccessKey  bool
 		GoogleClientSecret bool
 		GitHubClientSecret bool
-		TLSPrivateKey      bool
 		CloudflareAPIToken bool
 		// ProviderClientSecrets is keyed by custom provider ID.
 		ProviderClientSecrets map[string]bool

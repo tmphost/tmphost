@@ -45,12 +45,14 @@ apply after a restart:
   (e.g. `tmphost.io`) whose dynamic subdomains `f<11 characters>.<sites domain>`
   the server answers. Other hosts get a 404; localhost always reaches the app.
 - **TLS**: serve HTTPS on its own port (default 443) and redirect the app port
-  to it. The app host uses an uploaded PEM certificate and key; the dynamic
-  subdomains use a Let's Encrypt wildcard certificate (`*.<sites domain>`)
-  obtained with lego over the Cloudflare DNS-01 challenge (can be switched
-  off), renewed when under 30 days and cached encrypted next to the settings
-  file. When lego is on and the app host is directly under the sites domain,
-  the wildcard covers it and no upload is needed.
+  to it. Certificates come from Let's Encrypt automatically (lego, TLS-ALPN-01
+  challenge, so Let's Encrypt must reach the server on port 443), are renewed
+  when under 30 days and cached encrypted next to the settings file.
+  - App host: always gets its own certificate.
+  - Dynamic subdomains (switchable): each gets its own certificate on its first
+    visit (Let's Encrypt allows about 50 new ones per week per registered
+    domain), or, with an optional Cloudflare API token, one `*.<sites domain>`
+    wildcard over DNS-01 with no such limit.
 - **Database** (SQLite or PostgreSQL) and **S3 storage**.
 - **Sign-in providers**: Google, GitHub, and any number of custom OpenID
   Connect providers (name, SVG icon, client ID, client secret, auth URL = the

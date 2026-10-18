@@ -48,6 +48,9 @@ func TestHostsClassify(t *testing.T) {
 		assert.Equal(t, hostSite, kind)
 	}
 
+	assert.True(t, h.isSite("f0123456789a.example.com"))
+	assert.False(t, h.isSite("app.example.com"))
+
 	// No sites domain, no dynamic subdomains.
 	kind, _ := newHosts("https://app.example.com", "").classify("f0123456789a.example.com")
 	assert.Equal(t, hostUnknown, kind)

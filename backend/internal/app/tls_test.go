@@ -8,10 +8,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"math/big"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"testing/fstest"
@@ -60,8 +63,8 @@ func freePort(t *testing.T) int {
 	return l.Addr().(*net.TCPAddr).Port
 }
 
-// tlsConfig saves TLS settings the way the setup page does, since the app
-// certificate never comes from the config file.
+// tlsConfig saves TLS settings the way the setup page does, and caches a
+// certificate for the app host as if Let's Encrypt had issued it.
 func tlsConfig(t *testing.T, certPEM, keyPEM string) Config {
 	t.Helper()
 	cfg := testConfig(t)
@@ -70,18 +73,17 @@ func tlsConfig(t *testing.T, certPEM, keyPEM string) Config {
 	s.Domain.AppURL = "https://app.example.com"
 	s.TLS.Enabled = true
 	s.TLS.Port = freePort(t)
-	s.TLS.Certificate, s.TLS.PrivateKey = certPEM, keyPEM
 	enc, err := encryption.New(cfg.MasterKey)
 	require.NoError(t, err)
 	require.NoError(t, repository.NewSettingsRepository(cfg.App.SettingsFile, enc).SaveSettings(mappermodel.FromSettingsEntityToSettingsModel(s)))
-	return cfg
-}
 
-func TestNew_TLSBadCertificate(t *testing.T) {
-	certPEM, _, _ := selfSigned(t, "app.example.com")
-	_, otherKey, _ := selfSigned(t, "app.example.com")
-	_, err := New(tlsConfig(t, certPEM, otherKey), fstest.MapFS{})
-	assert.ErrorContains(t, err, "not a matching PEM pair")
+	dir := filepath.Join(filepath.Dir(cfg.App.SettingsFile), "certs")
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	plain, err := json.Marshal(map[string]string{"certificate": certPEM, "privateKey": keyPEM})
+	require.NoError(t, err)
+	sealed := enc.Encrypt(plain, []byte("tmphost.io/tls/v1/app.example.com"))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "app.example.com.cert"), sealed, 0o600))
+	return cfg
 }
 
 func TestListenTLS(t *testing.T) {

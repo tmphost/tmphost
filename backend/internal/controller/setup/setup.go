@@ -8,17 +8,15 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
+	"net"
 	"net/mail"
 	"net/url"
 	"reflect"
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -182,7 +180,6 @@ func (c *controller) response() *entity.GetSettingsResponse {
 	public.Storage.S3.SecretAccessKey = ""
 	public.Auth.Google.ClientSecret = ""
 	public.Auth.GitHub.ClientSecret = ""
-	public.TLS.PrivateKey = ""
 	public.TLS.Lego.CloudflareAPIToken = ""
 	// Copy before blanking, so the stored providers keep their secrets.
 	public.Auth.Providers = append([]entity.OAuthProviderSettings(nil), c.current.Auth.Providers...)
@@ -199,7 +196,6 @@ func (c *controller) response() *entity.GetSettingsResponse {
 			S3SecretAccessKey:     c.current.Storage.S3.SecretAccessKey != "",
 			GoogleClientSecret:    c.current.Auth.Google.ClientSecret != "",
 			GitHubClientSecret:    c.current.Auth.GitHub.ClientSecret != "",
-			TLSPrivateKey:         c.current.TLS.PrivateKey != "",
 			CloudflareAPIToken:    c.current.TLS.Lego.CloudflareAPIToken != "",
 			ProviderClientSecrets: providerSecrets,
 		},
@@ -243,12 +239,6 @@ func keepSecrets(next *entity.Settings, current entity.Settings) {
 		p := &next.Auth.Providers[i]
 		keep(&p.ClientSecret, saved[p.ID])
 	}
-	// The private key belongs to its certificate.
-	if next.TLS.Certificate == "" {
-		next.TLS.PrivateKey = ""
-	} else {
-		keep(&next.TLS.PrivateKey, current.TLS.PrivateKey)
-	}
 	keep(&next.TLS.Lego.CloudflareAPIToken, current.TLS.Lego.CloudflareAPIToken)
 }
 
@@ -266,9 +256,7 @@ func normalize(s entity.Settings) entity.Settings {
 	if s.TLS.Port == 0 {
 		s.TLS.Port = DefaultTLSPort
 	}
-	s.TLS.Certificate = t(s.TLS.Certificate)
-	s.TLS.PrivateKey = t(s.TLS.PrivateKey)
-	s.TLS.Lego.Email = t(s.TLS.Lego.Email)
+	s.TLS.Email = t(s.TLS.Email)
 	s.TLS.Lego.CloudflareAPIToken = t(s.TLS.Lego.CloudflareAPIToken)
 	// Normalize a copy, so the caller's slice is left as it was. No
 	// providers is always nil, so settings compare equal either way.
@@ -311,12 +299,6 @@ func AppHost(appURL string) string {
 	return u.Hostname()
 }
 
-// LegoCovers reports whether the wildcard certificate for *.sitesDomain
-// covers host: a wildcard matches exactly one label.
-func LegoCovers(sitesDomain, host string) bool {
-	label, ok := strings.CutSuffix(host, "."+sitesDomain)
-	return ok && sitesDomain != "" && label != "" && !strings.Contains(label, ".")
-}
 
 func validate(s entity.Settings) error {
 	if err := validateDomain(s.Domain); err != nil {
@@ -388,44 +370,19 @@ func validateTLS(s entity.Settings) error {
 	if !strings.HasPrefix(s.Domain.AppURL, "https://") {
 		return errors.New("with TLS enabled the app URL must be https://")
 	}
+	if net.ParseIP(AppHost(s.Domain.AppURL)) != nil || !strings.Contains(AppHost(s.Domain.AppURL), ".") {
+		return errors.New("with TLS enabled the app URL needs a public domain name; Let's Encrypt does not issue for IPs or localhost")
+	}
 	if t.Port < 1 || t.Port > 65535 {
 		return errors.New("TLS port must be between 1 and 65535")
 	}
-	appHost := AppHost(s.Domain.AppURL)
-	if t.Lego.Enabled {
-		if s.Domain.SitesDomain == "" {
-			return errors.New("lego needs a sites domain to issue *.<sites domain> for")
-		}
-		if t.Lego.CloudflareAPIToken == "" {
-			return errors.New("lego needs a Cloudflare API token for the DNS-01 challenge")
-		}
-		if t.Lego.Email != "" {
-			if _, err := mail.ParseAddress(t.Lego.Email); err != nil {
-				return errors.New("lego email is not a valid email address")
-			}
+	if t.Email != "" {
+		if _, err := mail.ParseAddress(t.Email); err != nil {
+			return errors.New("Let's Encrypt email is not a valid email address")
 		}
 	}
-	if t.Certificate == "" {
-		if t.Lego.Enabled && LegoCovers(s.Domain.SitesDomain, appHost) {
-			return nil
-		}
-		return fmt.Errorf("TLS needs a certificate for %s (or lego, when the app host is directly under the sites domain)", appHost)
-	}
-	if t.PrivateKey == "" {
-		return errors.New("TLS certificate needs its private key")
-	}
-	// The parse errors are not echoed: they could quote the private key.
-	pair, err := tls.X509KeyPair([]byte(t.Certificate), []byte(t.PrivateKey))
-	if err != nil {
-		return errors.New("TLS certificate and private key are not a matching PEM pair")
-	}
-	// X509KeyPair has parsed the leaf already, so this cannot fail.
-	leaf, _ := x509.ParseCertificate(pair.Certificate[0])
-	if leaf.VerifyHostname(appHost) != nil {
-		return fmt.Errorf("TLS certificate does not cover %s", appHost)
-	}
-	if time.Now().After(leaf.NotAfter) {
-		return errors.New("TLS certificate has expired")
+	if t.Lego.Enabled && s.Domain.SitesDomain == "" {
+		return errors.New("dynamic subdomain certificates need a sites domain")
 	}
 	return nil
 }

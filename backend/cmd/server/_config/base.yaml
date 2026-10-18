@@ -14,14 +14,17 @@ app:
   basePath: ${TMPHOST_BASE_PATH:}
   cookieSecure: ${TMPHOST_COOKIE_SECURE:false}
   settingsFile: ${TMPHOST_SETTINGS_FILE:./_storage/settings.json}
-# HTTPS terminated by the server. The app certificate is uploaded on /setup;
-# lego obtains *.<sitesDomain> from Let's Encrypt over Cloudflare DNS-01.
+# HTTPS terminated by the server with Let's Encrypt certificates, obtained
+# and renewed automatically over TLS-ALPN-01 (Let's Encrypt must reach the
+# HTTPS port as 443). lego also covers the dynamic subdomains: one certificate
+# per subdomain on its first visit, or, with a Cloudflare API token, a single
+# *.<sitesDomain> wildcard over DNS-01.
 tls:
   enabled: ${TMPHOST_TLS_ENABLED:false}
   port: ${TMPHOST_TLS_PORT:443}
+  email: ${TMPHOST_TLS_EMAIL:}
   lego:
     enabled: ${TMPHOST_TLS_LEGO_ENABLED:false}
-    email: ${TMPHOST_TLS_LEGO_EMAIL:}
     cloudflareApiToken: ${TMPHOST_TLS_LEGO_CLOUDFLARE_API_TOKEN:}
 auth:
   jwtSecret: ${TMPHOST_AUTH_JWT_SECRET}

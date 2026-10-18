@@ -16,7 +16,7 @@ function state(overrides = {}) {
   return {
     settings: {
       domain: { appUrl: 'https://app.tmphost.io/', sitesDomain: 'tmphost.io' },
-      tls: { enabled: false, port: 443, certificate: '', privateKey: '', lego: { enabled: false, email: '', cloudflareApiToken: '' } },
+      tls: { enabled: false, port: 443, email: '', lego: { enabled: false, cloudflareApiToken: '' } },
       credits: { monthlyGrant: 250 },
       database: {
         driver: 'sqlite',
@@ -35,7 +35,6 @@ function state(overrides = {}) {
       s3SecretAccessKey: false,
       googleClientSecret: true,
       githubClientSecret: false,
-      tlsPrivateKey: true,
       cloudflareApiToken: false,
       providerClientSecrets: { 'my-okta': true },
     },
@@ -194,20 +193,18 @@ describe('SetupView', () => {
     const wrapper = await mountView()
     const tls = wrapper.find('[data-test="setup-tls"]')
     expect(tls.find('.opacity-50').exists()).toBe(true)
-    expect(wrapper.find('#tls-key').attributes('placeholder')).toContain('saved')
-    expect(wrapper.find('#lego-token').attributes('placeholder')).toBe('Not set')
-    expect(wrapper.find('#lego-email').attributes('placeholder')).toBe('admin@tmphost.io')
+    expect(wrapper.find('#tls-cert').exists()).toBe(false)
+    expect(wrapper.find('#lego-token').attributes('placeholder')).toBe('Optional')
     expect(tls.text()).toContain('*.tmphost.io')
 
     await wrapper.find('#app-url').setValue('https://example.org')
     await wrapper.find('#sites-domain').setValue('')
-    expect(wrapper.find('#lego-email').attributes('placeholder')).toBe('admin@example.com')
-    expect(tls.text()).toContain('*.<sites domain>')
+    expect(tls.text()).toContain('*.sites domain')
     await wrapper.find('[data-test="setup-tls-enabled"]').setValue(true)
     await wrapper.find('[data-test="setup-lego-enabled"]').setValue(true)
     expect(tls.find('.opacity-50').exists()).toBe(false)
     const values = {
-      '#tls-port': '8443', '#tls-cert': 'CERT', '#tls-key': 'KEY', '#lego-email': 'ops@example.org', '#lego-token': 'cf',
+      '#tls-port': '8443', '#tls-email': 'ops@example.org', '#lego-token': 'cf',
     }
     for (const [sel, value] of Object.entries(values)) await wrapper.find(sel).setValue(value)
     await wrapper.find('[data-test="setup-form"]').trigger('submit')
@@ -215,8 +212,16 @@ describe('SetupView', () => {
 
     expect(saveSettings.mock.calls[0][0]).toMatchObject({
       domain: { appUrl: 'https://example.org', sitesDomain: '' },
-      tls: { enabled: true, port: 8443, certificate: 'CERT', privateKey: 'KEY', lego: { enabled: true, email: 'ops@example.org', cloudflareApiToken: 'cf' } },
+      tls: { enabled: true, port: 8443, email: 'ops@example.org', lego: { enabled: true, cloudflareApiToken: 'cf' } },
     })
+  })
+
+  it('shows a saved Cloudflare token as kept', async () => {
+    const saved = state()
+    saved.secretsSet.cloudflareApiToken = true
+    fetchSettings.mockResolvedValue(saved)
+    const wrapper = await mountView()
+    expect(wrapper.find('#lego-token').attributes('placeholder')).toContain('saved')
   })
 
   it('adds, edits, uploads icons for and removes custom providers', async () => {

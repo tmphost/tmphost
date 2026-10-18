@@ -65,6 +65,13 @@ func (h hosts) classify(host string) (hostKind, string) {
 	return hostUnknown, ""
 }
 
+// isSite reports whether host is a dynamic subdomain. Until hosting lands,
+// any well-formed one qualifies for a certificate.
+func (h hosts) isSite(host string) bool {
+	kind, _ := h.classify(host)
+	return kind == hostSite
+}
+
 func isLocal(name string) bool {
 	return name == "localhost" || name == "127.0.0.1" || name == "::1"
 }

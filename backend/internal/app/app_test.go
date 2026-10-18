@@ -230,7 +230,7 @@ func TestSettingsFromConfig(t *testing.T) {
 	cfg.Postgres = PostgresConfig{Enabled: true, DSN: "postgres://u:p@h:1/d"}
 	cfg.S3 = S3Config{Enabled: true, Endpoint: "e", Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", UsePathStyle: true}
 	cfg.App.SitesDomain = "tmphost.io"
-	cfg.TLS = TLSConfig{Enabled: true, Lego: LegoConfig{Enabled: true, Email: "e@x.io", CloudflareAPIToken: "cf"}}
+	cfg.TLS = TLSConfig{Enabled: true, Email: "e@x.io", Lego: LegoConfig{Enabled: true, CloudflareAPIToken: "cf"}}
 	s := settingsFromConfig(cfg)
 	assert.Equal(t, 443, s.TLS.Port, "default TLS port")
 	assert.Equal(t, 42, s.Credits.MonthlyGrant)
