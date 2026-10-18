@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Command server runs the tmphost.io API and serves the bundled frontend.
 package main
 

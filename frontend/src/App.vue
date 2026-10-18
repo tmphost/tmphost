@@ -1,8 +1,14 @@
+<!--
+  Copyright 2026 Contextual, Inc. https://tmphost.io
+  This notice may not be modified or removed.
+  SPDX-License-Identifier: AGPL-3.0-only
+-->
+
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppSidebar from './components/AppSidebar.vue'
-import Toast from './components/Toast.vue'
+import ToastStack from './components/ToastStack.vue'
 import { fetchUser, logout } from './api'
 import { useToasts } from './composables/useToasts'
 
@@ -87,6 +93,6 @@ watch(
       </main>
     </div>
 
-    <Toast />
+    <ToastStack />
   </div>
 </template>

@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package credit
 
 import (
@@ -15,8 +19,8 @@ import (
 )
 
 var (
-	_now     = time.Date(2026, 10, 18, 0, 0, 0, 0, time.UTC)
-	_errBoom = errors.New("boom")
+	_now    = time.Date(2026, 10, 18, 0, 0, 0, 0, time.UTC)
+	errBoom = errors.New("boom")
 )
 
 func newController(t *testing.T, batch int) (Controller, *mockrepo.MockUserRepository) {
@@ -85,9 +89,9 @@ func TestRenewDueCredits_Errors(t *testing.T) {
 
 	t.Run("list", func(t *testing.T) {
 		c, users := newController(t, 2)
-		users.EXPECT().ListUsersDueForCreditRenewal(ctx, _now, 2).Return(nil, _errBoom)
+		users.EXPECT().ListUsersDueForCreditRenewal(ctx, _now, 2).Return(nil, errBoom)
 		rs, err := c.RenewDueCredits(ctx)
-		assert.ErrorIs(t, err, _errBoom)
+		assert.ErrorIs(t, err, errBoom)
 		assert.Equal(t, 0, rs.Renewed)
 	})
 
@@ -95,9 +99,9 @@ func TestRenewDueCredits_Errors(t *testing.T) {
 		c, users := newController(t, 2)
 		users.EXPECT().ListUsersDueForCreditRenewal(ctx, _now, 2).Return([]model.User{{ID: 1, CreditsRenewAt: _now}, {ID: 2, CreditsRenewAt: _now}}, nil)
 		users.EXPECT().UpdateUserCredits(ctx, int64(1), DefaultMonthlyGrant, gomock.Any()).Return(nil)
-		users.EXPECT().UpdateUserCredits(ctx, int64(2), DefaultMonthlyGrant, gomock.Any()).Return(_errBoom)
+		users.EXPECT().UpdateUserCredits(ctx, int64(2), DefaultMonthlyGrant, gomock.Any()).Return(errBoom)
 		rs, err := c.RenewDueCredits(ctx)
-		assert.ErrorIs(t, err, _errBoom)
+		assert.ErrorIs(t, err, errBoom)
 		assert.Equal(t, 1, rs.Renewed)
 	})
 }

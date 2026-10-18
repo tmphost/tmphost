@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 const DAY_MS = 24 * 60 * 60 * 1000
 
 // creditsPercent is the share of the monthly grant still available (0-100).

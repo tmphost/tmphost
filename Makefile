@@ -1,4 +1,4 @@
-.PHONY: build frontend backend test test-backend test-frontend coverage mocks docker dev-backend dev-frontend
+.PHONY: build frontend backend test test-backend test-frontend coverage mocks lint lint-backend lint-frontend copyright copyright-fix docker dev-backend dev-frontend
 
 PUBLIC := backend/cmd/server/public
 
@@ -26,6 +26,22 @@ docker:
 
 mocks:
 	cd backend && go generate ./...
+
+lint: lint-backend lint-frontend copyright
+
+# Needs golangci-lint v2 on PATH; CI pins the version in .github/workflows/lint.yml.
+lint-backend:
+	cd backend && golangci-lint run ./...
+
+lint-frontend:
+	cd frontend && npm run lint
+
+# Every source file carries the copyright notice; `make copyright-fix` adds it.
+copyright:
+	node frontend/scripts/copyright.mjs
+
+copyright-fix:
+	node frontend/scripts/copyright.mjs --fix
 
 # Run both in separate terminals; open http://localhost:5173.
 dev-backend:

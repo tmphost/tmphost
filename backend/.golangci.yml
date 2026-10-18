@@ -1,0 +1,12 @@
+version: "2"
+
+linters:
+  # The standard set: errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard
+  exclusions:
+    # Generated files (mocks) are rewritten by `make mocks`, not by hand.
+    generated: strict
+
+formatters:
+  enable:
+    - gofmt

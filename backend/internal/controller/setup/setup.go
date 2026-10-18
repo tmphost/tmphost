@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package setup implements the root-only setup page: root sign-in with the
 // root access token, and reading and changing the server settings.
 package setup

@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import { createRouter } from 'vue-router'
@@ -32,7 +36,7 @@ export const routes = [
 
 export function createAuthGuard(fetchUserFn = fetchUser) {
   return async function authGuard(to) {
-    let user = null
+    let user
     try {
       user = await fetchUserFn()
     } catch {

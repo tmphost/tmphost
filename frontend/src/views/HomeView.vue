@@ -1,3 +1,9 @@
+<!--
+  Copyright 2026 Contextual, Inc. https://tmphost.io
+  This notice may not be modified or removed.
+  SPDX-License-Identifier: AGPL-3.0-only
+-->
+
 <template>
   <div class="flex flex-col">
     <header class="px-4 pb-4 border-b border-gray-100">
