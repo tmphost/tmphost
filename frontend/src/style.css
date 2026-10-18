@@ -1,0 +1,20 @@
+@import 'tailwindcss';
+@source './';
+@import '@fontsource-variable/inter';
+
+@theme {
+  --font-inter: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+html,
+body {
+  @apply bg-zinc-50 text-gray-900 antialiased;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
