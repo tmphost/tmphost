@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package oauth
 
 import (
@@ -112,7 +116,7 @@ func (p *oidcProvider) discover(ctx context.Context) (*oauth2.Config, string, er
 	if err != nil {
 		return nil, "", fmt.Errorf("%s discovery: %w", p.params.Name, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, "", fmt.Errorf("%s discovery: status %d", p.params.Name, resp.StatusCode)
 	}

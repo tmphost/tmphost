@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package tlscert serves Let's Encrypt certificates, obtained and renewed
 // with lego: one for the app host, and for the dynamic subdomains either one
 // per subdomain on its first visit, or a single wildcard when a Cloudflare
@@ -473,6 +477,6 @@ func (s *service) saveCache(name string, certPEM, keyPEM []byte) error {
 	if err := os.WriteFile(tmp, s.enc.Encrypt(plain, cacheAAD(name)), 0o600); err != nil {
 		return err
 	}
-	defer os.Remove(tmp)
+	defer func() { _ = os.Remove(tmp) }()
 	return os.Rename(tmp, path)
 }

@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package main
 
 import (
@@ -112,7 +116,7 @@ func TestRun_Errors(t *testing.T) {
 	t.Run("listen fails", func(t *testing.T) {
 		l, err := net.Listen("tcp", ":0")
 		require.NoError(t, err)
-		defer l.Close()
+		defer func() { _ = l.Close() }()
 		env := envFor(t, l.Addr().(*net.TCPAddr).Port)
 		assert.Error(t, run(context.Background(), func(k string) string { return env[k] }))
 	})

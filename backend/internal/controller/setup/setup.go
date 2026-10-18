@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package setup implements the root-only setup page: root sign-in with the
 // root access token, and reading and changing the server settings.
 package setup
@@ -299,7 +303,6 @@ func AppHost(appURL string) string {
 	return u.Hostname()
 }
 
-
 func validate(s entity.Settings) error {
 	if err := validateDomain(s.Domain); err != nil {
 		return err
@@ -378,7 +381,7 @@ func validateTLS(s entity.Settings) error {
 	}
 	if t.Email != "" {
 		if _, err := mail.ParseAddress(t.Email); err != nil {
-			return errors.New("Let's Encrypt email is not a valid email address")
+			return errors.New("the Let's Encrypt email is not a valid email address")
 		}
 	}
 	if t.Lego.Enabled && s.Domain.SitesDomain == "" {

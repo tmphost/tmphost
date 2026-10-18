@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package auth
 
 import (
@@ -22,8 +26,8 @@ import (
 )
 
 var (
-	_now     = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
-	_errBoom = errors.New("boom")
+	_now    = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
+	errBoom = errors.New("boom")
 )
 
 type env struct {
@@ -89,15 +93,15 @@ func TestStartLogin(t *testing.T) {
 
 	t.Run("state error", func(t *testing.T) {
 		e := newEnv(t)
-		e.token.EXPECT().CreateStateToken("google", "/").Return("", _errBoom)
+		e.token.EXPECT().CreateStateToken("google", "/").Return("", errBoom)
 		_, err := e.ctrl.StartLogin(ctx, &entity.StartLoginRequest{Provider: "google"})
-		assert.ErrorIs(t, err, _errBoom)
+		assert.ErrorIs(t, err, errBoom)
 	})
 
 	t.Run("provider unavailable", func(t *testing.T) {
 		e := newEnv(t)
 		e.token.EXPECT().CreateStateToken("github", "/").Return("st", nil)
-		e.github.EXPECT().AuthURL(gomock.Any(), "st").Return("", _errBoom)
+		e.github.EXPECT().AuthURL(gomock.Any(), "st").Return("", errBoom)
 		_, err := e.ctrl.StartLogin(ctx, &entity.StartLoginRequest{Provider: "github"})
 		assert.ErrorIs(t, err, ErrProviderUnavailable)
 	})
@@ -143,7 +147,7 @@ func TestCompleteLogin_Rejections(t *testing.T) {
 
 	t.Run("state signature invalid", func(t *testing.T) {
 		e := newEnv(t)
-		e.token.EXPECT().ValidateStateToken("st", "google").Return("", _errBoom)
+		e.token.EXPECT().ValidateStateToken("st", "google").Return("", errBoom)
 		_, err := e.ctrl.CompleteLogin(ctx, validLogin())
 		assert.ErrorIs(t, err, ErrInvalidState)
 	})
@@ -159,7 +163,7 @@ func TestCompleteLogin_Rejections(t *testing.T) {
 	t.Run("exchange fails", func(t *testing.T) {
 		e := newEnv(t)
 		e.token.EXPECT().ValidateStateToken("st", "google").Return("/", nil)
-		e.google.EXPECT().Exchange(ctx, "code").Return(nil, _errBoom)
+		e.google.EXPECT().Exchange(ctx, "code").Return(nil, errBoom)
 		_, err := e.ctrl.CompleteLogin(ctx, validLogin())
 		assert.ErrorIs(t, err, ErrProviderExchange)
 	})
@@ -201,18 +205,18 @@ func TestCompleteLogin_CreateFails(t *testing.T) {
 	expectExchange(e, ctx)
 	e.users.EXPECT().FindUserByEmail(ctx, "new@example.com").Return(model.User{}, repository.ErrNotFound)
 	e.idgen.EXPECT().NextID().Return(int64(1000))
-	e.users.EXPECT().CreateUser(ctx, gomock.Any()).Return(model.User{}, _errBoom)
+	e.users.EXPECT().CreateUser(ctx, gomock.Any()).Return(model.User{}, errBoom)
 	_, err := e.ctrl.CompleteLogin(ctx, validLogin())
-	assert.ErrorIs(t, err, _errBoom)
+	assert.ErrorIs(t, err, errBoom)
 }
 
 func TestCompleteLogin_FindFails(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
 	expectExchange(e, ctx)
-	e.users.EXPECT().FindUserByEmail(ctx, "new@example.com").Return(model.User{}, _errBoom)
+	e.users.EXPECT().FindUserByEmail(ctx, "new@example.com").Return(model.User{}, errBoom)
 	_, err := e.ctrl.CompleteLogin(ctx, validLogin())
-	assert.ErrorIs(t, err, _errBoom)
+	assert.ErrorIs(t, err, errBoom)
 }
 
 func TestCompleteLogin_ExistingUserUnchanged(t *testing.T) {
@@ -252,9 +256,9 @@ func TestCompleteLogin_UpdateFails(t *testing.T) {
 	e := newEnv(t)
 	expectExchange(e, ctx)
 	e.users.EXPECT().FindUserByEmail(ctx, "new@example.com").Return(model.User{ID: 5, CreditsRenewAt: _now.Add(time.Hour)}, nil)
-	e.users.EXPECT().UpdateUser(ctx, gomock.Any()).Return(model.User{}, _errBoom)
+	e.users.EXPECT().UpdateUser(ctx, gomock.Any()).Return(model.User{}, errBoom)
 	_, err := e.ctrl.CompleteLogin(ctx, validLogin())
-	assert.ErrorIs(t, err, _errBoom)
+	assert.ErrorIs(t, err, errBoom)
 }
 
 func TestCompleteLogin_SessionFails(t *testing.T) {
@@ -262,9 +266,9 @@ func TestCompleteLogin_SessionFails(t *testing.T) {
 	e := newEnv(t)
 	expectExchange(e, ctx)
 	e.users.EXPECT().FindUserByEmail(ctx, "new@example.com").Return(model.User{ID: 5, Name: "n", Picture: "p", CreditsRenewAt: _now.Add(time.Hour)}, nil)
-	e.token.EXPECT().CreateSessionToken(gomock.Any()).Return("", _errBoom)
+	e.token.EXPECT().CreateSessionToken(gomock.Any()).Return("", errBoom)
 	_, err := e.ctrl.CompleteLogin(ctx, validLogin())
-	assert.ErrorIs(t, err, _errBoom)
+	assert.ErrorIs(t, err, errBoom)
 }
 
 func TestAuthenticate(t *testing.T) {
@@ -278,7 +282,7 @@ func TestAuthenticate(t *testing.T) {
 
 	t.Run("invalid", func(t *testing.T) {
 		e := newEnv(t)
-		e.token.EXPECT().ValidateSessionToken("tok").Return("", _errBoom)
+		e.token.EXPECT().ValidateSessionToken("tok").Return("", errBoom)
 		_, err := e.ctrl.Authenticate(ctx, &entity.AuthenticateRequest{SessionToken: "tok"})
 		assert.ErrorIs(t, err, ErrUnauthorized)
 	})
@@ -312,9 +316,9 @@ func TestGetCurrentUser(t *testing.T) {
 
 	t.Run("db error", func(t *testing.T) {
 		e := newEnv(t)
-		e.users.EXPECT().FindUserByID(ctx, int64(5)).Return(model.User{}, _errBoom)
+		e.users.EXPECT().FindUserByID(ctx, int64(5)).Return(model.User{}, errBoom)
 		_, err := e.ctrl.GetCurrentUser(ctx, rq)
-		assert.ErrorIs(t, err, _errBoom)
+		assert.ErrorIs(t, err, errBoom)
 	})
 
 	t.Run("within period", func(t *testing.T) {

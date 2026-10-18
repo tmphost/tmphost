@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package tlscert
 
 import (
@@ -314,7 +318,7 @@ func fakeACME(t *testing.T, accountStatus int) (*httptest.Server, *atomic.Int32)
 		w.Header().Set("Replay-Nonce", fmt.Sprintf("nonce-%d", time.Now().UnixNano()))
 		switch r.URL.Path {
 		case "/directory":
-			fmt.Fprintf(w, `{"newNonce":%q,"newAccount":%q,"newOrder":%q,"revokeCert":%q,"keyChange":%q}`,
+			_, _ = fmt.Fprintf(w, `{"newNonce":%q,"newAccount":%q,"newOrder":%q,"revokeCert":%q,"keyChange":%q}`,
 				srv.URL+"/nonce", srv.URL+"/account", srv.URL+"/order", srv.URL+"/revoke", srv.URL+"/key")
 		case "/nonce":
 			w.WriteHeader(http.StatusOK)
@@ -323,17 +327,17 @@ func fakeACME(t *testing.T, accountStatus int) (*httptest.Server, *atomic.Int32)
 			if accountStatus != http.StatusCreated {
 				w.Header().Set("Content-Type", "application/problem+json")
 				w.WriteHeader(accountStatus)
-				fmt.Fprint(w, `{"type":"urn:ietf:params:acme:error:malformed","detail":"registration refused"}`)
+				_, _ = fmt.Fprint(w, `{"type":"urn:ietf:params:acme:error:malformed","detail":"registration refused"}`)
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Location", srv.URL+"/account/1")
 			w.WriteHeader(http.StatusCreated)
-			fmt.Fprint(w, `{"status":"valid"}`)
+			_, _ = fmt.Fprint(w, `{"status":"valid"}`)
 		default:
 			w.Header().Set("Content-Type", "application/problem+json")
 			w.WriteHeader(http.StatusForbidden)
-			fmt.Fprint(w, `{"type":"urn:ietf:params:acme:error:unauthorized","detail":"orders refused"}`)
+			_, _ = fmt.Fprint(w, `{"type":"urn:ietf:params:acme:error:unauthorized","detail":"orders refused"}`)
 		}
 	}))
 	t.Cleanup(srv.Close)

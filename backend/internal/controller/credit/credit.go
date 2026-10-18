@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package credit implements the monthly operation credit grant: every
 // account gets the grant (DefaultMonthlyGrant unless root changed it),
 // renewed every Period by a daily job that runs at 00:00 UTC.

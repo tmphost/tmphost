@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package app
 
 import (
@@ -59,7 +63,7 @@ func freePort(t *testing.T) int {
 	t.Helper()
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer l.Close()
+	defer func() { _ = l.Close() }()
 	return l.Addr().(*net.TCPAddr).Port
 }
 
@@ -107,7 +111,7 @@ func TestListenTLS(t *testing.T) {
 		return err == nil
 	}, 5*time.Second, 20*time.Millisecond)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
-	res.Body.Close()
+	_ = res.Body.Close()
 
 	// Plain http on the app port redirects to https.
 	req, err := http.NewRequest(http.MethodGet, "http://"+net.JoinHostPort("127.0.0.1", itoaPort(appPort(t, a)))+"/setup", nil)
@@ -119,7 +123,7 @@ func TestListenTLS(t *testing.T) {
 	}, 5*time.Second, 20*time.Millisecond)
 	assert.Equal(t, http.StatusMovedPermanently, res.StatusCode)
 	assert.Equal(t, "https://app.example.com:"+itoaPort(a.tlsPort)+"/setup", res.Header.Get("Location"))
-	res.Body.Close()
+	_ = res.Body.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -135,7 +139,7 @@ func TestListenTLS_PortsInUse(t *testing.T) {
 		require.NoError(t, err)
 		busy, err := net.Listen("tcp", a.tlsAddr)
 		require.NoError(t, err)
-		defer busy.Close()
+		defer func() { _ = busy.Close() }()
 		assert.Error(t, a.Listen())
 		_ = a.Shutdown(context.Background())
 	})
@@ -145,7 +149,7 @@ func TestListenTLS_PortsInUse(t *testing.T) {
 		require.NoError(t, err)
 		busy, err := net.Listen("tcp", a.addr)
 		require.NoError(t, err)
-		defer busy.Close()
+		defer func() { _ = busy.Close() }()
 		assert.Error(t, a.Listen())
 		_ = a.Shutdown(context.Background())
 	})

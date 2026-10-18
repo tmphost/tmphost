@@ -1,3 +1,7 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package api
 
 import (
@@ -67,7 +71,7 @@ func TestSetupLogin(t *testing.T) {
 
 	t.Run("server error", func(t *testing.T) {
 		app, _, setup := newFullApp(t)
-		setup.EXPECT().Login(gomock.Any(), gomock.Any()).Return(nil, _errBoom)
+		setup.EXPECT().Login(gomock.Any(), gomock.Any()).Return(nil, errBoom)
 		res, _ := send(t, app, http.MethodPost, "/api/v1/setup/login", `{"token":"x"}`)
 		assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
 	})
@@ -151,7 +155,7 @@ func TestSetupSettings_Update(t *testing.T) {
 	t.Run("save fails", func(t *testing.T) {
 		app, _, setup := newFullApp(t)
 		setup.EXPECT().Authenticate(gomock.Any(), gomock.Any()).Return(nil)
-		setup.EXPECT().UpdateSettings(gomock.Any(), gomock.Any()).Return(nil, _errBoom)
+		setup.EXPECT().UpdateSettings(gomock.Any(), gomock.Any()).Return(nil, errBoom)
 		res, _ := send(t, app, http.MethodPut, "/api/v1/setup/settings", `{}`, _rootCookie)
 		assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
 	})
