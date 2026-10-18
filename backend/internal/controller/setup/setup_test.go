@@ -25,7 +25,7 @@ func defaults() entity.Settings {
 		Database: entity.DatabaseSettings{
 			Driver:   DriverSQLite,
 			SQLite:   entity.SQLiteSettings{DSN: "./_storage/tmphost.db"},
-			Postgres: entity.PostgresSettings{Host: "localhost", Port: 5432, User: "postgres", Password: "pgpass", DBName: "tmphost", SSLMode: "disable"},
+			Postgres: entity.PostgresSettings{DSN: "postgres://postgres:pgpass@localhost:5432/tmphost?sslmode=disable"},
 		},
 		Storage: entity.StorageSettings{S3: entity.S3Settings{SecretAccessKey: "s3secret"}},
 		Auth: entity.AuthSettings{
@@ -120,10 +120,10 @@ func TestAuthenticate(t *testing.T) {
 func TestGetSettings_HidesSecrets(t *testing.T) {
 	e := newEnv(t)
 	rs := e.ctrl.GetSettings(context.Background())
-	assert.Empty(t, rs.Settings.Database.Postgres.Password)
+	assert.Empty(t, rs.Settings.Database.Postgres.DSN)
 	assert.Empty(t, rs.Settings.Storage.S3.SecretAccessKey)
 	assert.Empty(t, rs.Settings.Auth.Google.ClientSecret)
-	assert.Equal(t, entity.SecretsSet{PostgresPassword: true, S3SecretAccessKey: true, GoogleClientSecret: true}, rs.SecretsSet)
+	assert.Equal(t, entity.SecretsSet{PostgresDSN: true, S3SecretAccessKey: true, GoogleClientSecret: true}, rs.SecretsSet)
 	assert.Equal(t, "g", rs.Settings.Auth.Google.ClientID)
 	assert.False(t, rs.RestartRequired)
 }
@@ -136,7 +136,7 @@ func TestUpdateSettings_CreditsApplyLive(t *testing.T) {
 
 	e.repo.EXPECT().SaveSettings(gomock.Any()).DoAndReturn(func(m model.Settings) error {
 		assert.Equal(t, 400, m.Credits.MonthlyGrant)
-		assert.Equal(t, "pgpass", m.Database.Postgres.Password)
+		assert.Equal(t, "postgres://postgres:pgpass@localhost:5432/tmphost?sslmode=disable", m.Database.Postgres.DSN)
 		assert.Equal(t, "s3secret", m.Storage.S3.SecretAccessKey)
 		assert.Equal(t, "gsecret", m.Auth.Google.ClientSecret)
 		return nil
@@ -153,7 +153,7 @@ func TestUpdateSettings_RestartRequired(t *testing.T) {
 	e := newEnv(t)
 	next := e.ctrl.GetSettings(ctx).Settings
 	next.Database.Driver = " Postgres "
-	next.Database.Postgres.Password = "newpass"
+	next.Database.Postgres.DSN = " host=db user=app password=newpass dbname=prod "
 	next.Auth.Google.ClientID = "" // disables Google, dropping its secret
 	next.Auth.GitHub = entity.OAuthClientSettings{ClientID: " h ", ClientSecret: "hsecret"}
 
@@ -164,7 +164,7 @@ func TestUpdateSettings_RestartRequired(t *testing.T) {
 
 	cur := e.ctrl.Current()
 	assert.Equal(t, DriverPostgres, cur.Database.Driver)
-	assert.Equal(t, "newpass", cur.Database.Postgres.Password)
+	assert.Equal(t, "host=db user=app password=newpass dbname=prod", cur.Database.Postgres.DSN)
 	assert.Equal(t, entity.OAuthClientSettings{}, cur.Auth.Google)
 	assert.Equal(t, entity.OAuthClientSettings{ClientID: "h", ClientSecret: "hsecret"}, cur.Auth.GitHub)
 }
@@ -186,17 +186,13 @@ func TestUpdateSettings_Validation(t *testing.T) {
 		"huge credits":       func(s *entity.Settings) { s.Credits.MonthlyGrant = _maxMonthlyGrant + 1 },
 		"unknown driver":     func(s *entity.Settings) { s.Database.Driver = "mysql" },
 		"sqlite without dsn": func(s *entity.Settings) { s.Database.SQLite.DSN = " " },
-		"postgres no host": func(s *entity.Settings) {
+		"postgres bad dsn url": func(s *entity.Settings) {
 			s.Database.Driver = DriverPostgres
-			s.Database.Postgres.Host = ""
+			s.Database.Postgres.DSN = "postgres://u:p@db:notaport/x"
 		},
-		"postgres bad port": func(s *entity.Settings) {
+		"postgres bad dsn keywords": func(s *entity.Settings) {
 			s.Database.Driver = DriverPostgres
-			s.Database.Postgres.Port = 70000
-		},
-		"postgres bad sslmode": func(s *entity.Settings) {
-			s.Database.Driver = DriverPostgres
-			s.Database.Postgres.SSLMode = "sometimes"
+			s.Database.Postgres.DSN = "host=db sslmode=sometimes"
 		},
 		"s3 without bucket": func(s *entity.Settings) {
 			s.Storage.S3 = entity.S3Settings{Enabled: true, Region: "r"}
@@ -227,6 +223,27 @@ func TestUpdateSettings_ProviderIDWithoutAnySecret(t *testing.T) {
 	next.Auth.Google = entity.OAuthClientSettings{ClientID: "g2"}
 	_, err := e.ctrl.UpdateSettings(context.Background(), &entity.UpdateSettingsRequest{Settings: next})
 	assert.ErrorIs(t, err, ErrInvalidSettings)
+}
+
+func TestUpdateSettings_PostgresDSN(t *testing.T) {
+	t.Run("required when nothing is stored", func(t *testing.T) {
+		e := newEnvWith(t, func(s *entity.Settings) { s.Database.Postgres.DSN = "" })
+		next := defaults()
+		next.Database.Driver = DriverPostgres
+		next.Database.Postgres.DSN = ""
+		_, err := e.ctrl.UpdateSettings(context.Background(), &entity.UpdateSettingsRequest{Settings: next})
+		assert.ErrorIs(t, err, ErrInvalidSettings)
+	})
+
+	t.Run("invalid DSN is not echoed", func(t *testing.T) {
+		e := newEnv(t)
+		next := defaults()
+		next.Database.Driver = DriverPostgres
+		next.Database.Postgres.DSN = "postgres://u:hunter2@db:notaport/x"
+		_, err := e.ctrl.UpdateSettings(context.Background(), &entity.UpdateSettingsRequest{Settings: next})
+		assert.ErrorIs(t, err, ErrInvalidSettings)
+		assert.NotContains(t, err.Error(), "hunter2")
+	})
 }
 
 func TestUpdateSettings_ValidS3(t *testing.T) {

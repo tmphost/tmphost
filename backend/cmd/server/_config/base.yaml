@@ -30,12 +30,8 @@ sqlite:
   maxConnLifetime: 1h
 postgres:
   enabled: ${TMPHOST_POSTGRES_ENABLED:false}
-  host: ${TMPHOST_POSTGRES_HOST:localhost}
-  port: ${TMPHOST_POSTGRES_PORT:5432}
-  user: ${TMPHOST_POSTGRES_USER:postgres}
-  password: ${TMPHOST_POSTGRES_PASSWORD:postgres}
-  dbname: ${TMPHOST_POSTGRES_DBNAME:tmphost}
-  sslmode: ${TMPHOST_POSTGRES_SSLMODE:disable}
+  # postgres://user:password@host:5432/tmphost?sslmode=disable
+  dsn: ${TMPHOST_POSTGRES_DSN:}
   maxIdleConns: 10
   maxOpenConns: 100
   maxConnLifetime: 1h

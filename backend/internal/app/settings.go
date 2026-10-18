@@ -43,16 +43,13 @@ func settingsFromConfig(cfg Config) entity.Settings {
 	if grant == 0 {
 		grant = credit.DefaultMonthlyGrant
 	}
-	pg := cfg.Postgres
 	s3 := cfg.S3
 	return entity.Settings{
 		Credits: entity.CreditSettings{MonthlyGrant: grant},
 		Database: entity.DatabaseSettings{
-			Driver: driver,
-			SQLite: entity.SQLiteSettings{DSN: cfg.SQLite.DSN},
-			Postgres: entity.PostgresSettings{
-				Host: pg.Host, Port: pg.Port, User: pg.User, Password: pg.Password, DBName: pg.DBName, SSLMode: pg.SSLMode,
-			},
+			Driver:   driver,
+			SQLite:   entity.SQLiteSettings{DSN: cfg.SQLite.DSN},
+			Postgres: entity.PostgresSettings{DSN: cfg.Postgres.DSN},
 		},
 		Storage: entity.StorageSettings{S3: entity.S3Settings{
 			Enabled: s3.Enabled, Endpoint: s3.Endpoint, Region: s3.Region, Bucket: s3.Bucket,
@@ -70,10 +67,8 @@ func applySettings(cfg Config, s entity.Settings) Config {
 	cfg.Credits.MonthlyGrant = s.Credits.MonthlyGrant
 	cfg.SQLite.Enabled = s.Database.Driver == setupctrl.DriverSQLite
 	cfg.SQLite.DSN = s.Database.SQLite.DSN
-	pg := s.Database.Postgres
 	cfg.Postgres.Enabled = s.Database.Driver == setupctrl.DriverPostgres
-	cfg.Postgres.Host, cfg.Postgres.Port, cfg.Postgres.User = pg.Host, pg.Port, pg.User
-	cfg.Postgres.Password, cfg.Postgres.DBName, cfg.Postgres.SSLMode = pg.Password, pg.DBName, pg.SSLMode
+	cfg.Postgres.DSN = s.Database.Postgres.DSN
 	s3 := s.Storage.S3
 	cfg.S3 = S3Config{
 		Enabled: s3.Enabled, Endpoint: s3.Endpoint, Region: s3.Region, Bucket: s3.Bucket,

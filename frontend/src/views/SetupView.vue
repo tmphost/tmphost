@@ -4,7 +4,7 @@ import BrandLogo from '../components/BrandLogo.vue'
 import { fetchSettings, saveSettings, setupLogin, setupLogout } from '../api'
 import { useToasts } from '../composables/useToasts'
 
-const SSL_MODES = ['disable', 'allow', 'prefer', 'require', 'verify-ca', 'verify-full']
+const PG_DSN_EXAMPLE = 'postgres://user:password@host:5432/tmphost?sslmode=disable'
 
 const INPUT =
   'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none'
@@ -206,40 +206,18 @@ onMounted(refresh)
             <label for="sqlite-dsn" :class="LABEL">SQLite DSN</label>
             <input id="sqlite-dsn" v-model="form.database.sqlite.dsn" :class="INPUT" />
           </div>
-          <div v-else class="grid grid-cols-1 sm:grid-cols-6 gap-3" data-test="setup-postgres">
-            <div class="sm:col-span-4">
-              <label for="pg-host" :class="LABEL">Host</label>
-              <input id="pg-host" v-model="form.database.postgres.host" :class="INPUT" />
-            </div>
-            <div class="sm:col-span-2">
-              <label for="pg-port" :class="LABEL">Port</label>
-              <input id="pg-port" v-model.number="form.database.postgres.port" type="number" :class="INPUT" />
-            </div>
-            <div class="sm:col-span-3">
-              <label for="pg-user" :class="LABEL">User</label>
-              <input id="pg-user" v-model="form.database.postgres.user" :class="INPUT" />
-            </div>
-            <div class="sm:col-span-3">
-              <label for="pg-password" :class="LABEL">Password</label>
-              <input
-                id="pg-password"
-                v-model="form.database.postgres.password"
-                type="password"
-                autocomplete="new-password"
-                :placeholder="secretPlaceholder(secretsSet.postgresPassword)"
-                :class="INPUT"
-              />
-            </div>
-            <div class="sm:col-span-3">
-              <label for="pg-dbname" :class="LABEL">Database</label>
-              <input id="pg-dbname" v-model="form.database.postgres.dbname" :class="INPUT" />
-            </div>
-            <div class="sm:col-span-3">
-              <label for="pg-sslmode" :class="LABEL">SSL mode</label>
-              <select id="pg-sslmode" v-model="form.database.postgres.sslmode" :class="INPUT">
-                <option v-for="mode in SSL_MODES" :key="mode" :value="mode">{{ mode }}</option>
-              </select>
-            </div>
+          <div v-else data-test="setup-postgres">
+            <label for="pg-dsn" :class="LABEL">PostgreSQL DSN</label>
+            <input
+              id="pg-dsn"
+              v-model="form.database.postgres.dsn"
+              type="password"
+              autocomplete="off"
+              spellcheck="false"
+              :placeholder="secretsSet.postgresDsn ? secretPlaceholder(true) : PG_DSN_EXAMPLE"
+              :class="INPUT"
+            />
+            <p class="mt-1 text-[11px] text-gray-400">A postgres:// URL or key=value string. It holds the password, so it is never shown again.</p>
           </div>
         </section>
 

@@ -20,6 +20,7 @@ import (
 	setupctrl "github.com/tmphost/tmphost/backend/internal/controller/setup"
 	"github.com/tmphost/tmphost/backend/internal/handler/api"
 	"github.com/tmphost/tmphost/backend/internal/repository"
+	"github.com/tmphost/tmphost/backend/internal/service/encryption"
 	"github.com/tmphost/tmphost/backend/internal/service/idgen"
 	"github.com/tmphost/tmphost/backend/internal/service/oauth"
 	"github.com/tmphost/tmphost/backend/internal/service/scheduler"
@@ -31,13 +32,16 @@ const _renewalTimeout = 10 * time.Minute
 type (
 	// Config is the server configuration, one field per config section.
 	Config struct {
-		App      AppConfig
-		Auth     AuthConfig
-		Credits  CreditsConfig
-		SQLite   SQLiteConfig
-		Postgres PostgresConfig
-		S3       S3Config
-		IDGen    IDGenConfig
+		// MasterKey encrypts the settings file. It comes only from the
+		// TMPHOSTIO_MASTER_KEY environment variable, never from YAML.
+		MasterKey string
+		App       AppConfig
+		Auth      AuthConfig
+		Credits   CreditsConfig
+		SQLite    SQLiteConfig
+		Postgres  PostgresConfig
+		S3        S3Config
+		IDGen     IDGenConfig
 	}
 
 	// AppConfig is the "app" section.
@@ -93,13 +97,9 @@ type (
 	// PostgresConfig is the "postgres" section. PostgreSQL wins when both
 	// databases are enabled.
 	PostgresConfig struct {
-		Enabled    bool   `yaml:"enabled"`
-		Host       string `yaml:"host"`
-		Port       int    `yaml:"port"`
-		User       string `yaml:"user"`
-		Password   string `yaml:"password"`
-		DBName     string `yaml:"dbname"`
-		SSLMode    string `yaml:"sslmode"`
+		Enabled bool `yaml:"enabled"`
+		// DSN is a postgres:// URL or a key=value connection string.
+		DSN        string `yaml:"dsn"`
 		PoolConfig `yaml:",inline"`
 	}
 
@@ -135,8 +135,12 @@ func New(cfg Config, web fs.FS) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	enc, err := encryption.New(cfg.MasterKey)
+	if err != nil {
+		return nil, err
+	}
 	setup, err := setupctrl.New(setupctrl.Params{
-		Repository:      repository.NewSettingsRepository(settingsFile(cfg)),
+		Repository:      repository.NewSettingsRepository(settingsFile(cfg), enc),
 		Token:           tokens,
 		RootAccessToken: rootAccessToken(cfg),
 		Defaults:        settingsFromConfig(cfg),

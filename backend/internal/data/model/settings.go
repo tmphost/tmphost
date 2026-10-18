@@ -1,7 +1,16 @@
 package model
 
 type (
-	// Settings is the on-disk (JSON) form of the setup page settings.
+	// EncryptedSettings is the settings file: the JSON-encoded Settings,
+	// sealed with the master key.
+	EncryptedSettings struct {
+		Version   int    `json:"version"`
+		Algorithm string `json:"algorithm"`
+		// Data is base64 of the nonce followed by the ciphertext.
+		Data string `json:"data"`
+	}
+
+	// Settings is the plaintext (JSON) form of the setup page settings.
 	Settings struct {
 		Credits  CreditSettings   `json:"credits"`
 		Database DatabaseSettings `json:"database"`
@@ -28,12 +37,7 @@ type (
 
 	// PostgresSettings is the database.postgres section.
 	PostgresSettings struct {
-		Host     string `json:"host"`
-		Port     int    `json:"port"`
-		User     string `json:"user"`
-		Password string `json:"password"`
-		DBName   string `json:"dbname"`
-		SSLMode  string `json:"sslmode"`
+		DSN string `json:"dsn"`
 	}
 
 	// StorageSettings is the storage section.

@@ -14,7 +14,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 		Database: entity.DatabaseSettings{
 			Driver:   "postgres",
 			SQLite:   entity.SQLiteSettings{DSN: "x.db"},
-			Postgres: entity.PostgresSettings{Host: "h", Port: 5432, User: "u", Password: "p", DBName: "d", SSLMode: "require"},
+			Postgres: entity.PostgresSettings{DSN: "postgres://u:p@h:5432/d?sslmode=require"},
 		},
 		Storage: entity.StorageSettings{S3: entity.S3Settings{
 			Enabled: true, Endpoint: "https://s3", Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", UsePathStyle: true,

@@ -19,12 +19,12 @@ function state(overrides = {}) {
       database: {
         driver: 'sqlite',
         sqlite: { dsn: './_storage/tmphost.db' },
-        postgres: { host: 'localhost', port: 5432, user: 'postgres', password: '', dbname: 'tmphost', sslmode: 'disable' },
+        postgres: { dsn: '' },
       },
       storage: { s3: { enabled: false, endpoint: '', region: '', bucket: '', accessKeyId: '', secretAccessKey: '', usePathStyle: false } },
       auth: { google: { clientId: 'g', clientSecret: '' }, github: { clientId: '', clientSecret: '' } },
     },
-    secretsSet: { postgresPassword: true, s3SecretAccessKey: false, googleClientSecret: true, githubClientSecret: false },
+    secretsSet: { postgresDsn: true, s3SecretAccessKey: false, googleClientSecret: true, githubClientSecret: false },
     restartRequired: false,
     ...overrides,
   }
@@ -89,14 +89,21 @@ describe('SetupView', () => {
 
     await wrapper.find('[data-test="setup-driver-postgres"]').trigger('click')
     expect(wrapper.find('[data-test="setup-postgres"]').exists()).toBe(true)
-    expect(wrapper.find('#pg-password').attributes('placeholder')).toContain('saved')
+    expect(wrapper.find('#pg-dsn').attributes('placeholder')).toContain('saved')
+    expect(wrapper.find('#pg-dsn').attributes('type')).toBe('password')
     expect(wrapper.find('#s3-secret').attributes('placeholder')).toBe('Not set')
     expect(wrapper.find('#google-secret').attributes('placeholder')).toContain('saved')
     expect(wrapper.find('#github-secret').attributes('placeholder')).toBe('Not set')
-    expect(wrapper.findAll('#pg-sslmode option')).toHaveLength(6)
 
     await wrapper.find('[data-test="setup-driver-sqlite"]').trigger('click')
     expect(wrapper.find('[data-test="setup-sqlite"]').exists()).toBe(true)
+  })
+
+  it('shows an example DSN when none is saved', async () => {
+    fetchSettings.mockResolvedValue(state({ secretsSet: { ...state().secretsSet, postgresDsn: false } }))
+    const wrapper = await mountView()
+    await wrapper.find('[data-test="setup-driver-postgres"]').trigger('click')
+    expect(wrapper.find('#pg-dsn').attributes('placeholder')).toMatch(/^postgres:\/\//)
   })
 
   it('saves the edited settings and shows restart notice', async () => {
@@ -128,12 +135,11 @@ describe('SetupView', () => {
     await wrapper.find('#sqlite-dsn').setValue('/data/x.db')
     await wrapper.find('[data-test="setup-driver-postgres"]').trigger('click')
     const values = {
-      '#pg-host': 'db', '#pg-port': '6543', '#pg-user': 'app', '#pg-password': 'pw', '#pg-dbname': 'prod',
+      '#pg-dsn': 'postgres://app:pw@db:6543/prod?sslmode=require',
       '#s3-endpoint': 'https://s3.example.com', '#s3-region': 'auto', '#s3-key': 'AK', '#s3-secret': 'SK',
       '#google-id': 'g2', '#google-secret': 'gs2',
     }
     for (const [sel, value] of Object.entries(values)) await wrapper.find(sel).setValue(value)
-    await wrapper.find('#pg-sslmode').setValue('require')
     await wrapper.find('input[type="checkbox"]:not([data-test])').setValue(true)
     await wrapper.find('[data-test="setup-form"]').trigger('submit')
     await flushPromises()
@@ -142,7 +148,7 @@ describe('SetupView', () => {
       database: {
         driver: 'postgres',
         sqlite: { dsn: '/data/x.db' },
-        postgres: { host: 'db', port: 6543, user: 'app', password: 'pw', dbname: 'prod', sslmode: 'require' },
+        postgres: { dsn: 'postgres://app:pw@db:6543/prod?sslmode=require' },
       },
       storage: { s3: { endpoint: 'https://s3.example.com', region: 'auto', accessKeyId: 'AK', secretAccessKey: 'SK', usePathStyle: true } },
       auth: { google: { clientId: 'g2', clientSecret: 'gs2' } },

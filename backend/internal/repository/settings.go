@@ -3,6 +3,7 @@ package repository
 //go:generate mockgen -source=settings.go -destination=mocks/settings.go -package=mocks
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,14 @@ import (
 	"path/filepath"
 
 	"github.com/tmphost/tmphost/backend/internal/data/model"
+	"github.com/tmphost/tmphost/backend/internal/service/encryption"
+)
+
+const (
+	_settingsVersion = 1
+	// _settingsAAD binds the ciphertext to its purpose, so another sealed
+	// blob cannot be swapped in as settings.
+	_settingsAAD = "tmphost.io/settings/v1"
 )
 
 type (
@@ -26,12 +35,14 @@ type (
 
 	settingsRepository struct {
 		path string
+		enc  encryption.Service
 	}
 )
 
-// NewSettingsRepository stores settings as JSON at path.
-func NewSettingsRepository(path string) SettingsRepository {
-	return &settingsRepository{path: path}
+// NewSettingsRepository stores settings at path, encrypted with enc. The
+// plaintext never touches the disk.
+func NewSettingsRepository(path string, enc encryption.Service) SettingsRepository {
+	return &settingsRepository{path: path, enc: enc}
 }
 
 func (r *settingsRepository) LoadSettings() (model.Settings, error) {
@@ -42,16 +53,36 @@ func (r *settingsRepository) LoadSettings() (model.Settings, error) {
 	if err != nil {
 		return model.Settings{}, fmt.Errorf("read settings: %w", err)
 	}
+	var env model.EncryptedSettings
+	if err := json.Unmarshal(b, &env); err != nil {
+		return model.Settings{}, fmt.Errorf("parse settings %s: %w", r.path, err)
+	}
+	if env.Version != _settingsVersion || env.Algorithm != encryption.Algorithm {
+		return model.Settings{}, fmt.Errorf("settings %s: unsupported format (version %d, %q); expected an encrypted settings file", r.path, env.Version, env.Algorithm)
+	}
+	sealed, err := base64.StdEncoding.DecodeString(env.Data)
+	if err != nil {
+		return model.Settings{}, fmt.Errorf("settings %s: %w", r.path, encryption.ErrDecrypt)
+	}
+	plain, err := r.enc.Decrypt(sealed, []byte(_settingsAAD))
+	if err != nil {
+		return model.Settings{}, fmt.Errorf("settings %s: %w", r.path, err)
+	}
 	var s model.Settings
-	if err := json.Unmarshal(b, &s); err != nil {
+	if err := json.Unmarshal(plain, &s); err != nil {
 		return model.Settings{}, fmt.Errorf("parse settings %s: %w", r.path, err)
 	}
 	return s, nil
 }
 
 func (r *settingsRepository) SaveSettings(s model.Settings) error {
-	// A struct of plain fields always encodes.
-	b, _ := json.MarshalIndent(s, "", "  ")
+	// Structs of plain fields always encode.
+	plain, _ := json.Marshal(s)
+	b, _ := json.MarshalIndent(model.EncryptedSettings{
+		Version:   _settingsVersion,
+		Algorithm: encryption.Algorithm,
+		Data:      base64.StdEncoding.EncodeToString(r.enc.Encrypt(plain, []byte(_settingsAAD))),
+	}, "", "  ")
 	dir := filepath.Dir(r.path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create settings dir: %w", err)

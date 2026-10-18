@@ -51,7 +51,7 @@ func TestFromHTTPRequestToAuthenticateRootRequestEntity(t *testing.T) {
 const _settingsJSON = `{
 	"credits": {"monthlyGrant": 300},
 	"database": {"driver": "postgres", "sqlite": {"dsn": "x.db"},
-		"postgres": {"host": "h", "port": 5432, "user": "u", "password": "p", "dbname": "d", "sslmode": "require"}},
+		"postgres": {"dsn": "postgres://u:p@h/d"}},
 	"storage": {"s3": {"enabled": true, "endpoint": "https://s3", "region": "r", "bucket": "b",
 		"accessKeyId": "a", "secretAccessKey": "s", "usePathStyle": true}},
 	"auth": {"google": {"clientId": "g", "clientSecret": "gs"}, "github": {"clientId": "h", "clientSecret": "hs"}}
@@ -62,7 +62,7 @@ func TestSettingsMapping(t *testing.T) {
 	runBody(t, `{"settings":`+_settingsJSON+`}`, func(c *fiber.Ctx) { got = FromHTTPRequestToUpdateSettingsRequestEntity(c) })
 	require.NotNil(t, got)
 	assert.Equal(t, 300, got.Settings.Credits.MonthlyGrant)
-	assert.Equal(t, "p", got.Settings.Database.Postgres.Password)
+	assert.Equal(t, "postgres://u:p@h/d", got.Settings.Database.Postgres.DSN)
 	assert.Equal(t, "hs", got.Settings.Auth.GitHub.ClientSecret)
 
 	runBody(t, `nope`, func(c *fiber.Ctx) { got = FromHTTPRequestToUpdateSettingsRequestEntity(c) })
@@ -70,21 +70,21 @@ func TestSettingsMapping(t *testing.T) {
 
 	// Entity -> view -> entity is lossless.
 	settings := FromSettingsViewToSettingsEntity(FromSettingsEntityToSettingsView(entity.Settings{
-		Database: entity.DatabaseSettings{Postgres: entity.PostgresSettings{Port: 1}},
+		Database: entity.DatabaseSettings{Postgres: entity.PostgresSettings{DSN: "host=db"}},
 		Storage:  entity.StorageSettings{S3: entity.S3Settings{UsePathStyle: true}},
 	}))
-	assert.Equal(t, 1, settings.Database.Postgres.Port)
+	assert.Equal(t, "host=db", settings.Database.Postgres.DSN)
 	assert.True(t, settings.Storage.S3.UsePathStyle)
 }
 
 func TestFromSettingsResponseEntityToHTTPResponse(t *testing.T) {
 	rs := &entity.GetSettingsResponse{
 		Settings:        FromSettingsViewToSettingsEntity(FromSettingsEntityToSettingsView(entity.Settings{Credits: entity.CreditSettings{MonthlyGrant: 7}})),
-		SecretsSet:      entity.SecretsSet{PostgresPassword: true, S3SecretAccessKey: true, GoogleClientSecret: true, GitHubClientSecret: true},
+		SecretsSet:      entity.SecretsSet{PostgresDSN: true, S3SecretAccessKey: true, GoogleClientSecret: true, GitHubClientSecret: true},
 		RestartRequired: true,
 	}
 	body := string(FromUpdateSettingsResponseEntityToHTTPResponse(rs))
 	assert.Contains(t, body, `"monthlyGrant":7`)
-	assert.Contains(t, body, `"secretsSet":{"postgresPassword":true,"s3SecretAccessKey":true,"googleClientSecret":true,"githubClientSecret":true}`)
+	assert.Contains(t, body, `"secretsSet":{"postgresDsn":true,"s3SecretAccessKey":true,"googleClientSecret":true,"githubClientSecret":true}`)
 	assert.Contains(t, body, `"restartRequired":true`)
 }

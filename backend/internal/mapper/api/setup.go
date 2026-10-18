@@ -44,7 +44,7 @@ func FromGetSettingsResponseEntityToHTTPResponse(rs *entity.GetSettingsResponse)
 	return marshal(view.SettingsResponse{
 		Settings: FromSettingsEntityToSettingsView(rs.Settings),
 		SecretsSet: view.SecretsSet{
-			PostgresPassword:   rs.SecretsSet.PostgresPassword,
+			PostgresDSN:        rs.SecretsSet.PostgresDSN,
 			S3SecretAccessKey:  rs.SecretsSet.S3SecretAccessKey,
 			GoogleClientSecret: rs.SecretsSet.GoogleClientSecret,
 			GitHubClientSecret: rs.SecretsSet.GitHubClientSecret,
@@ -63,16 +63,9 @@ func FromSettingsViewToSettingsEntity(v view.Settings) entity.Settings {
 	return entity.Settings{
 		Credits: entity.CreditSettings{MonthlyGrant: v.Credits.MonthlyGrant},
 		Database: entity.DatabaseSettings{
-			Driver: v.Database.Driver,
-			SQLite: entity.SQLiteSettings{DSN: v.Database.SQLite.DSN},
-			Postgres: entity.PostgresSettings{
-				Host:     v.Database.Postgres.Host,
-				Port:     v.Database.Postgres.Port,
-				User:     v.Database.Postgres.User,
-				Password: v.Database.Postgres.Password,
-				DBName:   v.Database.Postgres.DBName,
-				SSLMode:  v.Database.Postgres.SSLMode,
-			},
+			Driver:   v.Database.Driver,
+			SQLite:   entity.SQLiteSettings{DSN: v.Database.SQLite.DSN},
+			Postgres: entity.PostgresSettings{DSN: v.Database.Postgres.DSN},
 		},
 		Storage: entity.StorageSettings{S3: entity.S3Settings{
 			Enabled:         v.Storage.S3.Enabled,
@@ -95,16 +88,9 @@ func FromSettingsEntityToSettingsView(e entity.Settings) view.Settings {
 	return view.Settings{
 		Credits: view.CreditSettings{MonthlyGrant: e.Credits.MonthlyGrant},
 		Database: view.DatabaseSettings{
-			Driver: e.Database.Driver,
-			SQLite: view.SQLiteSettings{DSN: e.Database.SQLite.DSN},
-			Postgres: view.PostgresSettings{
-				Host:     e.Database.Postgres.Host,
-				Port:     e.Database.Postgres.Port,
-				User:     e.Database.Postgres.User,
-				Password: e.Database.Postgres.Password,
-				DBName:   e.Database.Postgres.DBName,
-				SSLMode:  e.Database.Postgres.SSLMode,
-			},
+			Driver:   e.Database.Driver,
+			SQLite:   view.SQLiteSettings{DSN: e.Database.SQLite.DSN},
+			Postgres: view.PostgresSettings{DSN: e.Database.Postgres.DSN},
 		},
 		Storage: view.StorageSettings{S3: view.S3Settings{
 			Enabled:         e.Storage.S3.Enabled,

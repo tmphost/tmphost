@@ -29,12 +29,9 @@ type (
 
 	// PostgresSettings configure PostgreSQL.
 	PostgresSettings struct {
-		Host     string
-		Port     int
-		User     string
-		Password string
-		DBName   string
-		SSLMode  string
+		// DSN is a postgres:// URL or a key=value connection string. It
+		// usually holds the password, so it is a secret.
+		DSN string
 	}
 
 	// StorageSettings configure object storage.
@@ -68,7 +65,7 @@ type (
 	// SecretsSet reports which secrets have a value, since secrets are never
 	// returned.
 	SecretsSet struct {
-		PostgresPassword   bool
+		PostgresDSN        bool
 		S3SecretAccessKey  bool
 		GoogleClientSecret bool
 		GitHubClientSecret bool

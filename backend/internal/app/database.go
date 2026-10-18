@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/glebarez/sqlite"
@@ -49,10 +48,10 @@ func openDatabase(cfg Config) (*gorm.DB, error) {
 func selectDialector(cfg Config) (gorm.Dialector, PoolConfig, error) {
 	switch {
 	case cfg.Postgres.Enabled:
-		if cfg.Postgres.Host == "" {
-			return nil, PoolConfig{}, errors.New("postgres: host is required")
+		if cfg.Postgres.DSN == "" {
+			return nil, PoolConfig{}, errors.New("postgres: dsn is required")
 		}
-		return postgres.Open(postgresDSN(cfg.Postgres)), cfg.Postgres.PoolConfig, nil
+		return postgres.Open(cfg.Postgres.DSN), cfg.Postgres.PoolConfig, nil
 	case cfg.SQLite.Enabled:
 		dsn := cfg.SQLite.DSN
 		if dsn == "" {
@@ -67,22 +66,4 @@ func selectDialector(cfg Config) (gorm.Dialector, PoolConfig, error) {
 	default:
 		return nil, PoolConfig{}, errors.New("no database enabled: set sqlite.enabled or postgres.enabled")
 	}
-}
-
-// postgresDSN builds a libpq key/value connection string, quoting every
-// value so spaces or quotes in a password cannot break it.
-func postgresDSN(c PostgresConfig) string {
-	quote := func(v string) string {
-		return "'" + strings.NewReplacer(`\`, `\\`, `'`, `\'`).Replace(v) + "'"
-	}
-	parts := []string{"host=" + quote(c.Host)}
-	if c.Port != 0 {
-		parts = append(parts, "port="+strconv.Itoa(c.Port))
-	}
-	for _, kv := range [][2]string{{"user", c.User}, {"password", c.Password}, {"dbname", c.DBName}, {"sslmode", c.SSLMode}} {
-		if kv[1] != "" {
-			parts = append(parts, kv[0]+"="+quote(kv[1]))
-		}
-	}
-	return strings.Join(append(parts, "TimeZone=UTC"), " ")
 }

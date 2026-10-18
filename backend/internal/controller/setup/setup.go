@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
 	mappermodel "github.com/tmphost/tmphost/backend/internal/mapper/model"
 	"github.com/tmphost/tmphost/backend/internal/repository"
@@ -36,8 +38,6 @@ var (
 	ErrUnauthorized = errors.New("unauthorized")
 	// ErrInvalidSettings wraps a settings validation failure.
 	ErrInvalidSettings = errors.New("invalid settings")
-
-	_sslModes = map[string]bool{"disable": true, "allow": true, "prefer": true, "require": true, "verify-ca": true, "verify-full": true}
 )
 
 type (
@@ -155,14 +155,14 @@ func (c *controller) MonthlyGrant() int {
 // response must be called with c.mu held.
 func (c *controller) response() *entity.GetSettingsResponse {
 	public := c.current
-	public.Database.Postgres.Password = ""
+	public.Database.Postgres.DSN = ""
 	public.Storage.S3.SecretAccessKey = ""
 	public.Auth.Google.ClientSecret = ""
 	public.Auth.GitHub.ClientSecret = ""
 	return &entity.GetSettingsResponse{
 		Settings: public,
 		SecretsSet: entity.SecretsSet{
-			PostgresPassword:   c.current.Database.Postgres.Password != "",
+			PostgresDSN:        c.current.Database.Postgres.DSN != "",
 			S3SecretAccessKey:  c.current.Storage.S3.SecretAccessKey != "",
 			GoogleClientSecret: c.current.Auth.Google.ClientSecret != "",
 			GitHubClientSecret: c.current.Auth.GitHub.ClientSecret != "",
@@ -186,7 +186,7 @@ func keepSecrets(next *entity.Settings, current entity.Settings) {
 			*dst = cur
 		}
 	}
-	keep(&next.Database.Postgres.Password, current.Database.Postgres.Password)
+	keep(&next.Database.Postgres.DSN, current.Database.Postgres.DSN)
 	keep(&next.Storage.S3.SecretAccessKey, current.Storage.S3.SecretAccessKey)
 	for _, p := range []struct {
 		next *entity.OAuthClientSettings
@@ -204,8 +204,7 @@ func normalize(s entity.Settings) entity.Settings {
 	t := strings.TrimSpace
 	s.Database.Driver = strings.ToLower(t(s.Database.Driver))
 	s.Database.SQLite.DSN = t(s.Database.SQLite.DSN)
-	pg := &s.Database.Postgres
-	pg.Host, pg.User, pg.DBName, pg.SSLMode = t(pg.Host), t(pg.User), t(pg.DBName), strings.ToLower(t(pg.SSLMode))
+	s.Database.Postgres.DSN = t(s.Database.Postgres.DSN)
 	s3 := &s.Storage.S3
 	s3.Endpoint, s3.Region, s3.Bucket, s3.AccessKeyID = t(s3.Endpoint), t(s3.Region), t(s3.Bucket), t(s3.AccessKeyID)
 	s.Auth.Google.ClientID = t(s.Auth.Google.ClientID)
@@ -223,15 +222,13 @@ func validate(s entity.Settings) error {
 			return errors.New("sqlite DSN is required")
 		}
 	case DriverPostgres:
-		pg := s.Database.Postgres
-		if pg.Host == "" || pg.User == "" || pg.DBName == "" {
-			return errors.New("postgres host, user and database are required")
+		if s.Database.Postgres.DSN == "" {
+			return errors.New("postgres DSN is required")
 		}
-		if pg.Port < 1 || pg.Port > 65535 {
-			return errors.New("postgres port must be between 1 and 65535")
-		}
-		if !_sslModes[pg.SSLMode] {
-			return fmt.Errorf("unknown postgres sslmode %q", pg.SSLMode)
+		// Parsing only; it never connects. The error is not echoed because
+		// it can quote the DSN, password included.
+		if _, err := pgconn.ParseConfig(s.Database.Postgres.DSN); err != nil {
+			return errors.New("postgres DSN is not a valid postgres:// URL or key=value connection string")
 		}
 	default:
 		return fmt.Errorf("database driver must be %q or %q", DriverSQLite, DriverPostgres)

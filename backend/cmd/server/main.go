@@ -13,6 +13,7 @@ import (
 
 	"github.com/tmphost/tmphost/backend/internal/app"
 	"github.com/tmphost/tmphost/backend/internal/service/config"
+	"github.com/tmphost/tmphost/backend/internal/service/encryption"
 )
 
 // bundled holds the built frontend (public/) and the configuration.
@@ -67,7 +68,9 @@ func loadConfig(raw []byte, getenv func(string) string) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
-	var cfg app.Config
+	// The master key is read from the environment only, so it can never be
+	// committed in a config file.
+	cfg := app.Config{MasterKey: getenv(encryption.MasterKeyEnv)}
 	sections := map[string]any{
 		"app":      &cfg.App,
 		"auth":     &cfg.Auth,

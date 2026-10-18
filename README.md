@@ -13,7 +13,7 @@ Go (Fiber, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
 ## Development
 
 ```sh
-cp backend/cmd/server/.env.example backend/cmd/server/.env   # fill in OAuth apps + JWT secret
+cp backend/cmd/server/.env.example backend/cmd/server/.env   # fill in OAuth apps, JWT secret, master key
 set -a; . backend/cmd/server/.env; set +a
 make dev-backend    # API on :3000
 make dev-frontend   # app on http://localhost:5173 (proxies /api)
@@ -23,7 +23,8 @@ OAuth callback URLs to register: `<TMPHOST_BASE_URL>/api/v1/auth/google/callback
 and `<TMPHOST_BASE_URL>/api/v1/auth/github/callback`.
 
 Database: SQLite by default (`TMPHOST_SQLITE_DSN`); set
-`TMPHOST_POSTGRES_ENABLED=true` (plus `TMPHOST_POSTGRES_*`) for PostgreSQL.
+`TMPHOST_POSTGRES_ENABLED=true` and `TMPHOST_POSTGRES_DSN`
+(`postgres://user:password@host:5432/tmphost?sslmode=disable`) for PostgreSQL.
 
 ## Build and test
 
@@ -42,9 +43,17 @@ a restart).
 
 Settings are saved to `TMPHOST_SETTINGS_FILE` (default
 `./_storage/settings.json`, mode 0600) and override the config file and
-environment. The file is never served over HTTP: the server only serves the
-embedded frontend, and only web asset types (`.js`, `.css`, `.svg`, ...) from
-it. Secrets are write-only on the setup page.
+environment. Secrets (including the PostgreSQL DSN) are write-only on the
+setup page.
+
+- **Encrypted at rest**: the file is AES-256-GCM encrypted with a key derived
+  (HKDF-SHA256) from `TMPHOSTIO_MASTER_KEY`. The master key is read from the
+  environment only, never from YAML or the settings file, and must be at least
+  32 characters (`openssl rand -hex 32`); the server will not start without it.
+  A wrong key or a tampered file stops startup with an error; if the key is
+  lost, delete the file and re-enter the settings.
+- **Never served**: the server only serves the embedded frontend, and only web
+  asset types (`.js`, `.css`, `.svg`, ...) from it.
 
 ## Docker
 
@@ -54,7 +63,7 @@ image (`FROM scratch`, runs as `nobody`) holds just the binary and CA certs.
 ```sh
 make docker
 docker run -p 3000:3000 -v tmphost-data:/data \
-  -e TMPHOST_AUTH_JWT_SECRET=... -e TMPHOST_AUTH_ROOT_ACCESS_TOKEN=... \
+  -e TMPHOSTIO_MASTER_KEY=... -e TMPHOST_AUTH_JWT_SECRET=... -e TMPHOST_AUTH_ROOT_ACCESS_TOKEN=... \
   -e TMPHOST_BASE_URL=https://tmphost.example.com tmphost
 ```
 

@@ -35,12 +35,7 @@ type (
 
 	// PostgresSettings is the database.postgres section.
 	PostgresSettings struct {
-		Host     string `json:"host"`
-		Port     int    `json:"port"`
-		User     string `json:"user"`
-		Password string `json:"password"`
-		DBName   string `json:"dbname"`
-		SSLMode  string `json:"sslmode"`
+		DSN string `json:"dsn"`
 	}
 
 	// StorageSettings is the storage section.
@@ -73,7 +68,7 @@ type (
 
 	// SecretsSet reports which secrets have a stored value.
 	SecretsSet struct {
-		PostgresPassword   bool `json:"postgresPassword"`
+		PostgresDSN        bool `json:"postgresDsn"`
 		S3SecretAccessKey  bool `json:"s3SecretAccessKey"`
 		GoogleClientSecret bool `json:"googleClientSecret"`
 		GitHubClientSecret bool `json:"githubClientSecret"`

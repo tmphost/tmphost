@@ -18,11 +18,13 @@ import (
 
 	"github.com/tmphost/tmphost/backend/internal/controller/credit"
 	"github.com/tmphost/tmphost/backend/internal/data/model"
+	"github.com/tmphost/tmphost/backend/internal/service/encryption"
 )
 
 func testConfig(t *testing.T) Config {
 	t.Helper()
 	return Config{
+		MasterKey: "a-master-key-of-at-least-32-characters",
 		App: AppConfig{
 			BaseURL: "http://localhost:3000/", BasePath: "/base/",
 			SettingsFile: filepath.Join(t.TempDir(), "settings.json"),
@@ -83,11 +85,13 @@ func TestNew_Errors(t *testing.T) {
 	require.NoError(t, os.WriteFile(garbage, []byte("this is definitely not a sqlite database file at all"), 0o600))
 
 	cases := map[string]func(*Config){
-		"missing secret": func(c *Config) { c.Auth.JWTSecret = "" },
-		"missing dsn":    func(c *Config) { c.SQLite.DSN = "" },
-		"postgres host":  func(c *Config) { c.Postgres = PostgresConfig{Enabled: true} },
+		"missing secret":   func(c *Config) { c.Auth.JWTSecret = "" },
+		"missing dsn":      func(c *Config) { c.SQLite.DSN = "" },
+		"no master key":    func(c *Config) { c.MasterKey = "" },
+		"short master key": func(c *Config) { c.MasterKey = "too-short" },
+		"postgres dsn":     func(c *Config) { c.Postgres = PostgresConfig{Enabled: true} },
 		"postgres down": func(c *Config) {
-			c.Postgres = PostgresConfig{Enabled: true, Host: "127.0.0.1", Port: 1, User: "x", DBName: "x", SSLMode: "disable"}
+			c.Postgres = PostgresConfig{Enabled: true, DSN: "postgres://x:x@127.0.0.1:1/x?sslmode=disable"}
 		},
 		"bad settings file": func(c *Config) { c.App.SettingsFile = t.TempDir() },
 		"mkdir fails":       func(c *Config) { c.SQLite.DSN = filepath.Join(notADir, "db", "x.db") },
@@ -123,7 +127,7 @@ func TestListenAndShutdown(t *testing.T) {
 
 func TestSelectDialector(t *testing.T) {
 	cfg := testConfig(t)
-	cfg.Postgres = PostgresConfig{Enabled: true, Host: "db", PoolConfig: PoolConfig{MaxOpenConns: 9}}
+	cfg.Postgres = PostgresConfig{Enabled: true, DSN: "host=db", PoolConfig: PoolConfig{MaxOpenConns: 9}}
 	d, pool, err := selectDialector(cfg)
 	require.NoError(t, err)
 	assert.Equal(t, "postgres", d.Name(), "postgres wins when both are enabled")
@@ -158,13 +162,6 @@ func TestRenewCredits(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, sqlDB.Close())
 	a.renewCredits()
-}
-
-func TestPostgresDSN(t *testing.T) {
-	assert.Equal(t, "host='db' TimeZone=UTC", postgresDSN(PostgresConfig{Host: "db"}))
-	assert.Equal(t,
-		`host='db' port=5432 user='u' password='p a\'s\\s' dbname='d' sslmode='require' TimeZone=UTC`,
-		postgresDSN(PostgresConfig{Host: "db", Port: 5432, User: "u", Password: `p a's\s`, DBName: "d", SSLMode: "require"}))
 }
 
 func TestSetupFlow_SettingsApplyAndPersist(t *testing.T) {
@@ -214,19 +211,28 @@ func TestSetupFlow_SettingsApplyAndPersist(t *testing.T) {
 	require.NoError(t, err)
 	_, cfgBody := get(t, b, "/api/v1/auth/config")
 	assert.JSONEq(t, `{"providers":["github"]}`, cfgBody, "google cleared, github secret kept")
+
+	// The file on disk is encrypted, and only the same master key opens it.
+	raw, err := os.ReadFile(cfg.App.SettingsFile)
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), "monthlyGrant")
+	assert.NotContains(t, string(raw), "hs")
+	cfg.MasterKey = "another-master-key-of-32-characters!"
+	_, err = New(cfg, fstest.MapFS{})
+	assert.ErrorIs(t, err, encryption.ErrDecrypt)
 }
 
 func TestSettingsFromConfig(t *testing.T) {
 	cfg := testConfig(t)
 	cfg.Credits.MonthlyGrant = 42
-	cfg.Postgres = PostgresConfig{Enabled: true, Host: "h", Port: 1, User: "u", Password: "p", DBName: "d", SSLMode: "disable"}
+	cfg.Postgres = PostgresConfig{Enabled: true, DSN: "postgres://u:p@h:1/d"}
 	cfg.S3 = S3Config{Enabled: true, Endpoint: "e", Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", UsePathStyle: true}
 	s := settingsFromConfig(cfg)
 	assert.Equal(t, 42, s.Credits.MonthlyGrant)
 	assert.Equal(t, "postgres", s.Database.Driver)
 
 	round := applySettings(Config{}, s)
-	assert.Equal(t, cfg.Postgres.Host, round.Postgres.Host)
+	assert.Equal(t, cfg.Postgres.DSN, round.Postgres.DSN)
 	assert.True(t, round.Postgres.Enabled)
 	assert.False(t, round.SQLite.Enabled)
 	assert.Equal(t, cfg.S3, round.S3)

@@ -30,6 +30,7 @@ func envFor(t *testing.T, port int) map[string]string {
 	return map[string]string{
 		"PORT":                    strconv.Itoa(port),
 		"TMPHOST_AUTH_JWT_SECRET": "secret",
+		"TMPHOSTIO_MASTER_KEY":    "a-master-key-of-at-least-32-characters",
 		"TMPHOST_SQLITE_DSN":      filepath.Join(t.TempDir(), "tmphost.db"),
 		"TMPHOST_SETTINGS_FILE":   filepath.Join(t.TempDir(), "settings.json"),
 	}
@@ -47,9 +48,8 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	assert.Contains(t, cfg.SQLite.DSN, "./_storage/tmphost.db?")
 	assert.Equal(t, time.Hour, cfg.SQLite.MaxConnLifetime)
 	assert.False(t, cfg.Postgres.Enabled)
-	assert.Equal(t, "localhost", cfg.Postgres.Host)
-	assert.Equal(t, 5432, cfg.Postgres.Port)
-	assert.Equal(t, "disable", cfg.Postgres.SSLMode)
+	assert.Empty(t, cfg.Postgres.DSN)
+	assert.Empty(t, cfg.MasterKey)
 	assert.Equal(t, 250, cfg.Credits.MonthlyGrant)
 	assert.False(t, cfg.S3.Enabled)
 	assert.Equal(t, "./_storage/settings.json", cfg.App.SettingsFile)
