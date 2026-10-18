@@ -13,8 +13,15 @@
     <section class="grow flex items-center justify-center px-4 py-16">
       <div class="w-full max-w-sm text-center rounded-xl border border-gray-100 p-8">
         <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">tmphost.io</p>
-        <h2 class="mt-2 text-2xl font-bold text-gray-900 tracking-tight">Coming soon</h2>
-        <p class="mt-2 text-sm text-gray-500">We're building this space. Check back shortly.</p>
+        <h2 class="mt-2 text-2xl font-bold text-gray-900 tracking-tight">Share files for a while</h2>
+        <p class="mt-2 text-sm text-gray-500">Upload files or a folder and get links that expire on their own.</p>
+        <router-link
+          to="/files"
+          class="mt-6 inline-block rounded-lg bg-black px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-white hover:bg-gray-800 transition-colors"
+          data-test="home-files"
+        >
+          Go to Files
+        </router-link>
       </div>
     </section>
   </div>

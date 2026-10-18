@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, RouterLinkStub } from '@vue/test-utils'
 import BrandLogo from '../src/components/BrandLogo.vue'
 import HomeView from '../src/views/HomeView.vue'
 import ToastStack from '../src/components/ToastStack.vue'
@@ -21,8 +21,10 @@ describe('BrandLogo', () => {
 })
 
 describe('HomeView', () => {
-  it('says coming soon', () => {
-    expect(mount(HomeView).text()).toContain('Coming soon')
+  it('points to Files', () => {
+    const wrapper = mount(HomeView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+    expect(wrapper.text()).toContain('Share files for a while')
+    expect(wrapper.findComponent(RouterLinkStub).props('to')).toBe('/files')
   })
 })
 

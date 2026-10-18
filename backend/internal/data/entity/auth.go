@@ -50,9 +50,11 @@ type (
 		User         User
 	}
 
-	// AuthenticateRequest carries a session token.
+	// AuthenticateRequest carries a session token or an OAuth access
+	// token.
 	AuthenticateRequest struct {
 		SessionToken string
+		AccessToken  string
 	}
 
 	// AuthenticateResponse identifies the session's user.

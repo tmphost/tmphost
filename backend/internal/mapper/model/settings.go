@@ -28,15 +28,22 @@ func FromSettingsModelToSettingsEntity(m model.Settings) entity.Settings {
 			SQLite:   entity.SQLiteSettings{DSN: m.Database.SQLite.DSN},
 			Postgres: entity.PostgresSettings{DSN: m.Database.Postgres.DSN},
 		},
-		Storage: entity.StorageSettings{S3: entity.S3Settings{
-			Enabled:         m.Storage.S3.Enabled,
-			Endpoint:        m.Storage.S3.Endpoint,
-			Region:          m.Storage.S3.Region,
-			Bucket:          m.Storage.S3.Bucket,
-			AccessKeyID:     m.Storage.S3.AccessKeyID,
-			SecretAccessKey: m.Storage.S3.SecretAccessKey,
-			UsePathStyle:    m.Storage.S3.UsePathStyle,
-		}},
+		Storage: entity.StorageSettings{
+			Driver: storageDriver(m.Storage),
+			Local:  entity.LocalStorageSettings{Path: m.Storage.Local.Path},
+			S3: entity.S3Settings{
+				Endpoint:        m.Storage.S3.Endpoint,
+				Region:          m.Storage.S3.Region,
+				Bucket:          m.Storage.S3.Bucket,
+				AccessKeyID:     m.Storage.S3.AccessKeyID,
+				SecretAccessKey: m.Storage.S3.SecretAccessKey,
+				UsePathStyle:    m.Storage.S3.UsePathStyle,
+			},
+		},
+		Files: entity.FileSettings{
+			MaxTTLMinutes: m.Files.MaxTTLMinutes, MaxUploadMB: m.Files.MaxUploadMB,
+			Subdomains: m.Files.Subdomains, PublicDomain: m.Files.PublicDomain,
+		},
 		Auth: entity.AuthSettings{
 			Google:    entity.OAuthClientSettings{ClientID: m.Auth.Google.ClientID, ClientSecret: m.Auth.Google.ClientSecret},
 			GitHub:    entity.OAuthClientSettings{ClientID: m.Auth.GitHub.ClientID, ClientSecret: m.Auth.GitHub.ClientSecret},
@@ -64,15 +71,22 @@ func FromSettingsEntityToSettingsModel(e entity.Settings) model.Settings {
 			SQLite:   model.SQLiteSettings{DSN: e.Database.SQLite.DSN},
 			Postgres: model.PostgresSettings{DSN: e.Database.Postgres.DSN},
 		},
-		Storage: model.StorageSettings{S3: model.S3Settings{
-			Enabled:         e.Storage.S3.Enabled,
-			Endpoint:        e.Storage.S3.Endpoint,
-			Region:          e.Storage.S3.Region,
-			Bucket:          e.Storage.S3.Bucket,
-			AccessKeyID:     e.Storage.S3.AccessKeyID,
-			SecretAccessKey: e.Storage.S3.SecretAccessKey,
-			UsePathStyle:    e.Storage.S3.UsePathStyle,
-		}},
+		Storage: model.StorageSettings{
+			Driver: e.Storage.Driver,
+			Local:  model.LocalStorageSettings{Path: e.Storage.Local.Path},
+			S3: model.S3Settings{
+				Endpoint:        e.Storage.S3.Endpoint,
+				Region:          e.Storage.S3.Region,
+				Bucket:          e.Storage.S3.Bucket,
+				AccessKeyID:     e.Storage.S3.AccessKeyID,
+				SecretAccessKey: e.Storage.S3.SecretAccessKey,
+				UsePathStyle:    e.Storage.S3.UsePathStyle,
+			},
+		},
+		Files: model.FileSettings{
+			MaxTTLMinutes: e.Files.MaxTTLMinutes, MaxUploadMB: e.Files.MaxUploadMB,
+			Subdomains: e.Files.Subdomains, PublicDomain: e.Files.PublicDomain,
+		},
 		Auth: model.AuthSettings{
 			Google:    model.OAuthClientSettings{ClientID: e.Auth.Google.ClientID, ClientSecret: e.Auth.Google.ClientSecret},
 			GitHub:    model.OAuthClientSettings{ClientID: e.Auth.GitHub.ClientID, ClientSecret: e.Auth.GitHub.ClientSecret},
@@ -106,4 +120,17 @@ func FromOAuthProviderSettingsEntitiesToOAuthProviderSettingsModels(es []entity.
 		}
 	}
 	return out
+}
+
+// storageDriver reads the driver, falling back to the enabled flag of
+// settings saved before the driver existed.
+func storageDriver(m model.StorageSettings) string {
+	switch {
+	case m.Driver != "":
+		return m.Driver
+	case m.S3.Enabled:
+		return "s3"
+	default:
+		return "local"
+	}
 }

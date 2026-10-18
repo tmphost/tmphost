@@ -38,7 +38,7 @@ func newFullApp(t *testing.T) (*fiber.App, *mockauth.MockController, *mocksetup.
 	ctrl := mockauth.NewMockController(mc)
 	setup := mocksetup.NewMockController(mc)
 	app := fiber.New()
-	New(Params{Router: app, Auth: ctrl, Setup: setup, BasePath: "/base/", CookieSecure: true})
+	New(Params{Router: app, Auth: ctrl, Setup: setup, FileSettings: func() entity.FileSettings { return entity.FileSettings{} }, BasePath: "/base/", CookieSecure: true})
 	return app, ctrl, setup
 }
 

@@ -22,7 +22,7 @@ func newDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Folder{}))
 	return db
 }
 
@@ -78,6 +78,26 @@ func TestUserRepository_DBErrors(t *testing.T) {
 	assert.Error(t, err)
 
 	assert.Error(t, repo.UpdateUserCredits(ctx, 1, 250, time.Now()))
+	assert.Error(t, repo.SpendCredits(ctx, 1, 1))
+	assert.NotErrorIs(t, repo.SpendCredits(ctx, 1, 1), ErrInsufficientCredits)
+	assert.Error(t, repo.RefundCredits(ctx, 1, 1))
+}
+
+func TestUserRepository_SpendAndRefundCredits(t *testing.T) {
+	ctx := context.Background()
+	repo := NewUserRepository(newDB(t))
+	_, err := repo.CreateUser(ctx, model.User{ID: 1, Email: "a@x", Credits: 5})
+	require.NoError(t, err)
+
+	require.NoError(t, repo.SpendCredits(ctx, 1, 3))
+	assert.ErrorIs(t, repo.SpendCredits(ctx, 1, 3), ErrInsufficientCredits, "only 2 left")
+	assert.ErrorIs(t, repo.SpendCredits(ctx, 99, 1), ErrInsufficientCredits, "unknown user")
+	require.NoError(t, repo.SpendCredits(ctx, 1, 2))
+	require.NoError(t, repo.RefundCredits(ctx, 1, 4))
+
+	u, err := repo.FindUserByID(ctx, 1)
+	require.NoError(t, err)
+	assert.Equal(t, 4, u.Credits)
 }
 
 func TestUserRepository_CreditRenewal(t *testing.T) {

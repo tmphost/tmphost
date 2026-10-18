@@ -19,7 +19,15 @@ const emit = defineEmits(['toggle-collapse', 'logout'])
 const NAV = [
   {
     section: 'Overview',
-    items: [{ to: '/', label: 'Home', icon: 'M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1V9.5z' }],
+    items: [
+      { to: '/', label: 'Home', icon: 'M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1V9.5z' },
+      { to: '/files', label: 'Files', icon: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z' },
+      {
+        to: '/connect',
+        label: 'Connect',
+        icon: 'M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244',
+      },
+    ],
   },
 ]
 

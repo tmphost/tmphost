@@ -7,6 +7,7 @@ package api
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/mustafaturan/monoflake"
@@ -49,8 +50,12 @@ func FromHTTPRequestToCompleteLoginRequestEntity(c fiber.Ctx) *entity.CompleteLo
 	}
 }
 
-// FromHTTPRequestToAuthenticateRequestEntity reads the session cookie.
+// FromHTTPRequestToAuthenticateRequestEntity reads an OAuth access token
+// from the Authorization header, or else the session cookie.
 func FromHTTPRequestToAuthenticateRequestEntity(c fiber.Ctx) *entity.AuthenticateRequest {
+	if scheme, key, ok := strings.Cut(c.Get(fiber.HeaderAuthorization), " "); ok && strings.EqualFold(scheme, "Bearer") && key != "" {
+		return &entity.AuthenticateRequest{AccessToken: key}
+	}
 	tok := c.Cookies(SessionCookie)
 	if tok == "" {
 		return nil

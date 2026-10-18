@@ -63,6 +63,20 @@ func (mr *MockControllerMockRecorder) Current() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockController)(nil).Current))
 }
 
+// FileLimits mocks base method.
+func (m *MockController) FileLimits() entity.FileSettings {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FileLimits")
+	ret0, _ := ret[0].(entity.FileSettings)
+	return ret0
+}
+
+// FileLimits indicates an expected call of FileLimits.
+func (mr *MockControllerMockRecorder) FileLimits() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FileLimits", reflect.TypeOf((*MockController)(nil).FileLimits))
+}
+
 // GetSettings mocks base method.
 func (m *MockController) GetSettings(ctx context.Context) *entity.GetSettingsResponse {
 	m.ctrl.T.Helper()

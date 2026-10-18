@@ -11,6 +11,14 @@ vi.mock('../src/api', () => ({
   fetchAuthConfig: vi.fn(async () => []),
   providerLoginUrl: vi.fn(() => '#'),
   logout: vi.fn(),
+  BASE_PATH: '',
+  fetchLimits: vi.fn(),
+  listFolders: vi.fn(),
+  createFolder: vi.fn(),
+  fetchFolder: vi.fn(),
+  deleteFolder: vi.fn(),
+  uploadFile: vi.fn(),
+  deleteFile: vi.fn(),
 }))
 
 import { clickOutside, createAuthGuard, createtmphostApp, routes } from '../src/app'
@@ -87,6 +95,12 @@ describe('createtmphostApp', () => {
     await router.push('/')
     expect(router.currentRoute.value.name).toBe('home')
     expect(document.title).toBe('Home · tmphost.io')
+
+    await router.push('/files')
+    expect(document.title).toBe('Files · tmphost.io')
+    await router.push('/connect')
+    expect(router.currentRoute.value.name).toBe('connect')
+    expect(document.title).toBe('Connect · tmphost.io')
 
     await router.push('/nowhere')
     expect(router.currentRoute.value.path).toBe('/')

@@ -19,6 +19,7 @@ type (
 		Credits  CreditSettings   `json:"credits"`
 		Database DatabaseSettings `json:"database"`
 		Storage  StorageSettings  `json:"storage"`
+		Files    FileSettings     `json:"files"`
 		Auth     AuthSettings     `json:"auth"`
 	}
 
@@ -66,18 +67,32 @@ type (
 
 	// StorageSettings is the storage section.
 	StorageSettings struct {
-		S3 S3Settings `json:"s3"`
+		Driver string               `json:"driver"`
+		Local  LocalStorageSettings `json:"local"`
+		S3     S3Settings           `json:"s3"`
+	}
+
+	// LocalStorageSettings is the storage.local section.
+	LocalStorageSettings struct {
+		Path string `json:"path"`
 	}
 
 	// S3Settings is the storage.s3 section.
 	S3Settings struct {
-		Enabled         bool   `json:"enabled"`
 		Endpoint        string `json:"endpoint"`
 		Region          string `json:"region"`
 		Bucket          string `json:"bucket"`
 		AccessKeyID     string `json:"accessKeyId"`
 		SecretAccessKey string `json:"secretAccessKey"`
 		UsePathStyle    bool   `json:"usePathStyle"`
+	}
+
+	// FileSettings is the files section.
+	FileSettings struct {
+		MaxTTLMinutes int    `json:"maxTtlMinutes"`
+		MaxUploadMB   int    `json:"maxUploadMb"`
+		Subdomains    bool   `json:"subdomains"`
+		PublicDomain  string `json:"publicDomain"`
 	}
 
 	// AuthSettings is the auth section.

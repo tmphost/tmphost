@@ -16,8 +16,8 @@ import (
 // FromHTTPRequestToGetCurrentUserRequestEntity reads the user ID the auth
 // middleware stored on the request.
 func FromHTTPRequestToGetCurrentUserRequestEntity(c fiber.Ctx) *entity.GetCurrentUserRequest {
-	id, ok := c.Locals(LocalUserID).(int64)
-	if !ok || id <= 0 {
+	id := localUserID(c)
+	if id == 0 {
 		return nil
 	}
 	return &entity.GetCurrentUserRequest{UserID: id}

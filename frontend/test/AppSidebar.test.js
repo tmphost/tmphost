@@ -21,7 +21,7 @@ const user = {
 async function mountSidebar(props = {}) {
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: '/', component: { render: () => null } }, { path: '/other', component: { render: () => null } }],
+    routes: [{ path: '/', component: { render: () => null } }, { path: '/other', component: { render: () => null } }, { path: '/files', component: { render: () => null } }, { path: '/connect', component: { render: () => null } }],
   })
   await router.push('/')
   return mount(AppSidebar, {
@@ -36,6 +36,9 @@ describe('AppSidebar', () => {
     const wrapper = await mountSidebar()
     expect(wrapper.find('[data-test="sidebar-brand"]').text()).toBe('tmphost.io')
     expect(wrapper.text()).toContain('Home')
+    expect(wrapper.find('a[href="/files"]').text()).toBe('Files')
+    expect(wrapper.find('a[href="/connect"]').text()).toBe('Connect')
+    expect(wrapper.find('a[href="/files"]').classes()).not.toContain('font-semibold')
     const credits = wrapper.find('[data-test="sidebar-credits"]')
     expect(credits.text()).toContain('125')
     expect(credits.text()).toContain('/ 250')

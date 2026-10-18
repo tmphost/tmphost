@@ -303,6 +303,25 @@ func TestAuthenticate(t *testing.T) {
 	})
 }
 
+func TestAuthenticate_AccessToken(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("wins over the session", func(t *testing.T) {
+		e := newEnv(t)
+		e.token.EXPECT().ValidateAccessToken("at").Return(monoflake.ID(9).String(), nil)
+		rs, err := e.ctrl.Authenticate(ctx, &entity.AuthenticateRequest{AccessToken: "at", SessionToken: "ignored"})
+		require.NoError(t, err)
+		assert.Equal(t, int64(9), rs.UserID)
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		e := newEnv(t)
+		e.token.EXPECT().ValidateAccessToken("at").Return("", errBoom)
+		_, err := e.ctrl.Authenticate(ctx, &entity.AuthenticateRequest{AccessToken: "at"})
+		assert.ErrorIs(t, err, ErrUnauthorized)
+	})
+}
+
 func TestGetCurrentUser(t *testing.T) {
 	ctx := context.Background()
 	rq := &entity.GetCurrentUserRequest{UserID: 5}

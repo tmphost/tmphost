@@ -5,13 +5,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { inject } from 'vue'
 
 vi.mock('../src/api', () => ({
   fetchUser: vi.fn(),
+  clearUserCache: vi.fn(),
   logout: vi.fn(),
 }))
 
-import { fetchUser, logout } from '../src/api'
+import { clearUserCache, fetchUser, logout } from '../src/api'
 import App from '../src/App.vue'
 import { clickOutside } from '../src/app'
 import { useToasts } from '../src/composables/useToasts'
@@ -25,6 +27,17 @@ async function mountApp(path) {
       { path: '/login', component: { template: '<p data-test="login-page">login</p>' }, meta: { public: true } },
       { path: '/', component: { template: '<p data-test="home-page">home</p>' } },
       { path: '/other', component: { template: '<p>other</p>' } },
+      { path: '/files', component: { template: '<p>files</p>' } },
+      { path: '/connect', component: { template: '<p>connect</p>' } },
+      {
+        path: '/spend',
+        component: {
+          setup() {
+            return inject('currentUser')
+          },
+          template: '<button data-test="spend" @click="refreshUser">{{ user?.credits }}</button>',
+        },
+      },
     ],
   })
   await router.push(path)
@@ -78,6 +91,18 @@ describe('App', () => {
     await router.push('/other')
     await flushPromises()
     expect(wrapper.find('[data-test="menu-backdrop"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('shares the user and refreshes the sidebar credits', async () => {
+    const { wrapper } = await mountApp('/spend')
+    expect(wrapper.find('[data-test="spend"]').text()).toBe('250')
+    fetchUser.mockResolvedValue({ ...user, credits: 240 })
+    await wrapper.find('[data-test="spend"]').trigger('click')
+    await flushPromises()
+    expect(clearUserCache).toHaveBeenCalled()
+    expect(wrapper.find('[data-test="spend"]').text()).toBe('240')
+    expect(wrapper.find('[data-test="sidebar-credits"]').text()).toContain('240')
     wrapper.unmount()
   })
 

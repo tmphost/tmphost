@@ -35,11 +35,18 @@ const (
 	DriverSQLite = "sqlite"
 	// DriverPostgres selects PostgreSQL.
 	DriverPostgres = "postgres"
+	// StorageLocal keeps uploaded files on the server's disk.
+	StorageLocal = "local"
+	// StorageS3 keeps uploaded files in an S3-compatible bucket.
+	StorageS3 = "s3"
 
 	// DefaultTLSPort is the HTTPS port used when none is set.
 	DefaultTLSPort = 443
 
 	_maxMonthlyGrant = 1_000_000
+	// About ten years; anything longer is a typo, not a plan.
+	_maxTTLMinutes   = 10 * 365 * 24 * 60
+	_maxUploadMB     = 1024
 	_maxProviders    = 20
 	_maxProviderName = 64
 	_maxIconBytes    = 16 << 10
@@ -51,6 +58,9 @@ var (
 	// _builtinProviders are the provider IDs custom providers cannot take.
 	_builtinProviders = map[string]bool{"google": true, "github": true}
 )
+
+// _domain is a lowercase DNS name with an optional port.
+var _domain = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(:[0-9]{1,5})?$`)
 
 var (
 	// ErrInvalidRootToken is returned for a wrong root access token.
@@ -73,6 +83,8 @@ type (
 		Current() entity.Settings
 		// MonthlyGrant returns the current monthly credit grant.
 		MonthlyGrant() int
+		// FileLimits returns the current upload limits.
+		FileLimits() entity.FileSettings
 	}
 
 	// Params are the controller's dependencies.
@@ -105,11 +117,7 @@ func New(p Params) (Controller, error) {
 	saved, err := p.Repository.LoadSettings()
 	switch {
 	case err == nil:
-		current = normalize(mappermodel.FromSettingsModelToSettingsEntity(saved))
-		// Settings saved before the app URL existed keep the configured one.
-		if current.Domain.AppURL == "" {
-			current.Domain.AppURL = normalize(p.Defaults).Domain.AppURL
-		}
+		current = withDefaults(normalize(mappermodel.FromSettingsModelToSettingsEntity(saved)), normalize(p.Defaults))
 	case !errors.Is(err, repository.ErrNotFound):
 		return nil, err
 	}
@@ -177,6 +185,34 @@ func (c *controller) MonthlyGrant() int {
 	return c.current.Credits.MonthlyGrant
 }
 
+func (c *controller) FileLimits() entity.FileSettings {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.current.Files
+}
+
+// withDefaults fills in the sections that settings saved by an older
+// version do not have.
+func withDefaults(s, defaults entity.Settings) entity.Settings {
+	// Settings saved before the app URL existed keep the configured one.
+	if s.Domain.AppURL == "" {
+		s.Domain.AppURL = defaults.Domain.AppURL
+	}
+	if s.Storage.Local.Path == "" {
+		s.Storage.Local.Path = defaults.Storage.Local.Path
+	}
+	if s.Files.MaxTTLMinutes == 0 {
+		s.Files.MaxTTLMinutes = defaults.Files.MaxTTLMinutes
+	}
+	if s.Files.MaxUploadMB == 0 {
+		s.Files.MaxUploadMB = defaults.Files.MaxUploadMB
+	}
+	if s.Files.PublicDomain == "" {
+		s.Files.PublicDomain = defaults.Files.PublicDomain
+	}
+	return s
+}
+
 // response must be called with c.mu held.
 func (c *controller) response() *entity.GetSettingsResponse {
 	public := c.current
@@ -208,9 +244,13 @@ func (c *controller) response() *entity.GetSettingsResponse {
 }
 
 // restartRequired reports whether anything but the live-applied credit
-// settings changed since the server started.
+// grant, maximum TTL and public URL settings changed since the server
+// started.
 func restartRequired(started, current entity.Settings) bool {
-	started.Credits, current.Credits = entity.CreditSettings{}, entity.CreditSettings{}
+	for _, s := range []*entity.Settings{&started, &current} {
+		s.Credits = entity.CreditSettings{}
+		s.Files = entity.FileSettings{MaxUploadMB: s.Files.MaxUploadMB}
+	}
 	return !reflect.DeepEqual(started, current)
 }
 
@@ -251,6 +291,9 @@ func normalize(s entity.Settings) entity.Settings {
 	s.Database.Driver = strings.ToLower(t(s.Database.Driver))
 	s.Database.SQLite.DSN = t(s.Database.SQLite.DSN)
 	s.Database.Postgres.DSN = t(s.Database.Postgres.DSN)
+	s.Storage.Driver = strings.ToLower(t(s.Storage.Driver))
+	s.Storage.Local.Path = t(s.Storage.Local.Path)
+	s.Files.PublicDomain = strings.ToLower(t(s.Files.PublicDomain))
 	s3 := &s.Storage.S3
 	s3.Endpoint, s3.Region, s3.Bucket, s3.AccessKeyID = t(s3.Endpoint), t(s3.Region), t(s3.Bucket), t(s3.AccessKeyID)
 	s.Auth.Google.ClientID = t(s.Auth.Google.ClientID)
@@ -333,16 +376,20 @@ func validate(s entity.Settings) error {
 	default:
 		return fmt.Errorf("database driver must be %q or %q", DriverSQLite, DriverPostgres)
 	}
-	if s3 := s.Storage.S3; s3.Enabled {
-		if s3.Bucket == "" || s3.Region == "" {
-			return errors.New("s3 bucket and region are required")
-		}
-		if s3.Endpoint != "" {
-			u, err := url.Parse(s3.Endpoint)
-			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-				return errors.New("s3 endpoint must be an http(s) URL")
-			}
-		}
+	if err := validateStorage(s.Storage); err != nil {
+		return err
+	}
+	if s.Files.MaxTTLMinutes < 1 || s.Files.MaxTTLMinutes > _maxTTLMinutes {
+		return fmt.Errorf("max TTL must be between 1 and %d minutes", _maxTTLMinutes)
+	}
+	if s.Files.MaxUploadMB < 1 || s.Files.MaxUploadMB > _maxUploadMB {
+		return fmt.Errorf("max upload size must be between 1 and %d MB", _maxUploadMB)
+	}
+	if s.Files.Subdomains && s.Files.PublicDomain == "" {
+		return errors.New("public domain is required for subdomains")
+	}
+	if s.Files.PublicDomain != "" && !_domain.MatchString(s.Files.PublicDomain) {
+		return errors.New("public domain must be a host name, such as tmphost.io, with an optional port")
 	}
 	if (s.Auth.Google.ClientID == "") != (s.Auth.Google.ClientSecret == "") {
 		return errors.New("google needs both client ID and secret, or neither")
@@ -430,4 +477,26 @@ func validAuthURL(raw string) bool {
 		return h == "localhost" || h == "127.0.0.1"
 	}
 	return false
+}
+
+func validateStorage(s entity.StorageSettings) error {
+	switch s.Driver {
+	case StorageLocal:
+		if s.Local.Path == "" {
+			return errors.New("local storage path is required")
+		}
+	case StorageS3:
+		if s.S3.Bucket == "" || s.S3.Region == "" {
+			return errors.New("s3 bucket and region are required")
+		}
+		if s.S3.Endpoint != "" {
+			u, err := url.Parse(s.S3.Endpoint)
+			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+				return errors.New("s3 endpoint must be an http(s) URL")
+			}
+		}
+	default:
+		return fmt.Errorf("storage driver must be %q or %q", StorageLocal, StorageS3)
+	}
+	return nil
 }

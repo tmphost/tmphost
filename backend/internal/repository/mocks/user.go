@@ -96,6 +96,34 @@ func (mr *MockUserRepositoryMockRecorder) ListUsersDueForCreditRenewal(ctx, now,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUsersDueForCreditRenewal", reflect.TypeOf((*MockUserRepository)(nil).ListUsersDueForCreditRenewal), ctx, now, limit)
 }
 
+// RefundCredits mocks base method.
+func (m *MockUserRepository) RefundCredits(ctx context.Context, id int64, n int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RefundCredits", ctx, id, n)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RefundCredits indicates an expected call of RefundCredits.
+func (mr *MockUserRepositoryMockRecorder) RefundCredits(ctx, id, n interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefundCredits", reflect.TypeOf((*MockUserRepository)(nil).RefundCredits), ctx, id, n)
+}
+
+// SpendCredits mocks base method.
+func (m *MockUserRepository) SpendCredits(ctx context.Context, id int64, n int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SpendCredits", ctx, id, n)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SpendCredits indicates an expected call of SpendCredits.
+func (mr *MockUserRepositoryMockRecorder) SpendCredits(ctx, id, n interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SpendCredits", reflect.TypeOf((*MockUserRepository)(nil).SpendCredits), ctx, id, n)
+}
+
 // UpdateUser mocks base method.
 func (m *MockUserRepository) UpdateUser(ctx context.Context, u model.User) (model.User, error) {
 	m.ctrl.T.Helper()

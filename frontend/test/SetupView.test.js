@@ -27,7 +27,12 @@ function state(overrides = {}) {
         sqlite: { dsn: './_storage/tmphost.db' },
         postgres: { dsn: '' },
       },
-      storage: { s3: { enabled: false, endpoint: '', region: '', bucket: '', accessKeyId: '', secretAccessKey: '', usePathStyle: false } },
+      storage: {
+        driver: 'local',
+        local: { path: './_storage/files' },
+        s3: { endpoint: '', region: '', bucket: '', accessKeyId: '', secretAccessKey: '', usePathStyle: false },
+      },
+      files: { maxTtlMinutes: 432000, maxUploadMb: 16, subdomains: false, publicDomain: '' },
       auth: {
         google: { clientId: 'g', clientSecret: '' },
         github: { clientId: '', clientSecret: '' },
@@ -108,7 +113,6 @@ describe('SetupView', () => {
     expect(wrapper.find('[data-test="setup-postgres"]').exists()).toBe(true)
     expect(wrapper.find('#pg-dsn').attributes('placeholder')).toContain('saved')
     expect(wrapper.find('#pg-dsn').attributes('type')).toBe('password')
-    expect(wrapper.find('#s3-secret').attributes('placeholder')).toBe('Not set')
     expect(wrapper.find('#google-secret').attributes('placeholder')).toContain('saved')
     expect(wrapper.find('#github-secret').attributes('placeholder')).toBe('Not set')
 
@@ -129,8 +133,10 @@ describe('SetupView', () => {
     const wrapper = await mountView()
 
     await wrapper.find('[data-test="setup-grant"]').setValue('400')
-    await wrapper.find('[data-test="setup-s3-enabled"]').setValue(true)
+    await wrapper.find('[data-test="setup-storage-s3"]').trigger('click')
     await wrapper.find('#s3-bucket').setValue('files')
+    await wrapper.find('[data-test="setup-max-ttl"]').setValue('1440')
+    await wrapper.find('[data-test="setup-max-upload"]').setValue('64')
     await wrapper.find('#github-id').setValue('h')
     await wrapper.find('#github-secret').setValue('hsecret')
     await wrapper.find('[data-test="setup-form"]').trigger('submit')
@@ -138,7 +144,10 @@ describe('SetupView', () => {
 
     const sent = saveSettings.mock.calls[0][0]
     expect(sent.credits.monthlyGrant).toBe(400)
-    expect(sent.storage.s3).toMatchObject({ enabled: true, bucket: 'files' })
+    expect(sent.storage.driver).toBe('s3')
+    expect(sent.storage.s3).toMatchObject({ bucket: 'files' })
+    expect(sent.storage.s3).not.toHaveProperty('enabled')
+    expect(sent.files).toEqual({ maxTtlMinutes: 1440, maxUploadMb: 64, subdomains: false, publicDomain: '' })
     expect(sent.auth.github).toEqual({ clientId: 'h', clientSecret: 'hsecret' })
     expect(wrapper.find('[data-test="setup-restart"]').exists()).toBe(true)
     expect(wrapper.find('#github-secret').element.value).toBe('', 'secret cleared after save')
@@ -150,14 +159,16 @@ describe('SetupView', () => {
     saveSettings.mockImplementation(async (settings) => state({ settings }))
     const wrapper = await mountView()
     await wrapper.find('#sqlite-dsn').setValue('/data/x.db')
+    await wrapper.find('#local-path').setValue('/srv/files')
     await wrapper.find('[data-test="setup-driver-postgres"]').trigger('click')
+    await wrapper.find('[data-test="setup-storage-s3"]').trigger('click')
     const values = {
       '#pg-dsn': 'postgres://app:pw@db:6543/prod?sslmode=require',
       '#s3-endpoint': 'https://s3.example.com', '#s3-region': 'auto', '#s3-key': 'AK', '#s3-secret': 'SK',
       '#google-id': 'g2', '#google-secret': 'gs2',
     }
     for (const [sel, value] of Object.entries(values)) await wrapper.find(sel).setValue(value)
-    await wrapper.find('input[type="checkbox"]:not([data-test])').setValue(true)
+    await wrapper.find('[data-test="setup-s3-path-style"]').setValue(true)
     await wrapper.find('[data-test="setup-form"]').trigger('submit')
     await flushPromises()
 
@@ -167,9 +178,92 @@ describe('SetupView', () => {
         sqlite: { dsn: '/data/x.db' },
         postgres: { dsn: 'postgres://app:pw@db:6543/prod?sslmode=require' },
       },
-      storage: { s3: { endpoint: 'https://s3.example.com', region: 'auto', accessKeyId: 'AK', secretAccessKey: 'SK', usePathStyle: true } },
+      storage: {
+        driver: 's3',
+        local: { path: '/srv/files' },
+        s3: { endpoint: 'https://s3.example.com', region: 'auto', accessKeyId: 'AK', secretAccessKey: 'SK', usePathStyle: true },
+      },
       auth: { google: { clientId: 'g2', clientSecret: 'gs2' } },
     })
+  })
+
+  it('chooses path or subdomain public URLs and saves the public domain', async () => {
+    fetchSettings.mockResolvedValue(state())
+    saveSettings.mockImplementation(async (settings) => state({ settings }))
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-test="setup-files-help"]').text()).toContain('public URLs apply immediately')
+    expect(wrapper.find('[role="radiogroup"][aria-labelledby="public-urls-label"]').exists()).toBe(true)
+    expect(wrapper.find('#public-urls-label').text()).toBe('Public URLs')
+    expect(wrapper.find('[data-test="setup-urls-path"]').attributes('aria-checked')).toBe('true')
+    expect(wrapper.find('[data-test="setup-urls-subdomains"]').attributes('aria-checked')).toBe('false')
+    expect(wrapper.find('[data-test="setup-path"]').text()).toContain('/files/<userId>/<folderId>/')
+    expect(wrapper.find('[data-test="setup-subdomains"]').exists()).toBe(false)
+
+    await wrapper.find('[data-test="setup-urls-subdomains"]').trigger('click')
+    expect(wrapper.find('[data-test="setup-urls-subdomains"]').attributes('aria-checked')).toBe('true')
+    expect(wrapper.find('[data-test="setup-path"]').exists()).toBe(false)
+    const help = wrapper.find('[data-test="setup-subdomains-help"]').text()
+    expect(help).toContain('f<folderId>.<public domain>')
+    expect(help).toContain('11 characters')
+    expect(help).toContain('blank to use the sites domain')
+    expect(help).not.toContain('<userId>')
+    expect(wrapper.find('[data-test="setup-subdomains"]').text()).toContain('wildcard DNS')
+    const domain = wrapper.find('[data-test="setup-public-domain"]')
+    expect(domain.attributes('placeholder')).toBe('tmphost.io')
+    expect(wrapper.find('label[for="public-domain"]').text()).toBe('Public domain')
+    await domain.setValue(' files.example.com ')
+    await wrapper.find('[data-test="setup-form"]').trigger('submit')
+    await flushPromises()
+    expect(saveSettings.mock.calls.at(-1)[0].files).toEqual({
+      maxTtlMinutes: 432000,
+      maxUploadMb: 16,
+      subdomains: true,
+      publicDomain: 'files.example.com',
+    })
+
+    await wrapper.find('[data-test="setup-urls-path"]').trigger('click')
+    expect(wrapper.find('[data-test="setup-subdomains"]').exists()).toBe(false)
+    wrapper.unmount()
+
+    fetchSettings.mockResolvedValue(state({ settings: { ...state().settings, files: { maxTtlMinutes: 60, maxUploadMb: 8, subdomains: true, publicDomain: 'tmp.example.org' } } }))
+    const loaded = await mountView()
+    expect(loaded.find('[data-test="setup-urls-subdomains"]').attributes('aria-checked')).toBe('true')
+    expect(loaded.find('[data-test="setup-public-domain"]').element.value).toBe('tmp.example.org')
+  })
+
+  it('switches storage driver and keeps the S3 secret write-only', async () => {
+    fetchSettings.mockResolvedValue(state())
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-test="setup-local"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="setup-s3"]').exists()).toBe(false)
+    expect(wrapper.find('#local-path').element.value).toBe('./_storage/files')
+    expect(wrapper.find('[data-test="setup-storage-local"]').attributes('aria-checked')).toBe('true')
+
+    await wrapper.find('[data-test="setup-storage-s3"]').trigger('click')
+    expect(wrapper.find('[data-test="setup-local"]').exists()).toBe(false)
+    expect(wrapper.find('#s3-secret').attributes('type')).toBe('password')
+    expect(wrapper.find('#s3-secret').attributes('placeholder')).toBe('Not set')
+    wrapper.unmount()
+
+    fetchSettings.mockResolvedValue(state({ secretsSet: { ...state().secretsSet, s3SecretAccessKey: true } }))
+    const saved = await mountView()
+    await saved.find('[data-test="setup-storage-s3"]').trigger('click')
+    expect(saved.find('#s3-secret').attributes('placeholder')).toContain('saved')
+    expect(saved.find('#s3-secret').element.value).toBe('')
+  })
+
+  it('explains the max TTL in hours or days', async () => {
+    fetchSettings.mockResolvedValue(state())
+    const wrapper = await mountView()
+    const hint = () => wrapper.find('[data-test="setup-max-ttl-hint"]').text()
+    expect(hint()).toBe('= 300 days')
+    await wrapper.find('[data-test="setup-max-ttl"]').setValue('90')
+    expect(hint()).toBe('= 1 h 30 min')
+    await wrapper.find('[data-test="setup-max-ttl"]').setValue('0')
+    expect(hint()).toMatch(/whole number/)
+    await wrapper.find('[data-test="setup-max-ttl"]').setValue('')
+    expect(hint()).toMatch(/whole number/)
+    expect(wrapper.find('[data-test="setup-max-upload"]').element.value).toBe('16')
   })
 
   it('shows validation errors from the server', async () => {

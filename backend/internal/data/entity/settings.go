@@ -12,6 +12,7 @@ type (
 		Credits  CreditSettings
 		Database DatabaseSettings
 		Storage  StorageSettings
+		Files    FileSettings
 		Auth     AuthSettings
 	}
 
@@ -72,20 +73,41 @@ type (
 		DSN string
 	}
 
-	// StorageSettings configure object storage.
+	// StorageSettings choose and configure where uploaded files live.
 	StorageSettings struct {
-		S3 S3Settings
+		// Driver is "local" or "s3".
+		Driver string
+		Local  LocalStorageSettings
+		S3     S3Settings
+	}
+
+	// LocalStorageSettings configure storage on the server's disk.
+	LocalStorageSettings struct {
+		Path string
 	}
 
 	// S3Settings configure an S3-compatible bucket.
 	S3Settings struct {
-		Enabled         bool
 		Endpoint        string
 		Region          string
 		Bucket          string
 		AccessKeyID     string
 		SecretAccessKey string
 		UsePathStyle    bool
+	}
+
+	// FileSettings limit uploads and choose how folders are served.
+	FileSettings struct {
+		// MaxTTLMinutes is the longest lifetime a folder can be given.
+		MaxTTLMinutes int
+		// MaxUploadMB caps the bytes a single upload request carries.
+		MaxUploadMB int
+		// Subdomains serves each folder on its own host,
+		// <folderID>-<userID>.<PublicDomain>; otherwise folders are served
+		// at <base URL>/files/<userID>/<folderID>/.
+		Subdomains bool
+		// PublicDomain is the host[:port] folder hosts are subdomains of.
+		PublicDomain string
 	}
 
 	// AuthSettings configure the sign-in providers.

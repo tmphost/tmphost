@@ -1,4 +1,4 @@
-.PHONY: build frontend backend test test-backend test-frontend coverage mocks lint lint-backend lint-frontend copyright copyright-fix docker dev-backend dev-frontend
+.PHONY: build frontend backend cli test test-backend test-frontend test-cli coverage mocks lint lint-backend lint-frontend copyright copyright-fix docker dev-backend dev-frontend
 
 PUBLIC := backend/cmd/server/public
 
@@ -13,10 +13,17 @@ frontend:
 backend:
 	cd backend && go build -o ../bin/tmphost ./cmd/server
 
-test: test-backend test-frontend
+# bin/tmphost is the server, so the CLI gets its own name; rename it on install.
+cli:
+	cd cli && go build -o ../bin/tmphost-cli .
+
+test: test-backend test-frontend test-cli
 
 test-backend:
 	cd backend && go test -race -coverprofile=coverage.out $$(go list ./... | grep -v /mocks) && go tool cover -func=coverage.out | tail -1
+
+test-cli:
+	cd cli && go test -race -coverprofile=coverage.out ./... && go tool cover -func=coverage.out | tail -1
 
 test-frontend:
 	cd frontend && npm run test:coverage

@@ -11,8 +11,8 @@ import (
 	mapper "github.com/tmphost/tmphost/backend/internal/mapper/api"
 )
 
-// Authenticate rejects requests without a valid session cookie and stores
-// the user ID for the handlers behind it.
+// Authenticate rejects requests without a valid session cookie or access
+// token and stores the user ID for the handlers behind it.
 func Authenticate(controller authctrl.Controller) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		rq := mapper.FromHTTPRequestToAuthenticateRequestEntity(c)
@@ -24,6 +24,19 @@ func Authenticate(controller authctrl.Controller) fiber.Handler {
 			return sendError(c, fiber.StatusUnauthorized, "unauthorized")
 		}
 		c.Locals(mapper.LocalUserID, rs.UserID)
+		return c.Next()
+	}
+}
+
+// OptionalAuthenticate stores the user ID of a valid session, if any, and
+// always continues.
+func OptionalAuthenticate(controller authctrl.Controller) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		if rq := mapper.FromHTTPRequestToAuthenticateRequestEntity(c); rq != nil {
+			if rs, err := controller.Authenticate(c.Context(), rq); err == nil {
+				c.Locals(mapper.LocalUserID, rs.UserID)
+			}
+		}
 		return c.Next()
 	}
 }
