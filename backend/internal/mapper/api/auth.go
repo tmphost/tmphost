@@ -8,7 +8,7 @@ package api
 import (
 	"encoding/json"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/mustafaturan/monoflake"
 
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
@@ -26,7 +26,7 @@ const (
 )
 
 // FromHTTPRequestToStartLoginRequestEntity reads GET /auth/:provider/login.
-func FromHTTPRequestToStartLoginRequestEntity(c *fiber.Ctx) *entity.StartLoginRequest {
+func FromHTTPRequestToStartLoginRequestEntity(c fiber.Ctx) *entity.StartLoginRequest {
 	provider := c.Params("provider")
 	if provider == "" {
 		return nil
@@ -36,7 +36,7 @@ func FromHTTPRequestToStartLoginRequestEntity(c *fiber.Ctx) *entity.StartLoginRe
 
 // FromHTTPRequestToCompleteLoginRequestEntity reads the provider callback.
 // It returns nil when the provider sent no code (e.g. the user cancelled).
-func FromHTTPRequestToCompleteLoginRequestEntity(c *fiber.Ctx) *entity.CompleteLoginRequest {
+func FromHTTPRequestToCompleteLoginRequestEntity(c fiber.Ctx) *entity.CompleteLoginRequest {
 	provider, code := c.Params("provider"), c.Query("code")
 	if provider == "" || code == "" {
 		return nil
@@ -50,7 +50,7 @@ func FromHTTPRequestToCompleteLoginRequestEntity(c *fiber.Ctx) *entity.CompleteL
 }
 
 // FromHTTPRequestToAuthenticateRequestEntity reads the session cookie.
-func FromHTTPRequestToAuthenticateRequestEntity(c *fiber.Ctx) *entity.AuthenticateRequest {
+func FromHTTPRequestToAuthenticateRequestEntity(c fiber.Ctx) *entity.AuthenticateRequest {
 	tok := c.Cookies(SessionCookie)
 	if tok == "" {
 		return nil
@@ -60,9 +60,9 @@ func FromHTTPRequestToAuthenticateRequestEntity(c *fiber.Ctx) *entity.Authentica
 
 // FromGetAuthConfigResponseEntityToHTTPResponse renders GET /auth/config.
 func FromGetAuthConfigResponseEntityToHTTPResponse(rs *entity.GetAuthConfigResponse) []byte {
-	providers := rs.Providers
-	if providers == nil {
-		providers = []string{}
+	providers := make([]view.AuthProvider, len(rs.Providers))
+	for i, p := range rs.Providers {
+		providers[i] = view.AuthProvider{ID: p.ID, Name: p.Name, Icon: p.Icon}
 	}
 	return marshal(view.AuthConfig{Providers: providers})
 }

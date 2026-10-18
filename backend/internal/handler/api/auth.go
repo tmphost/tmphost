@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
 	mapper "github.com/tmphost/tmphost/backend/internal/mapper/api"
@@ -34,14 +34,14 @@ type Auth struct {
 }
 
 // Config returns the enabled sign-in providers.
-func (h *Auth) Config(c *fiber.Ctx) error {
+func (h *Auth) Config(c fiber.Ctx) error {
 	rs := h.controller.GetAuthConfig(c.Context())
 	return sendJSON(c, fiber.StatusOK, mapper.FromGetAuthConfigResponseEntityToHTTPResponse(rs))
 }
 
 // Login redirects the browser to the provider's consent screen and pins
 // the OAuth state in a short-lived cookie.
-func (h *Auth) Login(c *fiber.Ctx) error {
+func (h *Auth) Login(c fiber.Ctx) error {
 	rq := mapper.FromHTTPRequestToStartLoginRequestEntity(c)
 	if rq == nil {
 		return fiber.ErrBadRequest
@@ -50,17 +50,20 @@ func (h *Auth) Login(c *fiber.Ctx) error {
 	if errors.Is(err, authctrl.ErrUnknownProvider) {
 		return sendError(c, fiber.StatusNotFound, "unknown provider")
 	}
+	if errors.Is(err, authctrl.ErrProviderUnavailable) {
+		return h.loginError(c, LoginErrorProvider)
+	}
 	if err != nil {
 		return sendError(c, fiber.StatusInternalServerError, "failed to start login")
 	}
 	c.Cookie(h.cookie(mapper.StateCookie, rs.State, token.StateTTL, h.stateCookiePath()))
-	return c.Redirect(rs.AuthURL, fiber.StatusFound)
+	return c.Redirect().Status(fiber.StatusFound).To(rs.AuthURL)
 }
 
 // Callback finishes the provider round trip, issues the session cookie and
 // sends the browser back into the app. The browser navigated here, so
 // failures redirect to the login page instead of returning JSON.
-func (h *Auth) Callback(c *fiber.Ctx) error {
+func (h *Auth) Callback(c fiber.Ctx) error {
 	// The state is single use, whatever the outcome.
 	c.Cookie(h.cookie(mapper.StateCookie, "", -1, h.stateCookiePath()))
 
@@ -83,17 +86,17 @@ func (h *Auth) Callback(c *fiber.Ctx) error {
 		return h.loginError(c, LoginErrorServer)
 	}
 	c.Cookie(h.cookie(mapper.SessionCookie, rs.SessionToken, token.SessionTTL, h.sessionCookiePath()))
-	return c.Redirect(rs.RedirectURL, fiber.StatusFound)
+	return c.Redirect().Status(fiber.StatusFound).To(rs.RedirectURL)
 }
 
 // Logout clears the session cookie.
-func (h *Auth) Logout(c *fiber.Ctx) error {
+func (h *Auth) Logout(c fiber.Ctx) error {
 	c.Cookie(h.cookie(mapper.SessionCookie, "", -1, h.sessionCookiePath()))
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-func (h *Auth) loginError(c *fiber.Ctx, code string) error {
-	return c.Redirect(h.basePath+"/login?error="+url.QueryEscape(code), fiber.StatusFound)
+func (h *Auth) loginError(c fiber.Ctx, code string) error {
+	return c.Redirect().Status(fiber.StatusFound).To(h.basePath + "/login?error=" + url.QueryEscape(code))
 }
 
 func (h *Auth) sessionCookiePath() string { return h.basePath + "/" }

@@ -16,10 +16,32 @@ type (
 
 	// Settings is the plaintext (JSON) form of the setup page settings.
 	Settings struct {
+		Domain   DomainSettings   `json:"domain"`
+		TLS      TLSSettings      `json:"tls"`
 		Credits  CreditSettings   `json:"credits"`
 		Database DatabaseSettings `json:"database"`
 		Storage  StorageSettings  `json:"storage"`
 		Auth     AuthSettings     `json:"auth"`
+	}
+
+	// DomainSettings is the domain section.
+	DomainSettings struct {
+		AppURL      string `json:"appUrl"`
+		SitesDomain string `json:"sitesDomain"`
+	}
+
+	// TLSSettings is the tls section.
+	TLSSettings struct {
+		Enabled bool         `json:"enabled"`
+		Port    int          `json:"port"`
+		Email   string       `json:"email"`
+		Lego    LegoSettings `json:"lego"`
+	}
+
+	// LegoSettings is the tls.lego section.
+	LegoSettings struct {
+		Enabled            bool   `json:"enabled"`
+		CloudflareAPIToken string `json:"cloudflareApiToken"`
 	}
 
 	// CreditSettings is the credits section.
@@ -62,8 +84,19 @@ type (
 
 	// AuthSettings is the auth section.
 	AuthSettings struct {
-		Google OAuthClientSettings `json:"google"`
-		GitHub OAuthClientSettings `json:"github"`
+		Google    OAuthClientSettings     `json:"google"`
+		GitHub    OAuthClientSettings     `json:"github"`
+		Providers []OAuthProviderSettings `json:"providers"`
+	}
+
+	// OAuthProviderSettings is a custom OpenID Connect provider.
+	OAuthProviderSettings struct {
+		ID           string `json:"id"`
+		Name         string `json:"name"`
+		Icon         string `json:"icon"`
+		ClientID     string `json:"clientId"`
+		ClientSecret string `json:"clientSecret"`
+		AuthURL      string `json:"authUrl"`
 	}
 
 	// OAuthClientSettings is an OAuth app registration.

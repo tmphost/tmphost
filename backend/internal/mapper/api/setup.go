@@ -7,7 +7,7 @@ package api
 import (
 	"encoding/json"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
 	"github.com/tmphost/tmphost/backend/internal/data/view"
@@ -17,7 +17,7 @@ import (
 const RootCookie = "tmphost_root"
 
 // FromHTTPRequestToRootLoginRequestEntity reads POST /setup/login.
-func FromHTTPRequestToRootLoginRequestEntity(c *fiber.Ctx) *entity.RootLoginRequest {
+func FromHTTPRequestToRootLoginRequestEntity(c fiber.Ctx) *entity.RootLoginRequest {
 	var rq view.RootLoginRequest
 	if err := json.Unmarshal(c.Body(), &rq); err != nil || rq.Token == "" {
 		return nil
@@ -26,7 +26,7 @@ func FromHTTPRequestToRootLoginRequestEntity(c *fiber.Ctx) *entity.RootLoginRequ
 }
 
 // FromHTTPRequestToAuthenticateRootRequestEntity reads the root cookie.
-func FromHTTPRequestToAuthenticateRootRequestEntity(c *fiber.Ctx) *entity.AuthenticateRootRequest {
+func FromHTTPRequestToAuthenticateRootRequestEntity(c fiber.Ctx) *entity.AuthenticateRootRequest {
 	tok := c.Cookies(RootCookie)
 	if tok == "" {
 		return nil
@@ -35,7 +35,7 @@ func FromHTTPRequestToAuthenticateRootRequestEntity(c *fiber.Ctx) *entity.Authen
 }
 
 // FromHTTPRequestToUpdateSettingsRequestEntity reads PUT /setup/settings.
-func FromHTTPRequestToUpdateSettingsRequestEntity(c *fiber.Ctx) *entity.UpdateSettingsRequest {
+func FromHTTPRequestToUpdateSettingsRequestEntity(c fiber.Ctx) *entity.UpdateSettingsRequest {
 	var rq view.SettingsRequest
 	if err := json.Unmarshal(c.Body(), &rq); err != nil {
 		return nil
@@ -48,10 +48,12 @@ func FromGetSettingsResponseEntityToHTTPResponse(rs *entity.GetSettingsResponse)
 	return marshal(view.SettingsResponse{
 		Settings: FromSettingsEntityToSettingsView(rs.Settings),
 		SecretsSet: view.SecretsSet{
-			PostgresDSN:        rs.SecretsSet.PostgresDSN,
-			S3SecretAccessKey:  rs.SecretsSet.S3SecretAccessKey,
-			GoogleClientSecret: rs.SecretsSet.GoogleClientSecret,
-			GitHubClientSecret: rs.SecretsSet.GitHubClientSecret,
+			PostgresDSN:           rs.SecretsSet.PostgresDSN,
+			S3SecretAccessKey:     rs.SecretsSet.S3SecretAccessKey,
+			GoogleClientSecret:    rs.SecretsSet.GoogleClientSecret,
+			GitHubClientSecret:    rs.SecretsSet.GitHubClientSecret,
+			CloudflareAPIToken:    rs.SecretsSet.CloudflareAPIToken,
+			ProviderClientSecrets: providerSecretsSet(rs.SecretsSet.ProviderClientSecrets),
 		},
 		RestartRequired: rs.RestartRequired,
 	})
@@ -65,6 +67,16 @@ func FromUpdateSettingsResponseEntityToHTTPResponse(rs *entity.UpdateSettingsRes
 // FromSettingsViewToSettingsEntity maps request settings to the domain.
 func FromSettingsViewToSettingsEntity(v view.Settings) entity.Settings {
 	return entity.Settings{
+		Domain: entity.DomainSettings{AppURL: v.Domain.AppURL, SitesDomain: v.Domain.SitesDomain},
+		TLS: entity.TLSSettings{
+			Enabled: v.TLS.Enabled,
+			Port:    v.TLS.Port,
+			Email:   v.TLS.Email,
+			Lego: entity.LegoSettings{
+				Enabled:            v.TLS.Lego.Enabled,
+				CloudflareAPIToken: v.TLS.Lego.CloudflareAPIToken,
+			},
+		},
 		Credits: entity.CreditSettings{MonthlyGrant: v.Credits.MonthlyGrant},
 		Database: entity.DatabaseSettings{
 			Driver:   v.Database.Driver,
@@ -81,8 +93,9 @@ func FromSettingsViewToSettingsEntity(v view.Settings) entity.Settings {
 			UsePathStyle:    v.Storage.S3.UsePathStyle,
 		}},
 		Auth: entity.AuthSettings{
-			Google: entity.OAuthClientSettings{ClientID: v.Auth.Google.ClientID, ClientSecret: v.Auth.Google.ClientSecret},
-			GitHub: entity.OAuthClientSettings{ClientID: v.Auth.GitHub.ClientID, ClientSecret: v.Auth.GitHub.ClientSecret},
+			Google:    entity.OAuthClientSettings{ClientID: v.Auth.Google.ClientID, ClientSecret: v.Auth.Google.ClientSecret},
+			GitHub:    entity.OAuthClientSettings{ClientID: v.Auth.GitHub.ClientID, ClientSecret: v.Auth.GitHub.ClientSecret},
+			Providers: FromOAuthProviderSettingsViewsToOAuthProviderSettingsEntities(v.Auth.Providers),
 		},
 	}
 }
@@ -90,6 +103,16 @@ func FromSettingsViewToSettingsEntity(v view.Settings) entity.Settings {
 // FromSettingsEntityToSettingsView maps domain settings to the response.
 func FromSettingsEntityToSettingsView(e entity.Settings) view.Settings {
 	return view.Settings{
+		Domain: view.DomainSettings{AppURL: e.Domain.AppURL, SitesDomain: e.Domain.SitesDomain},
+		TLS: view.TLSSettings{
+			Enabled: e.TLS.Enabled,
+			Port:    e.TLS.Port,
+			Email:   e.TLS.Email,
+			Lego: view.LegoSettings{
+				Enabled:            e.TLS.Lego.Enabled,
+				CloudflareAPIToken: e.TLS.Lego.CloudflareAPIToken,
+			},
+		},
 		Credits: view.CreditSettings{MonthlyGrant: e.Credits.MonthlyGrant},
 		Database: view.DatabaseSettings{
 			Driver:   e.Database.Driver,
@@ -106,8 +129,44 @@ func FromSettingsEntityToSettingsView(e entity.Settings) view.Settings {
 			UsePathStyle:    e.Storage.S3.UsePathStyle,
 		}},
 		Auth: view.AuthSettings{
-			Google: view.OAuthClientSettings{ClientID: e.Auth.Google.ClientID, ClientSecret: e.Auth.Google.ClientSecret},
-			GitHub: view.OAuthClientSettings{ClientID: e.Auth.GitHub.ClientID, ClientSecret: e.Auth.GitHub.ClientSecret},
+			Google:    view.OAuthClientSettings{ClientID: e.Auth.Google.ClientID, ClientSecret: e.Auth.Google.ClientSecret},
+			GitHub:    view.OAuthClientSettings{ClientID: e.Auth.GitHub.ClientID, ClientSecret: e.Auth.GitHub.ClientSecret},
+			Providers: FromOAuthProviderSettingsEntitiesToOAuthProviderSettingsViews(e.Auth.Providers),
 		},
 	}
+}
+
+// FromOAuthProviderSettingsViewsToOAuthProviderSettingsEntities maps custom
+// sign-in providers to the domain.
+func FromOAuthProviderSettingsViewsToOAuthProviderSettingsEntities(ps []view.OAuthProviderSettings) []entity.OAuthProviderSettings {
+	if len(ps) == 0 {
+		return nil
+	}
+	out := make([]entity.OAuthProviderSettings, len(ps))
+	for i, p := range ps {
+		out[i] = entity.OAuthProviderSettings{
+			ID: p.ID, Name: p.Name, Icon: p.Icon, ClientID: p.ClientID, ClientSecret: p.ClientSecret, AuthURL: p.AuthURL,
+		}
+	}
+	return out
+}
+
+// FromOAuthProviderSettingsEntitiesToOAuthProviderSettingsViews maps custom
+// sign-in providers from the domain.
+func FromOAuthProviderSettingsEntitiesToOAuthProviderSettingsViews(es []entity.OAuthProviderSettings) []view.OAuthProviderSettings {
+	out := make([]view.OAuthProviderSettings, len(es))
+	for i, e := range es {
+		out[i] = view.OAuthProviderSettings{
+			ID: e.ID, Name: e.Name, Icon: e.Icon, ClientID: e.ClientID, ClientSecret: e.ClientSecret, AuthURL: e.AuthURL,
+		}
+	}
+	return out
+}
+
+// providerSecretsSet always renders an object, never null.
+func providerSecretsSet(m map[string]bool) map[string]bool {
+	if m == nil {
+		return map[string]bool{}
+	}
+	return m
 }

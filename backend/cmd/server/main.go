@@ -77,6 +77,7 @@ func loadConfig(raw []byte, getenv func(string) string) (app.Config, error) {
 	cfg := app.Config{MasterKey: getenv(encryption.MasterKeyEnv)}
 	sections := map[string]any{
 		"app":      &cfg.App,
+		"tls":      &cfg.TLS,
 		"auth":     &cfg.Auth,
 		"credits":  &cfg.Credits,
 		"sqlite":   &cfg.SQLite,

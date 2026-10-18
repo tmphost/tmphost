@@ -9,12 +9,14 @@ import { onMounted, ref } from 'vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import { fetchSettings, saveSettings, setupLogin, setupLogout } from '../api'
 import { useToasts } from '../composables/useToasts'
+import { providerSlug, svgDataUri } from '../utils/providers'
 
 const PG_DSN_EXAMPLE = 'postgres://user:password@host:5432/tmphost?sslmode=disable'
 
 const INPUT =
   'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none'
 const LABEL = 'block text-[11px] font-bold text-gray-500 mb-1'
+const TEXTAREA = `${INPUT} font-mono text-xs`
 const PRIMARY =
   'rounded-lg bg-black px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-white hover:bg-gray-800 disabled:opacity-50 transition-colors'
 const SECONDARY =
@@ -36,6 +38,7 @@ const saveError = ref('')
 function load(state) {
   // Work on a copy; secrets always arrive blank.
   form.value = JSON.parse(JSON.stringify(state.settings))
+  form.value.auth.providers = form.value.auth.providers || []
   secretsSet.value = state.secretsSet
   restartRequired.value = state.restartRequired
   phase.value = 'settings'
@@ -93,6 +96,29 @@ async function save() {
   } finally {
     busy.value = false
   }
+}
+
+function addProvider() {
+  form.value.auth.providers.push({ name: '', icon: '', clientId: '', clientSecret: '', authUrl: '' })
+}
+
+function removeProvider(index) {
+  form.value.auth.providers.splice(index, 1)
+}
+
+async function uploadIcon(provider, event) {
+  const file = event.target.files[0]
+  if (!file) return
+  provider.icon = await file.text()
+  event.target.value = ''
+}
+
+function callbackUrl(provider) {
+  return `${form.value.domain.appUrl.replace(/\/+$/, '')}/api/v1/auth/${providerSlug(provider.name)}/callback`
+}
+
+function providerSecretSet(provider) {
+  return Boolean(secretsSet.value.providerClientSecrets?.[providerSlug(provider.name)])
 }
 
 function secretPlaceholder(isSet) {
@@ -159,7 +185,7 @@ onMounted(refresh)
         class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800"
         data-test="setup-restart"
       >
-        Saved. Database, storage and sign-in changes take effect after the server restarts.
+        Saved. Domain, TLS, database, storage and sign-in changes take effect after the server restarts.
       </p>
       <p
         v-if="saveError"
@@ -171,6 +197,88 @@ onMounted(refresh)
       </p>
 
       <div class="space-y-4">
+        <!-- Domains -->
+        <section class="rounded-xl border border-gray-200 bg-white p-5" data-test="setup-domain">
+          <h2 class="text-sm font-bold text-gray-900">Domains</h2>
+          <p class="text-xs text-gray-500 mb-4">Requires a restart.</p>
+          <div class="space-y-3">
+            <div>
+              <label for="app-url" :class="LABEL">App URL</label>
+              <input id="app-url" v-model="form.domain.appUrl" placeholder="https://app.tmphost.io" :class="INPUT" />
+              <p class="mt-1 text-[11px] text-gray-400">
+                Default http://localhost:2027. Its host (any domain or subdomain) is where the app is served; OAuth callbacks use it.
+              </p>
+            </div>
+            <div>
+              <label for="sites-domain" :class="LABEL">Sites domain</label>
+              <input id="sites-domain" v-model="form.domain.sitesDomain" placeholder="tmphost.io" :class="INPUT" />
+              <p class="mt-1 text-[11px] text-gray-400">
+                Dynamic subdomains are served as f + 11 characters under it, e.g. f1a2b3c4d5e6.tmphost.io. Leave blank to disable.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- TLS -->
+        <section class="rounded-xl border border-gray-200 bg-white p-5" data-test="setup-tls">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h2 class="text-sm font-bold text-gray-900">TLS</h2>
+              <p class="text-xs text-gray-500 mb-4">
+                Serve HTTPS directly with Let's Encrypt certificates, obtained and renewed automatically. Let's Encrypt must
+                reach this server on port 443 for the app host (and each subdomain). Requires a restart.
+              </p>
+            </div>
+            <label class="flex items-center gap-2 text-xs font-bold text-gray-700">
+              <input v-model="form.tls.enabled" type="checkbox" class="accent-black" data-test="setup-tls-enabled" />
+              Enabled
+            </label>
+          </div>
+          <div class="space-y-4" :class="{ 'opacity-50': !form.tls.enabled }">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label for="tls-port" :class="LABEL">HTTPS port</label>
+                <input id="tls-port" v-model.number="form.tls.port" type="number" min="1" max="65535" :class="[INPUT, 'max-w-[12rem]']" />
+              </div>
+              <div>
+                <label for="tls-email" :class="LABEL">Let's Encrypt email</label>
+                <input id="tls-email" v-model="form.tls.email" type="email" placeholder="ops@tmphost.io" :class="INPUT" />
+                <p class="mt-1 text-[11px] text-gray-400">Optional. Let's Encrypt sends expiry notices here.</p>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-gray-100 p-4">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <h3 class="text-xs font-bold text-gray-900">Dynamic subdomains (lego)</h3>
+                  <p class="text-[11px] text-gray-400 mb-3">
+                    Blank: each subdomain gets its own certificate on its first visit (Let's Encrypt allows about 50 new ones per
+                    week per domain). With a Cloudflare API token (Zone DNS edit): one wildcard
+                    *.{{ form.domain.sitesDomain || 'sites domain' }} certificate via DNS-01, no weekly limit.
+                  </p>
+                </div>
+                <label class="flex items-center gap-2 text-xs font-bold text-gray-700">
+                  <input v-model="form.tls.lego.enabled" type="checkbox" class="accent-black" data-test="setup-lego-enabled" />
+                  Enabled
+                </label>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" :class="{ 'opacity-50': !form.tls.lego.enabled }">
+                <div>
+                  <label for="lego-token" :class="LABEL">Cloudflare API token (optional)</label>
+                  <input
+                    id="lego-token"
+                    v-model="form.tls.lego.cloudflareApiToken"
+                    type="password"
+                    autocomplete="new-password"
+                    :placeholder="secretsSet.cloudflareApiToken ? secretPlaceholder(true) : 'Optional'"
+                    :class="INPUT"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- Credits -->
         <section class="rounded-xl border border-gray-200 bg-white p-5">
           <h2 class="text-sm font-bold text-gray-900">Credits</h2>
@@ -302,6 +410,98 @@ onMounted(refresh)
                   :placeholder="secretPlaceholder(provider.secretSet)"
                   :class="INPUT"
                 />
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 border-t border-gray-100 pt-5">
+            <div class="flex items-center justify-between gap-4 mb-3">
+              <div>
+                <h3 class="text-xs font-bold text-gray-900">Custom providers</h3>
+                <p class="text-[11px] text-gray-400">Any OpenID Connect provider (Okta, Auth0, Keycloak, ...).</p>
+              </div>
+              <button type="button" :class="SECONDARY" data-test="setup-add-provider" @click="addProvider">Add provider</button>
+            </div>
+            <div class="space-y-3">
+              <div
+                v-for="(provider, index) in form.auth.providers"
+                :key="index"
+                class="rounded-lg border border-gray-100 p-4"
+                :data-test="`setup-custom-provider-${index}`"
+              >
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label :for="`cp-${index}-name`" :class="LABEL">Name</label>
+                    <input :id="`cp-${index}-name`" v-model="provider.name" placeholder="Okta" :class="INPUT" />
+                  </div>
+                  <div>
+                    <label :for="`cp-${index}-auth-url`" :class="LABEL">Auth URL</label>
+                    <input
+                      :id="`cp-${index}-auth-url`"
+                      v-model="provider.authUrl"
+                      placeholder="https://accounts.example.com"
+                      :class="INPUT"
+                    />
+                    <p class="mt-1 text-[11px] text-gray-400">OpenID Connect issuer; endpoints come from /.well-known/openid-configuration</p>
+                  </div>
+                  <div>
+                    <label :for="`cp-${index}-id`" :class="LABEL">Client ID</label>
+                    <input :id="`cp-${index}-id`" v-model="provider.clientId" :class="INPUT" />
+                  </div>
+                  <div>
+                    <label :for="`cp-${index}-secret`" :class="LABEL">Client secret</label>
+                    <input
+                      :id="`cp-${index}-secret`"
+                      v-model="provider.clientSecret"
+                      type="password"
+                      autocomplete="new-password"
+                      :placeholder="secretPlaceholder(providerSecretSet(provider))"
+                      :class="INPUT"
+                    />
+                  </div>
+                  <div class="sm:col-span-2">
+                    <div class="flex items-center justify-between gap-3 mb-1">
+                      <label :for="`cp-${index}-icon`" class="block text-[11px] font-bold text-gray-500">SVG icon</label>
+                      <label class="cursor-pointer text-[11px] font-bold text-gray-500 hover:text-gray-900">
+                        Upload .svg
+                        <input
+                          type="file"
+                          accept=".svg,image/svg+xml"
+                          class="sr-only"
+                          :data-test="`cp-${index}-upload`"
+                          @change="uploadIcon(provider, $event)"
+                        />
+                      </label>
+                    </div>
+                    <div class="flex items-start gap-3">
+                      <textarea
+                        :id="`cp-${index}-icon`"
+                        v-model="provider.icon"
+                        rows="3"
+                        spellcheck="false"
+                        placeholder="<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; ...>"
+                        :class="TEXTAREA"
+                      />
+                      <div class="shrink-0 w-10 h-10 rounded-lg border border-gray-100 flex items-center justify-center">
+                        <img
+                          v-if="provider.icon"
+                          :src="svgDataUri(provider.icon)"
+                          alt=""
+                          class="w-5 h-5"
+                          :data-test="`cp-${index}-preview`"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <p class="min-w-0 text-[11px] text-gray-400 break-all" :data-test="`cp-${index}-callback`">
+                    Callback URL: <span class="font-mono text-gray-600">{{ callbackUrl(provider) }}</span>
+                  </p>
+                  <button type="button" :class="SECONDARY" :data-test="`cp-${index}-remove`" @click="removeProvider(index)">
+                    Remove
+                  </button>
+                </div>
               </div>
             </div>
           </div>

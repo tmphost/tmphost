@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/limiter"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/limiter"
 
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
 	setupctrl "github.com/tmphost/tmphost/backend/internal/controller/setup"
@@ -60,18 +60,18 @@ func New(p Params) {
 	r.Post("/setup/login", limiter.New(limiter.Config{
 		Max:          _rootLoginMax,
 		Expiration:   _rootLoginWindow,
-		LimitReached: func(c *fiber.Ctx) error { return sendError(c, fiber.StatusTooManyRequests, "too many attempts") },
+		LimitReached: func(c fiber.Ctx) error { return sendError(c, fiber.StatusTooManyRequests, "too many attempts") },
 	}), setup.Login)
 	r.Post("/setup/logout", setup.Logout)
 	r.Get("/setup/settings", AuthenticateRoot(p.Setup), setup.Get)
 	r.Put("/setup/settings", AuthenticateRoot(p.Setup), setup.Update)
 }
 
-func sendJSON(c *fiber.Ctx, status int, payload []byte) error {
+func sendJSON(c fiber.Ctx, status int, payload []byte) error {
 	c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
 	return c.Status(status).Send(payload)
 }
 
-func sendError(c *fiber.Ctx, status int, msg string) error {
+func sendError(c fiber.Ctx, status int, msg string) error {
 	return sendJSON(c, status, mapper.FromErrorToHTTPResponse(msg))
 }

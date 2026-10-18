@@ -14,7 +14,11 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
+	"net"
+	"net/mail"
 	"net/url"
+	"reflect"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -32,7 +36,20 @@ const (
 	// DriverPostgres selects PostgreSQL.
 	DriverPostgres = "postgres"
 
+	// DefaultTLSPort is the HTTPS port used when none is set.
+	DefaultTLSPort = 443
+
 	_maxMonthlyGrant = 1_000_000
+	_maxProviders    = 20
+	_maxProviderName = 64
+	_maxIconBytes    = 16 << 10
+)
+
+var (
+	_hostnameRE = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
+	_notSlugRE  = regexp.MustCompile(`[^a-z0-9]+`)
+	// _builtinProviders are the provider IDs custom providers cannot take.
+	_builtinProviders = map[string]bool{"google": true, "github": true}
 )
 
 var (
@@ -84,11 +101,15 @@ func New(p Params) (Controller, error) {
 	if p.RootAccessToken == "" {
 		return nil, errors.New("setup: root access token is required")
 	}
-	current := p.Defaults
+	current := normalize(p.Defaults)
 	saved, err := p.Repository.LoadSettings()
 	switch {
 	case err == nil:
-		current = mappermodel.FromSettingsModelToSettingsEntity(saved)
+		current = normalize(mappermodel.FromSettingsModelToSettingsEntity(saved))
+		// Settings saved before the app URL existed keep the configured one.
+		if current.Domain.AppURL == "" {
+			current.Domain.AppURL = normalize(p.Defaults).Domain.AppURL
+		}
 	case !errors.Is(err, repository.ErrNotFound):
 		return nil, err
 	}
@@ -163,13 +184,24 @@ func (c *controller) response() *entity.GetSettingsResponse {
 	public.Storage.S3.SecretAccessKey = ""
 	public.Auth.Google.ClientSecret = ""
 	public.Auth.GitHub.ClientSecret = ""
+	public.TLS.Lego.CloudflareAPIToken = ""
+	// Copy before blanking, so the stored providers keep their secrets.
+	public.Auth.Providers = append([]entity.OAuthProviderSettings(nil), c.current.Auth.Providers...)
+	providerSecrets := make(map[string]bool, len(public.Auth.Providers))
+	for i := range public.Auth.Providers {
+		p := &public.Auth.Providers[i]
+		providerSecrets[p.ID] = p.ClientSecret != ""
+		p.ClientSecret = ""
+	}
 	return &entity.GetSettingsResponse{
 		Settings: public,
 		SecretsSet: entity.SecretsSet{
-			PostgresDSN:        c.current.Database.Postgres.DSN != "",
-			S3SecretAccessKey:  c.current.Storage.S3.SecretAccessKey != "",
-			GoogleClientSecret: c.current.Auth.Google.ClientSecret != "",
-			GitHubClientSecret: c.current.Auth.GitHub.ClientSecret != "",
+			PostgresDSN:           c.current.Database.Postgres.DSN != "",
+			S3SecretAccessKey:     c.current.Storage.S3.SecretAccessKey != "",
+			GoogleClientSecret:    c.current.Auth.Google.ClientSecret != "",
+			GitHubClientSecret:    c.current.Auth.GitHub.ClientSecret != "",
+			CloudflareAPIToken:    c.current.TLS.Lego.CloudflareAPIToken != "",
+			ProviderClientSecrets: providerSecrets,
 		},
 		RestartRequired: restartRequired(c.startedAt, c.current),
 	}
@@ -179,7 +211,7 @@ func (c *controller) response() *entity.GetSettingsResponse {
 // settings changed since the server started.
 func restartRequired(started, current entity.Settings) bool {
 	started.Credits, current.Credits = entity.CreditSettings{}, entity.CreditSettings{}
-	return started != current
+	return !reflect.DeepEqual(started, current)
 }
 
 // keepSecrets keeps the current value of every secret left blank. Clearing
@@ -202,6 +234,16 @@ func keepSecrets(next *entity.Settings, current entity.Settings) {
 		}
 		keep(&p.next.ClientSecret, p.cur.ClientSecret)
 	}
+	// A custom provider keeps the secret saved under the same ID.
+	saved := make(map[string]string, len(current.Auth.Providers))
+	for _, p := range current.Auth.Providers {
+		saved[p.ID] = p.ClientSecret
+	}
+	for i := range next.Auth.Providers {
+		p := &next.Auth.Providers[i]
+		keep(&p.ClientSecret, saved[p.ID])
+	}
+	keep(&next.TLS.Lego.CloudflareAPIToken, current.TLS.Lego.CloudflareAPIToken)
 }
 
 func normalize(s entity.Settings) entity.Settings {
@@ -213,10 +255,64 @@ func normalize(s entity.Settings) entity.Settings {
 	s3.Endpoint, s3.Region, s3.Bucket, s3.AccessKeyID = t(s3.Endpoint), t(s3.Region), t(s3.Bucket), t(s3.AccessKeyID)
 	s.Auth.Google.ClientID = t(s.Auth.Google.ClientID)
 	s.Auth.GitHub.ClientID = t(s.Auth.GitHub.ClientID)
+	s.Domain.AppURL = normalizeAppURL(t(s.Domain.AppURL))
+	s.Domain.SitesDomain = strings.Trim(strings.TrimPrefix(strings.ToLower(t(s.Domain.SitesDomain)), "*."), ".")
+	if s.TLS.Port == 0 {
+		s.TLS.Port = DefaultTLSPort
+	}
+	s.TLS.Email = t(s.TLS.Email)
+	s.TLS.Lego.CloudflareAPIToken = t(s.TLS.Lego.CloudflareAPIToken)
+	// Normalize a copy, so the caller's slice is left as it was. No
+	// providers is always nil, so settings compare equal either way.
+	s.Auth.Providers = append([]entity.OAuthProviderSettings(nil), s.Auth.Providers...)
+	for i := range s.Auth.Providers {
+		p := &s.Auth.Providers[i]
+		p.Name, p.Icon, p.ClientID = t(p.Name), t(p.Icon), t(p.ClientID)
+		p.ClientSecret, p.AuthURL = t(p.ClientSecret), strings.TrimRight(t(p.AuthURL), "/")
+		p.ID = ProviderID(p.Name)
+	}
 	return s
 }
 
+// ProviderID turns a provider name into its route name: lowercase letters
+// and digits, with runs of anything else as single dashes.
+func ProviderID(name string) string {
+	return strings.Trim(_notSlugRE.ReplaceAllString(strings.ToLower(name), "-"), "-")
+}
+
+// normalizeAppURL lowercases the scheme and host and drops a trailing
+// slash. A URL that does not parse is left for validate to reject.
+func normalizeAppURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return raw
+	}
+	u.Scheme, u.Host = strings.ToLower(u.Scheme), strings.ToLower(u.Host)
+	if u.Path == "/" {
+		u.Path = ""
+	}
+	return u.String()
+}
+
+// AppHost is the host name (no port) of an app URL, or "" when it has none.
+func AppHost(appURL string) string {
+	u, err := url.Parse(appURL)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
+}
+
 func validate(s entity.Settings) error {
+	if err := validateDomain(s.Domain); err != nil {
+		return err
+	}
+	if err := validateTLS(s); err != nil {
+		return err
+	}
+	if err := validateProviders(s.Auth.Providers); err != nil {
+		return err
+	}
 	if s.Credits.MonthlyGrant < 0 || s.Credits.MonthlyGrant > _maxMonthlyGrant {
 		return fmt.Errorf("monthly credits must be between 0 and %d", _maxMonthlyGrant)
 	}
@@ -255,4 +351,83 @@ func validate(s entity.Settings) error {
 		return errors.New("github needs both client ID and secret, or neither")
 	}
 	return nil
+}
+
+func validateDomain(d entity.DomainSettings) error {
+	u, err := url.Parse(d.AppURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" ||
+		u.Path != "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil {
+		return errors.New("app URL must be an http(s) URL with no path, e.g. https://app.tmphost.io")
+	}
+	if d.SitesDomain != "" && !_hostnameRE.MatchString(d.SitesDomain) {
+		return errors.New("sites domain must be a domain name, e.g. tmphost.io")
+	}
+	return nil
+}
+
+func validateTLS(s entity.Settings) error {
+	t := s.TLS
+	if !t.Enabled {
+		return nil
+	}
+	if !strings.HasPrefix(s.Domain.AppURL, "https://") {
+		return errors.New("with TLS enabled the app URL must be https://")
+	}
+	if net.ParseIP(AppHost(s.Domain.AppURL)) != nil || !strings.Contains(AppHost(s.Domain.AppURL), ".") {
+		return errors.New("with TLS enabled the app URL needs a public domain name; Let's Encrypt does not issue for IPs or localhost")
+	}
+	if t.Port < 1 || t.Port > 65535 {
+		return errors.New("TLS port must be between 1 and 65535")
+	}
+	if t.Email != "" {
+		if _, err := mail.ParseAddress(t.Email); err != nil {
+			return errors.New("the Let's Encrypt email is not a valid email address")
+		}
+	}
+	if t.Lego.Enabled && s.Domain.SitesDomain == "" {
+		return errors.New("dynamic subdomain certificates need a sites domain")
+	}
+	return nil
+}
+
+func validateProviders(ps []entity.OAuthProviderSettings) error {
+	if len(ps) > _maxProviders {
+		return fmt.Errorf("at most %d custom sign-in providers", _maxProviders)
+	}
+	seen := make(map[string]bool, len(ps))
+	for _, p := range ps {
+		if p.ID == "" || len(p.Name) > _maxProviderName {
+			return fmt.Errorf("sign-in provider names need a letter or digit and at most %d characters", _maxProviderName)
+		}
+		if _builtinProviders[p.ID] || seen[p.ID] {
+			return fmt.Errorf("sign-in provider %q is already taken", p.ID)
+		}
+		seen[p.ID] = true
+		icon := strings.ToLower(p.Icon)
+		if len(p.Icon) > _maxIconBytes || !strings.Contains(icon, "<svg") || !strings.HasSuffix(icon, "</svg>") {
+			return fmt.Errorf("sign-in provider %q needs an SVG icon of at most %d KB", p.ID, _maxIconBytes>>10)
+		}
+		if p.ClientID == "" || p.ClientSecret == "" {
+			return fmt.Errorf("sign-in provider %q needs a client ID and secret", p.ID)
+		}
+		if !validAuthURL(p.AuthURL) {
+			return fmt.Errorf("sign-in provider %q needs an https auth URL (its OpenID Connect issuer)", p.ID)
+		}
+	}
+	return nil
+}
+
+// validAuthURL accepts https URLs, and plain http only on this machine.
+func validAuthURL(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {
+		return false
+	}
+	switch h := u.Hostname(); u.Scheme {
+	case "https":
+		return true
+	case "http":
+		return h == "localhost" || h == "127.0.0.1"
+	}
+	return false
 }

@@ -7,7 +7,7 @@ package api
 import (
 	"errors"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
 	mapper "github.com/tmphost/tmphost/backend/internal/mapper/api"
@@ -19,7 +19,7 @@ type User struct {
 }
 
 // Get returns the signed-in user, including the operation credit balance.
-func (h *User) Get(c *fiber.Ctx) error {
+func (h *User) Get(c fiber.Ctx) error {
 	rq := mapper.FromHTTPRequestToGetCurrentUserRequestEntity(c)
 	if rq == nil {
 		return fiber.ErrBadRequest

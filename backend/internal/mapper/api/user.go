@@ -7,7 +7,7 @@ package api
 import (
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
 	"github.com/tmphost/tmphost/backend/internal/data/view"
@@ -15,7 +15,7 @@ import (
 
 // FromHTTPRequestToGetCurrentUserRequestEntity reads the user ID the auth
 // middleware stored on the request.
-func FromHTTPRequestToGetCurrentUserRequestEntity(c *fiber.Ctx) *entity.GetCurrentUserRequest {
+func FromHTTPRequestToGetCurrentUserRequestEntity(c fiber.Ctx) *entity.GetCurrentUserRequest {
 	id, ok := c.Locals(LocalUserID).(int64)
 	if !ok || id <= 0 {
 		return nil

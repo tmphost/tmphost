@@ -48,7 +48,16 @@ func settingsFromConfig(cfg Config) entity.Settings {
 		grant = credit.DefaultMonthlyGrant
 	}
 	s3 := cfg.S3
+	tlsPort := cfg.TLS.Port
+	if tlsPort == 0 {
+		tlsPort = setupctrl.DefaultTLSPort
+	}
 	return entity.Settings{
+		Domain: entity.DomainSettings{AppURL: cfg.App.BaseURL, SitesDomain: cfg.App.SitesDomain},
+		TLS: entity.TLSSettings{
+			Enabled: cfg.TLS.Enabled, Port: tlsPort, Email: cfg.TLS.Email,
+			Lego: entity.LegoSettings{Enabled: cfg.TLS.Lego.Enabled, CloudflareAPIToken: cfg.TLS.Lego.CloudflareAPIToken},
+		},
 		Credits: entity.CreditSettings{MonthlyGrant: grant},
 		Database: entity.DatabaseSettings{
 			Driver:   driver,
@@ -80,5 +89,12 @@ func applySettings(cfg Config, s entity.Settings) Config {
 	}
 	cfg.Auth.Google = OAuthAppConfig{ClientID: s.Auth.Google.ClientID, ClientSecret: s.Auth.Google.ClientSecret}
 	cfg.Auth.GitHub = OAuthAppConfig{ClientID: s.Auth.GitHub.ClientID, ClientSecret: s.Auth.GitHub.ClientSecret}
+	cfg.Auth.Providers = s.Auth.Providers
+	cfg.App.BaseURL = s.Domain.AppURL
+	cfg.App.SitesDomain = s.Domain.SitesDomain
+	cfg.TLS = TLSConfig{
+		Enabled: s.TLS.Enabled, Port: s.TLS.Port, Email: s.TLS.Email,
+		Lego: LegoConfig{Enabled: s.TLS.Lego.Enabled, CloudflareAPIToken: s.TLS.Lego.CloudflareAPIToken},
+	}
 	return cfg
 }

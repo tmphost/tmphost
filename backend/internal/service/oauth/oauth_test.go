@@ -62,8 +62,12 @@ func assertAuthURL(t *testing.T, raw string) {
 func TestGoogle_Constructor(t *testing.T) {
 	p := NewGoogle(_creds)
 	assert.Equal(t, ProviderGoogle, p.Name())
-	assertAuthURL(t, p.AuthURL("st"))
-	assert.Contains(t, p.AuthURL("st"), "accounts.google.com")
+	assert.Equal(t, "Google", p.Label())
+	assert.Empty(t, p.Icon())
+	authURL, err := p.AuthURL(context.Background(), "st")
+	require.NoError(t, err)
+	assertAuthURL(t, authURL)
+	assert.Contains(t, authURL, "accounts.google.com")
 }
 
 func TestGoogle_Exchange(t *testing.T) {
@@ -110,8 +114,12 @@ func TestGoogle_Exchange(t *testing.T) {
 func TestGitHub_Constructor(t *testing.T) {
 	p := NewGitHub(_creds)
 	assert.Equal(t, ProviderGitHub, p.Name())
-	assertAuthURL(t, p.AuthURL("st"))
-	assert.Contains(t, p.AuthURL("st"), "github.com")
+	assert.Equal(t, "GitHub", p.Label())
+	assert.Empty(t, p.Icon())
+	authURL, err := p.AuthURL(context.Background(), "st")
+	require.NoError(t, err)
+	assertAuthURL(t, authURL)
+	assert.Contains(t, authURL, "github.com")
 }
 
 func TestGitHub_Exchange(t *testing.T) {

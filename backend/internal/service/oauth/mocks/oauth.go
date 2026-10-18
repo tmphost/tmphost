@@ -36,17 +36,18 @@ func (m *MockProvider) EXPECT() *MockProviderMockRecorder {
 }
 
 // AuthURL mocks base method.
-func (m *MockProvider) AuthURL(state string) string {
+func (m *MockProvider) AuthURL(ctx context.Context, state string) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AuthURL", state)
+	ret := m.ctrl.Call(m, "AuthURL", ctx, state)
 	ret0, _ := ret[0].(string)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // AuthURL indicates an expected call of AuthURL.
-func (mr *MockProviderMockRecorder) AuthURL(state interface{}) *gomock.Call {
+func (mr *MockProviderMockRecorder) AuthURL(ctx, state interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AuthURL", reflect.TypeOf((*MockProvider)(nil).AuthURL), state)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AuthURL", reflect.TypeOf((*MockProvider)(nil).AuthURL), ctx, state)
 }
 
 // Exchange mocks base method.
@@ -62,6 +63,34 @@ func (m *MockProvider) Exchange(ctx context.Context, code string) (*oauth.Identi
 func (mr *MockProviderMockRecorder) Exchange(ctx, code interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exchange", reflect.TypeOf((*MockProvider)(nil).Exchange), ctx, code)
+}
+
+// Icon mocks base method.
+func (m *MockProvider) Icon() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Icon")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// Icon indicates an expected call of Icon.
+func (mr *MockProviderMockRecorder) Icon() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Icon", reflect.TypeOf((*MockProvider)(nil).Icon))
+}
+
+// Label mocks base method.
+func (m *MockProvider) Label() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Label")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// Label indicates an expected call of Label.
+func (mr *MockProviderMockRecorder) Label() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Label", reflect.TypeOf((*MockProvider)(nil).Label))
 }
 
 // Name mocks base method.

@@ -7,7 +7,16 @@ package entity
 type (
 	// GetAuthConfigResponse lists the sign-in providers that are configured.
 	GetAuthConfigResponse struct {
-		Providers []string
+		Providers []AuthProvider
+	}
+
+	// AuthProvider is a sign-in button.
+	AuthProvider struct {
+		// ID is the provider's route name.
+		ID   string
+		Name string
+		// Icon is SVG markup; empty for the built-in providers.
+		Icon string
 	}
 
 	// StartLoginRequest begins an OAuth round trip.

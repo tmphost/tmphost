@@ -2,8 +2,9 @@
 // This notice may not be modified or removed.
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Package oauth talks to third-party identity providers (Google, GitHub)
-// and turns an authorization code into a verified identity.
+// Package oauth talks to third-party identity providers (Google, GitHub and
+// custom OpenID Connect providers) and turns an authorization code into a
+// verified identity.
 package oauth
 
 //go:generate mockgen -source=oauth.go -destination=mocks/oauth.go -package=mocks
@@ -34,8 +35,13 @@ type (
 	Provider interface {
 		// Name returns the provider name used in routes and state tokens.
 		Name() string
+		// Label returns the name shown on the sign-in button.
+		Label() string
+		// Icon returns the SVG icon for the sign-in button; built-in
+		// providers return "" since the frontend ships theirs.
+		Icon() string
 		// AuthURL returns the consent screen URL carrying state.
-		AuthURL(state string) string
+		AuthURL(ctx context.Context, state string) (string, error)
 		// Exchange trades an authorization code for the user's identity.
 		Exchange(ctx context.Context, code string) (*Identity, error)
 	}

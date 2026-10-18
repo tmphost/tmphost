@@ -61,7 +61,7 @@ func TestNew_WiresProvidersAndRoutes(t *testing.T) {
 
 	res, body := get(t, a, "/api/v1/auth/config")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
-	assert.JSONEq(t, `{"providers":["google","github"]}`, body)
+	assert.JSONEq(t, `{"providers":[{"id":"google","name":"Google","icon":""},{"id":"github","name":"GitHub","icon":""}]}`, body)
 
 	res, _ = get(t, a, "/api/v1/auth/github/login")
 	assert.Equal(t, http.StatusFound, res.StatusCode)
@@ -77,7 +77,7 @@ func TestNew_NoProvidersConfigured(t *testing.T) {
 	a, err := New(cfg, fstest.MapFS{})
 	require.NoError(t, err)
 	_, body := get(t, a, "/api/v1/auth/config")
-	var got struct{ Providers []string }
+	var got struct{ Providers []any }
 	require.NoError(t, json.Unmarshal([]byte(body), &got))
 	assert.Empty(t, got.Providers)
 }
@@ -195,7 +195,8 @@ func TestSetupFlow_SettingsApplyAndPersist(t *testing.T) {
 	assert.Equal(t, "sqlite", got.Settings.Database.Driver)
 
 	body := `{"settings":{"credits":{"monthlyGrant":500},"database":{"driver":"sqlite","sqlite":{"dsn":"` + cfg.SQLite.DSN + `"}},
-		"auth":{"github":{"clientId":"h"}}}}`
+		"domain":{"appUrl":"http://localhost:3000"},
+		"auth":{"github":{"clientId":"h"},"providers":[{"name":"Okta","icon":"<svg></svg>","clientId":"o","clientSecret":"okta-client-secret","authUrl":"https://okta.example.com"}]}}}`
 	req = httptest.NewRequest(http.MethodPut, "/api/v1/setup/settings", strings.NewReader(body))
 	req.AddCookie(root)
 	res, err = a.Handler().Test(req)
@@ -214,12 +215,14 @@ func TestSetupFlow_SettingsApplyAndPersist(t *testing.T) {
 	b, err := New(cfg, fstest.MapFS{})
 	require.NoError(t, err)
 	_, cfgBody := get(t, b, "/api/v1/auth/config")
-	assert.JSONEq(t, `{"providers":["github"]}`, cfgBody, "google cleared, github secret kept")
+	assert.JSONEq(t, `{"providers":[{"id":"github","name":"GitHub","icon":""},{"id":"okta","name":"Okta","icon":"<svg></svg>"}]}`,
+		cfgBody, "google cleared, github secret kept, okta added")
 
 	// The file on disk is encrypted, and only the same master key opens it.
 	raw, err := os.ReadFile(cfg.App.SettingsFile)
 	require.NoError(t, err)
 	assert.NotContains(t, string(raw), "monthlyGrant")
+	assert.NotContains(t, string(raw), "okta-client-secret")
 	// Quoted, so random base64 ciphertext can never match it by chance.
 	assert.NotContains(t, string(raw), `"hs"`)
 	cfg.MasterKey = "another-master-key-of-32-characters!"
@@ -232,7 +235,10 @@ func TestSettingsFromConfig(t *testing.T) {
 	cfg.Credits.MonthlyGrant = 42
 	cfg.Postgres = PostgresConfig{Enabled: true, DSN: "postgres://u:p@h:1/d"}
 	cfg.S3 = S3Config{Enabled: true, Endpoint: "e", Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", UsePathStyle: true}
+	cfg.App.SitesDomain = "tmphost.io"
+	cfg.TLS = TLSConfig{Enabled: true, Email: "e@x.io", Lego: LegoConfig{Enabled: true, CloudflareAPIToken: "cf"}}
 	s := settingsFromConfig(cfg)
+	assert.Equal(t, 443, s.TLS.Port, "default TLS port")
 	assert.Equal(t, 42, s.Credits.MonthlyGrant)
 	assert.Equal(t, "postgres", s.Database.Driver)
 
@@ -243,6 +249,13 @@ func TestSettingsFromConfig(t *testing.T) {
 	assert.Equal(t, cfg.S3, round.S3)
 	assert.Equal(t, cfg.Auth.Google, round.Auth.Google)
 	assert.Equal(t, 42, round.Credits.MonthlyGrant)
+	assert.Equal(t, cfg.App.BaseURL, round.App.BaseURL)
+	assert.Equal(t, "tmphost.io", round.App.SitesDomain)
+	cfg.TLS.Port = 443
+	assert.Equal(t, cfg.TLS, round.TLS)
+
+	cfg.TLS.Port = 8443
+	assert.Equal(t, 8443, settingsFromConfig(cfg).TLS.Port)
 }
 
 func TestRootAccessToken(t *testing.T) {

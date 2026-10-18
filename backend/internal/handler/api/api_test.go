@@ -6,13 +6,14 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,11 +66,11 @@ func cookieNamed(res *http.Response, name string) *http.Cookie {
 
 func TestConfig(t *testing.T) {
 	app, ctrl := newApp(t)
-	ctrl.EXPECT().GetAuthConfig(gomock.Any()).Return(&entity.GetAuthConfigResponse{Providers: []string{"google", "github"}})
+	ctrl.EXPECT().GetAuthConfig(gomock.Any()).Return(&entity.GetAuthConfigResponse{Providers: []entity.AuthProvider{{ID: "google", Name: "Google"}}})
 	res, body := do(t, app, http.MethodGet, "/api/v1/auth/config")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, fiber.MIMEApplicationJSON, res.Header.Get(fiber.HeaderContentType))
-	assert.JSONEq(t, `{"providers":["google","github"]}`, body)
+	assert.JSONEq(t, `{"providers":[{"id":"google","name":"Google","icon":""}]}`, body)
 }
 
 func TestLogin(t *testing.T) {
@@ -96,6 +97,14 @@ func TestLogin(t *testing.T) {
 		res, body := do(t, app, http.MethodGet, "/api/v1/auth/x/login")
 		assert.Equal(t, http.StatusNotFound, res.StatusCode)
 		assert.JSONEq(t, `{"error":"unknown provider"}`, body)
+	})
+
+	t.Run("provider unavailable", func(t *testing.T) {
+		app, ctrl := newApp(t)
+		ctrl.EXPECT().StartLogin(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("%w: down", authctrl.ErrProviderUnavailable))
+		res, _ := do(t, app, http.MethodGet, "/api/v1/auth/okta/login")
+		assert.Equal(t, http.StatusFound, res.StatusCode)
+		assert.Equal(t, "/base/login?error=provider_error", res.Header.Get("Location"))
 	})
 
 	t.Run("controller error", func(t *testing.T) {

@@ -21,7 +21,7 @@ Handlers process incoming HTTP requests and format responses.
 
 - **Naming**: File names should match the entity being handled (e.g., `provider_tool.go`).
 - **Structs**: The handler struct is typically named after the entity, e.g., `type ProviderTool struct { controller _crud.ProviderToolController }`.
-- **Methods**: Use standard CRUD terminology: `Create`, `Get`, `List`, `Update`, `Delete`. They should match the `fiber.Handler` signature `func (c *fiber.Ctx) error`.
+- **Methods**: Use standard CRUD terminology: `Create`, `Get`, `List`, `Update`, `Delete`. They should match the Fiber v3 `fiber.Handler` signature `func(c fiber.Ctx) error`; use the latest Fiber (v3) for every HTTP path, including the http-to-https redirect.
 - **Flow**:
   1. Use a mapper to parse the request into an entity (e.g., `reqEntity := api.FromHTTPRequestTo<Action><Entity>RequestEntity(c)`).
   2. Return `fiber.ErrBadRequest` if the mapper returns `nil` (meaning parsing failed or a required param was missing).
@@ -43,7 +43,7 @@ Mappers transform data between the different layers (View <-> Entity <-> Model).
 
 - **Naming Constraints**:
   - Mapping mapped HTTP requests to Entities start with `FromHTTPRequestTo` and end with `RequestEntity`.
-    - Example: `func FromHTTPRequestToCreateProviderToolRequestEntity(c *fiber.Ctx) *entity.CreateProviderToolRequest`
+    - Example: `func FromHTTPRequestToCreateProviderToolRequestEntity(c fiber.Ctx) *entity.CreateProviderToolRequest`
   - Mapping Entities to HTTP responses start with `From` and end with `ResponseEntityToHTTPResponse` (returning `[]byte`).
     - Example: `func FromCreateProviderToolResponseEntityToHTTPResponse(rs *entity.CreateProviderToolResponse) []byte`
   - Mapping internal structures start with `From` and explicitly state the source and target formats.

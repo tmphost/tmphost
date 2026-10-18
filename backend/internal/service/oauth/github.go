@@ -34,8 +34,12 @@ func newGitHub(c Credentials, endpoint oauth2.Endpoint, apiURL string) *githubPr
 
 func (p *githubProvider) Name() string { return ProviderGitHub }
 
-func (p *githubProvider) AuthURL(state string) string {
-	return p.config.AuthCodeURL(state)
+func (p *githubProvider) Label() string { return "GitHub" }
+
+func (p *githubProvider) Icon() string { return "" }
+
+func (p *githubProvider) AuthURL(_ context.Context, state string) (string, error) {
+	return p.config.AuthCodeURL(state), nil
 }
 
 func (p *githubProvider) Exchange(ctx context.Context, code string) (*Identity, error) {

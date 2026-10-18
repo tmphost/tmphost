@@ -8,7 +8,14 @@ package view
 type (
 	// AuthConfig lists the enabled sign-in providers.
 	AuthConfig struct {
-		Providers []string `json:"providers"`
+		Providers []AuthProvider `json:"providers"`
+	}
+
+	// AuthProvider is a sign-in button.
+	AuthProvider struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+		Icon string `json:"icon"`
 	}
 
 	// User is the signed-in user as the frontend sees it.
