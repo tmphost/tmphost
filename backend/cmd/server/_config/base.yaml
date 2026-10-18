@@ -1,0 +1,51 @@
+# Values here (and the environment) are defaults. Once root saves settings on
+# the /setup page, the settings file overrides the credits, database, s3 and
+# auth provider values below.
+app:
+  port: ${PORT:3000}
+  # Public URL of the API; OAuth callbacks are <baseUrl>/api/v1/auth/<provider>/callback.
+  # In local development point it at the Vite dev server (http://localhost:5173).
+  baseUrl: ${TMPHOST_BASE_URL:http://localhost:3000}
+  basePath: ${TMPHOST_BASE_PATH:}
+  cookieSecure: ${TMPHOST_COOKIE_SECURE:false}
+  settingsFile: ${TMPHOST_SETTINGS_FILE:./_storage/settings.json}
+auth:
+  jwtSecret: ${TMPHOST_AUTH_JWT_SECRET}
+  # Unlocks /setup. Generated and logged at startup when empty.
+  rootAccessToken: ${TMPHOST_AUTH_ROOT_ACCESS_TOKEN:}
+  google:
+    clientId: ${TMPHOST_AUTH_GOOGLE_CLIENT_ID}
+    clientSecret: ${TMPHOST_AUTH_GOOGLE_CLIENT_SECRET}
+  github:
+    clientId: ${TMPHOST_AUTH_GITHUB_CLIENT_ID}
+    clientSecret: ${TMPHOST_AUTH_GITHUB_CLIENT_SECRET}
+credits:
+  monthlyGrant: ${TMPHOST_CREDITS_MONTHLY_GRANT:250}
+# PostgreSQL is used when enabled; otherwise SQLite.
+sqlite:
+  enabled: ${TMPHOST_SQLITE_ENABLED:true}
+  dsn: ${TMPHOST_SQLITE_DSN:./_storage/tmphost.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)}
+  maxIdleConns: 10
+  maxOpenConns: 100
+  maxConnLifetime: 1h
+postgres:
+  enabled: ${TMPHOST_POSTGRES_ENABLED:false}
+  host: ${TMPHOST_POSTGRES_HOST:localhost}
+  port: ${TMPHOST_POSTGRES_PORT:5432}
+  user: ${TMPHOST_POSTGRES_USER:postgres}
+  password: ${TMPHOST_POSTGRES_PASSWORD:postgres}
+  dbname: ${TMPHOST_POSTGRES_DBNAME:tmphost}
+  sslmode: ${TMPHOST_POSTGRES_SSLMODE:disable}
+  maxIdleConns: 10
+  maxOpenConns: 100
+  maxConnLifetime: 1h
+s3:
+  enabled: ${TMPHOST_S3_ENABLED:false}
+  endpoint: ${TMPHOST_S3_ENDPOINT:}
+  region: ${TMPHOST_S3_REGION:}
+  bucket: ${TMPHOST_S3_BUCKET:}
+  accessKeyId: ${TMPHOST_S3_ACCESS_KEY_ID:}
+  secretAccessKey: ${TMPHOST_S3_SECRET_ACCESS_KEY:}
+  usePathStyle: ${TMPHOST_S3_USE_PATH_STYLE:false}
+idgen:
+  node: ${MONOFLAKE_NODE:0}
