@@ -1,14 +1,28 @@
 # Values here (and the environment) are defaults. Once root saves settings on
-# the /setup page, the settings file overrides the credits, database, s3 and
-# auth provider values below.
+# the /setup page, the settings file overrides the app URL, sites domain, tls,
+# credits, database, s3 and auth provider values below.
 app:
-  port: ${PORT:3000}
-  # Public URL of the API; OAuth callbacks are <baseUrl>/api/v1/auth/<provider>/callback.
-  # In local development point it at the Vite dev server (http://localhost:5173).
-  baseUrl: ${TMPHOST_BASE_URL:http://localhost:3000}
+  port: ${PORT:2027}
+  # Public URL of the app, e.g. https://app.tmphost.io. Its host is the only
+  # one the app answers on (besides localhost); OAuth callbacks are
+  # <baseUrl>/api/v1/auth/<provider>/callback. In local development point it
+  # at the Vite dev server (http://localhost:5173).
+  baseUrl: ${TMPHOST_BASE_URL:http://localhost:2027}
+  # Parent domain of the dynamic subdomains f<11 characters>.<sitesDomain>,
+  # e.g. tmphost.io. Empty disables them.
+  sitesDomain: ${TMPHOST_SITES_DOMAIN:}
   basePath: ${TMPHOST_BASE_PATH:}
   cookieSecure: ${TMPHOST_COOKIE_SECURE:false}
   settingsFile: ${TMPHOST_SETTINGS_FILE:./_storage/settings.json}
+# HTTPS terminated by the server. The app certificate is uploaded on /setup;
+# lego obtains *.<sitesDomain> from Let's Encrypt over Cloudflare DNS-01.
+tls:
+  enabled: ${TMPHOST_TLS_ENABLED:false}
+  port: ${TMPHOST_TLS_PORT:443}
+  lego:
+    enabled: ${TMPHOST_TLS_LEGO_ENABLED:false}
+    email: ${TMPHOST_TLS_LEGO_EMAIL:}
+    cloudflareApiToken: ${TMPHOST_TLS_LEGO_CLOUDFLARE_API_TOKEN:}
 auth:
   jwtSecret: ${TMPHOST_AUTH_JWT_SECRET}
   # Unlocks /setup. Generated and logged at startup when empty.

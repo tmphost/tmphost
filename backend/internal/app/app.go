@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -18,12 +19,14 @@ import (
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
 	"github.com/tmphost/tmphost/backend/internal/controller/credit"
 	setupctrl "github.com/tmphost/tmphost/backend/internal/controller/setup"
+	"github.com/tmphost/tmphost/backend/internal/data/entity"
 	"github.com/tmphost/tmphost/backend/internal/handler/api"
 	"github.com/tmphost/tmphost/backend/internal/repository"
 	"github.com/tmphost/tmphost/backend/internal/service/encryption"
 	"github.com/tmphost/tmphost/backend/internal/service/idgen"
 	"github.com/tmphost/tmphost/backend/internal/service/oauth"
 	"github.com/tmphost/tmphost/backend/internal/service/scheduler"
+	"github.com/tmphost/tmphost/backend/internal/service/tlscert"
 	"github.com/tmphost/tmphost/backend/internal/service/token"
 )
 
@@ -36,6 +39,7 @@ type (
 		// TMPHOSTIO_MASTER_KEY environment variable, never from YAML.
 		MasterKey string
 		App       AppConfig
+		TLS       TLSConfig
 		Auth      AuthConfig
 		Credits   CreditsConfig
 		SQLite    SQLiteConfig
@@ -47,8 +51,12 @@ type (
 	// AppConfig is the "app" section.
 	AppConfig struct {
 		Port int `yaml:"port"`
-		// BaseURL is the public URL of the API, used for OAuth callbacks.
+		// BaseURL is the public URL of the app. Its host is the app host,
+		// and OAuth callbacks are built on it.
 		BaseURL string `yaml:"baseUrl"`
+		// SitesDomain is the parent domain of the dynamic subdomains
+		// (f<11 characters>.<SitesDomain>); empty disables them.
+		SitesDomain string `yaml:"sitesDomain"`
 		// BasePath is the path prefix browsers reach the app under when a
 		// proxy strips it before forwarding ("" or "/x").
 		BasePath     string `yaml:"basePath"`
@@ -56,6 +64,25 @@ type (
 		// SettingsFile is where the setup page saves settings. When it
 		// exists, it overrides the matching config values.
 		SettingsFile string `yaml:"settingsFile"`
+	}
+
+	// TLSConfig is the "tls" section. The app certificate is set only on
+	// the setup page.
+	TLSConfig struct {
+		Enabled bool `yaml:"enabled"`
+		// Port is the HTTPS port; the app port then redirects to it.
+		Port        int        `yaml:"port"`
+		Certificate string     `yaml:"-"`
+		PrivateKey  string     `yaml:"-"`
+		Lego        LegoConfig `yaml:"lego"`
+	}
+
+	// LegoConfig is the "tls.lego" section: a Let's Encrypt wildcard
+	// certificate for the dynamic subdomains, over Cloudflare DNS-01.
+	LegoConfig struct {
+		Enabled            bool   `yaml:"enabled"`
+		Email              string `yaml:"email"`
+		CloudflareAPIToken string `yaml:"cloudflareApiToken"`
 	}
 
 	// AuthConfig is the "auth" section.
@@ -66,6 +93,9 @@ type (
 		RootAccessToken string         `yaml:"rootAccessToken"`
 		Google          OAuthAppConfig `yaml:"google"`
 		GitHub          OAuthAppConfig `yaml:"github"`
+		// Providers are the custom OpenID Connect providers, set only on
+		// the setup page.
+		Providers []entity.OAuthProviderSettings `yaml:"-"`
 	}
 
 	// OAuthAppConfig is an OAuth client registration. A provider without a
@@ -126,6 +156,12 @@ type (
 		db        *gorm.DB
 		credits   credit.Controller
 		scheduler scheduler.Service
+		// The rest is set only with TLS enabled.
+		tlsAddr  string
+		certs    tlscert.Service
+		hosts    hosts
+		tlsPort  int
+		redirect *http.Server
 	}
 )
 
@@ -167,9 +203,13 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		BasePath:  basePath,
 	})
 
+	h := newHosts(cfg.App.BaseURL, cfg.App.SitesDomain)
 	f := fiber.New(fiber.Config{DisableStartupMessage: true})
 	f.Use(recover.New())
-	api.New(api.Params{Router: f, Auth: auth, Setup: setup, BasePath: basePath, CookieSecure: cfg.App.CookieSecure})
+	f.Use(hostRouter(h))
+	// A session cookie for an https app must never travel over plain http.
+	cookieSecure := cfg.App.CookieSecure || strings.HasPrefix(cfg.App.BaseURL, "https://")
+	api.New(api.Params{Router: f, Auth: auth, Setup: setup, BasePath: basePath, CookieSecure: cookieSecure})
 	f.Get("/*", spaHandler(web, basePath))
 
 	a := &App{
@@ -181,6 +221,11 @@ func New(cfg Config, web fs.FS) (*App, error) {
 	}
 	// RenewalSchedule is a valid constant spec, so this cannot fail.
 	_ = a.scheduler.AddFunc(credit.RenewalSchedule, a.renewCredits)
+	if cfg.TLS.Enabled {
+		if err := a.setupTLS(cfg, enc, h); err != nil {
+			return nil, errors.Join(err, a.closeDB())
+		}
+	}
 	return a, nil
 }
 
@@ -188,21 +233,33 @@ func New(cfg Config, web fs.FS) (*App, error) {
 func (a *App) Handler() *fiber.App { return a.fiber }
 
 // Listen starts the background jobs and serves until Shutdown is called.
+// With TLS enabled the app serves HTTPS, and the app port redirects to it.
 func (a *App) Listen() error {
 	// Catch up on a renewal missed while the server was down.
 	go a.renewCredits()
 	a.scheduler.Start()
-	return a.fiber.Listen(a.addr)
+	if a.certs == nil {
+		return a.fiber.Listen(a.addr)
+	}
+	return a.listenTLS()
 }
 
 // Shutdown stops the server and the jobs gracefully, then closes the
 // database.
 func (a *App) Shutdown(ctx context.Context) error {
 	err := a.fiber.ShutdownWithContext(ctx)
+	if a.certs != nil {
+		err = errors.Join(err, a.redirect.Shutdown(ctx))
+		a.certs.Stop()
+	}
 	a.scheduler.Stop()
+	return errors.Join(err, a.closeDB())
+}
+
+func (a *App) closeDB() error {
 	// The dialectors are backed by *sql.DB, so DB() cannot fail.
 	sqlDB, _ := a.db.DB()
-	return errors.Join(err, sqlDB.Close())
+	return sqlDB.Close()
 }
 
 func (a *App) renewCredits() {
@@ -226,6 +283,12 @@ func providers(cfg Config) []oauth.Provider {
 	}
 	if g := cfg.Auth.GitHub; g.ClientID != "" {
 		out = append(out, oauth.NewGitHub(oauth.Credentials{ClientID: g.ClientID, ClientSecret: g.ClientSecret, RedirectURL: callback(oauth.ProviderGitHub)}))
+	}
+	for _, p := range cfg.Auth.Providers {
+		out = append(out, oauth.NewOIDC(oauth.OIDCParams{
+			Name: p.ID, Label: p.Name, Icon: p.Icon, Issuer: p.AuthURL,
+			Credentials: oauth.Credentials{ClientID: p.ClientID, ClientSecret: p.ClientSecret, RedirectURL: callback(p.ID)},
+		}))
 	}
 	return out
 }

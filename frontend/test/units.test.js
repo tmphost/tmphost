@@ -80,3 +80,18 @@ describe('loginErrorMessage', () => {
     expect(loginErrorMessage('weird')).toMatch(/Something went wrong/)
   })
 })
+
+describe('providers', () => {
+  it('slugs names like the server', async () => {
+    const { providerSlug } = await import('../src/utils/providers')
+    expect(providerSlug(' My  Okta! ')).toBe('my-okta')
+    expect(providerSlug('--A_b--')).toBe('a-b')
+    expect(providerSlug('')).toBe('')
+    expect(providerSlug(undefined)).toBe('')
+  })
+
+  it('renders SVG as a data URI', async () => {
+    const { svgDataUri } = await import('../src/utils/providers')
+    expect(svgDataUri('<svg a="#"/>')).toBe('data:image/svg+xml;charset=utf-8,%3Csvg%20a%3D%22%23%22%2F%3E')
+  })
+})

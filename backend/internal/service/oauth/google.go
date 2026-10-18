@@ -29,8 +29,12 @@ func newGoogle(c Credentials, endpoint oauth2.Endpoint, userInfoURL string) *goo
 
 func (p *googleProvider) Name() string { return ProviderGoogle }
 
-func (p *googleProvider) AuthURL(state string) string {
-	return p.config.AuthCodeURL(state)
+func (p *googleProvider) Label() string { return "Google" }
+
+func (p *googleProvider) Icon() string { return "" }
+
+func (p *googleProvider) AuthURL(_ context.Context, state string) (string, error) {
+	return p.config.AuthCodeURL(state), nil
 }
 
 func (p *googleProvider) Exchange(ctx context.Context, code string) (*Identity, error) {

@@ -49,12 +49,16 @@ func TestFromHTTPRequestToAuthenticateRootRequestEntity(t *testing.T) {
 }
 
 const _settingsJSON = `{
+	"domain": {"appUrl": "https://app.tmphost.io", "sitesDomain": "tmphost.io"},
+	"tls": {"enabled": true, "port": 8443, "certificate": "cert", "privateKey": "key",
+		"lego": {"enabled": true, "email": "ops@tmphost.io", "cloudflareApiToken": "cf"}},
 	"credits": {"monthlyGrant": 300},
 	"database": {"driver": "postgres", "sqlite": {"dsn": "x.db"},
 		"postgres": {"dsn": "postgres://u:p@h/d"}},
 	"storage": {"s3": {"enabled": true, "endpoint": "https://s3", "region": "r", "bucket": "b",
 		"accessKeyId": "a", "secretAccessKey": "s", "usePathStyle": true}},
-	"auth": {"google": {"clientId": "g", "clientSecret": "gs"}, "github": {"clientId": "h", "clientSecret": "hs"}}
+	"auth": {"google": {"clientId": "g", "clientSecret": "gs"}, "github": {"clientId": "h", "clientSecret": "hs"},
+		"providers": [{"id": "okta", "name": "Okta", "icon": "<svg/>", "clientId": "o", "clientSecret": "os", "authUrl": "https://okta.example.com"}]}
 }`
 
 func TestSettingsMapping(t *testing.T) {
@@ -64,6 +68,16 @@ func TestSettingsMapping(t *testing.T) {
 	assert.Equal(t, 300, got.Settings.Credits.MonthlyGrant)
 	assert.Equal(t, "postgres://u:p@h/d", got.Settings.Database.Postgres.DSN)
 	assert.Equal(t, "hs", got.Settings.Auth.GitHub.ClientSecret)
+	assert.Equal(t, entity.DomainSettings{AppURL: "https://app.tmphost.io", SitesDomain: "tmphost.io"}, got.Settings.Domain)
+	assert.Equal(t, entity.TLSSettings{
+		Enabled: true, Port: 8443, Certificate: "cert", PrivateKey: "key",
+		Lego: entity.LegoSettings{Enabled: true, Email: "ops@tmphost.io", CloudflareAPIToken: "cf"},
+	}, got.Settings.TLS)
+	assert.Equal(t, []entity.OAuthProviderSettings{{
+		ID: "okta", Name: "Okta", Icon: "<svg/>", ClientID: "o", ClientSecret: "os", AuthURL: "https://okta.example.com",
+	}}, got.Settings.Auth.Providers)
+	// Entity -> view -> entity keeps the new sections too.
+	assert.Equal(t, got.Settings, FromSettingsViewToSettingsEntity(FromSettingsEntityToSettingsView(got.Settings)))
 
 	runBody(t, `nope`, func(c *fiber.Ctx) { got = FromHTTPRequestToUpdateSettingsRequestEntity(c) })
 	assert.Nil(t, got)
@@ -85,6 +99,12 @@ func TestFromSettingsResponseEntityToHTTPResponse(t *testing.T) {
 	}
 	body := string(FromUpdateSettingsResponseEntityToHTTPResponse(rs))
 	assert.Contains(t, body, `"monthlyGrant":7`)
-	assert.Contains(t, body, `"secretsSet":{"postgresDsn":true,"s3SecretAccessKey":true,"googleClientSecret":true,"githubClientSecret":true}`)
+	assert.Contains(t, body, `"secretsSet":{"postgresDsn":true,"s3SecretAccessKey":true,"googleClientSecret":true,"githubClientSecret":true,`+
+		`"tlsPrivateKey":false,"cloudflareApiToken":false,"providerClientSecrets":{}}`)
+	assert.Contains(t, body, `"providers":[]`)
+
+	rs.SecretsSet = entity.SecretsSet{TLSPrivateKey: true, CloudflareAPIToken: true, ProviderClientSecrets: map[string]bool{"okta": true}}
+	body = string(FromGetSettingsResponseEntityToHTTPResponse(rs))
+	assert.Contains(t, body, `"tlsPrivateKey":true,"cloudflareApiToken":true,"providerClientSecrets":{"okta":true}`)
 	assert.Contains(t, body, `"restartRequired":true`)
 }

@@ -56,9 +56,9 @@ func FromHTTPRequestToAuthenticateRequestEntity(c *fiber.Ctx) *entity.Authentica
 
 // FromGetAuthConfigResponseEntityToHTTPResponse renders GET /auth/config.
 func FromGetAuthConfigResponseEntityToHTTPResponse(rs *entity.GetAuthConfigResponse) []byte {
-	providers := rs.Providers
-	if providers == nil {
-		providers = []string{}
+	providers := make([]view.AuthProvider, len(rs.Providers))
+	for i, p := range rs.Providers {
+		providers[i] = view.AuthProvider{ID: p.ID, Name: p.Name, Icon: p.Icon}
 	}
 	return marshal(view.AuthConfig{Providers: providers})
 }

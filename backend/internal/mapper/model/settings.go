@@ -8,6 +8,18 @@ import (
 // FromSettingsModelToSettingsEntity maps stored settings to the domain.
 func FromSettingsModelToSettingsEntity(m model.Settings) entity.Settings {
 	return entity.Settings{
+		Domain: entity.DomainSettings{AppURL: m.Domain.AppURL, SitesDomain: m.Domain.SitesDomain},
+		TLS: entity.TLSSettings{
+			Enabled:     m.TLS.Enabled,
+			Port:        m.TLS.Port,
+			Certificate: m.TLS.Certificate,
+			PrivateKey:  m.TLS.PrivateKey,
+			Lego: entity.LegoSettings{
+				Enabled:            m.TLS.Lego.Enabled,
+				Email:              m.TLS.Lego.Email,
+				CloudflareAPIToken: m.TLS.Lego.CloudflareAPIToken,
+			},
+		},
 		Credits: entity.CreditSettings{MonthlyGrant: m.Credits.MonthlyGrant},
 		Database: entity.DatabaseSettings{
 			Driver:   m.Database.Driver,
@@ -24,8 +36,9 @@ func FromSettingsModelToSettingsEntity(m model.Settings) entity.Settings {
 			UsePathStyle:    m.Storage.S3.UsePathStyle,
 		}},
 		Auth: entity.AuthSettings{
-			Google: entity.OAuthClientSettings{ClientID: m.Auth.Google.ClientID, ClientSecret: m.Auth.Google.ClientSecret},
-			GitHub: entity.OAuthClientSettings{ClientID: m.Auth.GitHub.ClientID, ClientSecret: m.Auth.GitHub.ClientSecret},
+			Google:    entity.OAuthClientSettings{ClientID: m.Auth.Google.ClientID, ClientSecret: m.Auth.Google.ClientSecret},
+			GitHub:    entity.OAuthClientSettings{ClientID: m.Auth.GitHub.ClientID, ClientSecret: m.Auth.GitHub.ClientSecret},
+			Providers: FromOAuthProviderSettingsModelsToOAuthProviderSettingsEntities(m.Auth.Providers),
 		},
 	}
 }
@@ -33,6 +46,18 @@ func FromSettingsModelToSettingsEntity(m model.Settings) entity.Settings {
 // FromSettingsEntityToSettingsModel maps domain settings to storage.
 func FromSettingsEntityToSettingsModel(e entity.Settings) model.Settings {
 	return model.Settings{
+		Domain: model.DomainSettings{AppURL: e.Domain.AppURL, SitesDomain: e.Domain.SitesDomain},
+		TLS: model.TLSSettings{
+			Enabled:     e.TLS.Enabled,
+			Port:        e.TLS.Port,
+			Certificate: e.TLS.Certificate,
+			PrivateKey:  e.TLS.PrivateKey,
+			Lego: model.LegoSettings{
+				Enabled:            e.TLS.Lego.Enabled,
+				Email:              e.TLS.Lego.Email,
+				CloudflareAPIToken: e.TLS.Lego.CloudflareAPIToken,
+			},
+		},
 		Credits: model.CreditSettings{MonthlyGrant: e.Credits.MonthlyGrant},
 		Database: model.DatabaseSettings{
 			Driver:   e.Database.Driver,
@@ -49,8 +74,36 @@ func FromSettingsEntityToSettingsModel(e entity.Settings) model.Settings {
 			UsePathStyle:    e.Storage.S3.UsePathStyle,
 		}},
 		Auth: model.AuthSettings{
-			Google: model.OAuthClientSettings{ClientID: e.Auth.Google.ClientID, ClientSecret: e.Auth.Google.ClientSecret},
-			GitHub: model.OAuthClientSettings{ClientID: e.Auth.GitHub.ClientID, ClientSecret: e.Auth.GitHub.ClientSecret},
+			Google:    model.OAuthClientSettings{ClientID: e.Auth.Google.ClientID, ClientSecret: e.Auth.Google.ClientSecret},
+			GitHub:    model.OAuthClientSettings{ClientID: e.Auth.GitHub.ClientID, ClientSecret: e.Auth.GitHub.ClientSecret},
+			Providers: FromOAuthProviderSettingsEntitiesToOAuthProviderSettingsModels(e.Auth.Providers),
 		},
 	}
+}
+
+// FromOAuthProviderSettingsModelsToOAuthProviderSettingsEntities maps custom
+// sign-in providers to the domain.
+func FromOAuthProviderSettingsModelsToOAuthProviderSettingsEntities(ps []model.OAuthProviderSettings) []entity.OAuthProviderSettings {
+	if len(ps) == 0 {
+		return nil
+	}
+	out := make([]entity.OAuthProviderSettings, len(ps))
+	for i, p := range ps {
+		out[i] = entity.OAuthProviderSettings{
+			ID: p.ID, Name: p.Name, Icon: p.Icon, ClientID: p.ClientID, ClientSecret: p.ClientSecret, AuthURL: p.AuthURL,
+		}
+	}
+	return out
+}
+
+// FromOAuthProviderSettingsEntitiesToOAuthProviderSettingsModels maps custom
+// sign-in providers from the domain.
+func FromOAuthProviderSettingsEntitiesToOAuthProviderSettingsModels(es []entity.OAuthProviderSettings) []model.OAuthProviderSettings {
+	out := make([]model.OAuthProviderSettings, len(es))
+	for i, e := range es {
+		out[i] = model.OAuthProviderSettings{
+			ID: e.ID, Name: e.Name, Icon: e.Icon, ClientID: e.ClientID, ClientSecret: e.ClientSecret, AuthURL: e.AuthURL,
+		}
+	}
+	return out
 }

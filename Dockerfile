@@ -28,6 +28,7 @@ COPY --from=backend --chown=65534:65534 /data /data
 ENV TMPHOST_SETTINGS_FILE=/data/settings.json \
     TMPHOST_SQLITE_DSN=/data/tmphost.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)
 VOLUME /data
-EXPOSE 3000
+# 2027 serves the app; with TLS enabled it redirects to 443.
+EXPOSE 2027 443
 USER nobody
 CMD ["/tmphost"]

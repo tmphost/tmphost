@@ -46,6 +46,9 @@ func (h *Auth) Login(c *fiber.Ctx) error {
 	if errors.Is(err, authctrl.ErrUnknownProvider) {
 		return sendError(c, fiber.StatusNotFound, "unknown provider")
 	}
+	if errors.Is(err, authctrl.ErrProviderUnavailable) {
+		return h.loginError(c, LoginErrorProvider)
+	}
 	if err != nil {
 		return sendError(c, fiber.StatusInternalServerError, "failed to start login")
 	}

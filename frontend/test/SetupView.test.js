@@ -15,6 +15,8 @@ import { useToasts } from '../src/composables/useToasts'
 function state(overrides = {}) {
   return {
     settings: {
+      domain: { appUrl: 'https://app.tmphost.io/', sitesDomain: 'tmphost.io' },
+      tls: { enabled: false, port: 443, certificate: '', privateKey: '', lego: { enabled: false, email: '', cloudflareApiToken: '' } },
       credits: { monthlyGrant: 250 },
       database: {
         driver: 'sqlite',
@@ -22,9 +24,21 @@ function state(overrides = {}) {
         postgres: { dsn: '' },
       },
       storage: { s3: { enabled: false, endpoint: '', region: '', bucket: '', accessKeyId: '', secretAccessKey: '', usePathStyle: false } },
-      auth: { google: { clientId: 'g', clientSecret: '' }, github: { clientId: '', clientSecret: '' } },
+      auth: {
+        google: { clientId: 'g', clientSecret: '' },
+        github: { clientId: '', clientSecret: '' },
+        providers: [{ id: 'my-okta', name: 'My Okta', icon: '<svg></svg>', clientId: 'oc', clientSecret: '', authUrl: 'https://okta.example.com' }],
+      },
     },
-    secretsSet: { postgresDsn: true, s3SecretAccessKey: false, googleClientSecret: true, githubClientSecret: false },
+    secretsSet: {
+      postgresDsn: true,
+      s3SecretAccessKey: false,
+      googleClientSecret: true,
+      githubClientSecret: false,
+      tlsPrivateKey: true,
+      cloudflareApiToken: false,
+      providerClientSecrets: { 'my-okta': true },
+    },
     restartRequired: false,
     ...overrides,
   }
@@ -172,6 +186,90 @@ describe('SetupView', () => {
     await wrapper.find('[data-test="setup-form"]').trigger('submit')
     await flushPromises()
     expect(wrapper.find('[data-test="setup-login-error"]').text()).toContain('session expired')
+  })
+
+  it('edits domains and TLS', async () => {
+    fetchSettings.mockResolvedValue(state())
+    saveSettings.mockImplementation(async (settings) => state({ settings }))
+    const wrapper = await mountView()
+    const tls = wrapper.find('[data-test="setup-tls"]')
+    expect(tls.find('.opacity-50').exists()).toBe(true)
+    expect(wrapper.find('#tls-key').attributes('placeholder')).toContain('saved')
+    expect(wrapper.find('#lego-token').attributes('placeholder')).toBe('Not set')
+    expect(wrapper.find('#lego-email').attributes('placeholder')).toBe('admin@tmphost.io')
+    expect(tls.text()).toContain('*.tmphost.io')
+
+    await wrapper.find('#app-url').setValue('https://example.org')
+    await wrapper.find('#sites-domain').setValue('')
+    expect(wrapper.find('#lego-email').attributes('placeholder')).toBe('admin@example.com')
+    expect(tls.text()).toContain('*.<sites domain>')
+    await wrapper.find('[data-test="setup-tls-enabled"]').setValue(true)
+    await wrapper.find('[data-test="setup-lego-enabled"]').setValue(true)
+    expect(tls.find('.opacity-50').exists()).toBe(false)
+    const values = {
+      '#tls-port': '8443', '#tls-cert': 'CERT', '#tls-key': 'KEY', '#lego-email': 'ops@example.org', '#lego-token': 'cf',
+    }
+    for (const [sel, value] of Object.entries(values)) await wrapper.find(sel).setValue(value)
+    await wrapper.find('[data-test="setup-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(saveSettings.mock.calls[0][0]).toMatchObject({
+      domain: { appUrl: 'https://example.org', sitesDomain: '' },
+      tls: { enabled: true, port: 8443, certificate: 'CERT', privateKey: 'KEY', lego: { enabled: true, email: 'ops@example.org', cloudflareApiToken: 'cf' } },
+    })
+  })
+
+  it('adds, edits, uploads icons for and removes custom providers', async () => {
+    fetchSettings.mockResolvedValue(state())
+    saveSettings.mockImplementation(async (settings) => state({ settings }))
+    const wrapper = await mountView()
+
+    expect(wrapper.find('#cp-0-secret').attributes('placeholder')).toContain('saved')
+    expect(wrapper.find('[data-test="cp-0-callback"]').text()).toContain('https://app.tmphost.io/api/v1/auth/my-okta/callback')
+    expect(wrapper.find('[data-test="cp-0-preview"]').attributes('src')).toBe(`data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg></svg>')}`)
+
+    await wrapper.find('[data-test="setup-add-provider"]').trigger('click')
+    expect(wrapper.find('[data-test="cp-1-preview"]').exists()).toBe(false)
+    expect(wrapper.find('#cp-1-secret').attributes('placeholder')).toBe('Not set')
+    expect(wrapper.find('[data-test="cp-1-callback"]').text()).toContain('/api/v1/auth//callback')
+    const values = {
+      '#cp-1-name': ' Acme  SSO! ', '#cp-1-auth-url': 'https://sso.acme.dev', '#cp-1-id': 'aid', '#cp-1-secret': 'asecret',
+    }
+    for (const [sel, value] of Object.entries(values)) await wrapper.find(sel).setValue(value)
+    expect(wrapper.find('[data-test="cp-1-callback"]').text()).toContain('/api/v1/auth/acme-sso/callback')
+
+    // Upload reads the file into the icon; an empty pick changes nothing.
+    const upload = wrapper.find('[data-test="cp-1-upload"]')
+    const svg = '<svg viewBox="0 0 1 1"></svg>'
+    Object.defineProperty(upload.element, 'files', { value: [{ text: async () => svg }], configurable: true })
+    await upload.trigger('change')
+    await flushPromises()
+    expect(wrapper.find('#cp-1-icon').element.value).toBe(svg)
+    Object.defineProperty(upload.element, 'files', { value: [], configurable: true })
+    await upload.trigger('change')
+    await flushPromises()
+    expect(wrapper.find('#cp-1-icon').element.value).toBe(svg)
+    await wrapper.find('#cp-1-icon').setValue('<svg>edited</svg>')
+
+    await wrapper.find('[data-test="cp-0-remove"]').trigger('click')
+    expect(wrapper.find('[data-test="setup-custom-provider-1"]').exists()).toBe(false)
+    await wrapper.find('[data-test="setup-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(saveSettings.mock.calls[0][0].auth.providers).toEqual([
+      { name: ' Acme  SSO! ', icon: '<svg>edited</svg>', clientId: 'aid', clientSecret: 'asecret', authUrl: 'https://sso.acme.dev' },
+    ])
+  })
+
+  it('treats missing providers and provider secrets as empty', async () => {
+    const s = state()
+    s.settings.auth.providers = null
+    delete s.secretsSet.providerClientSecrets
+    fetchSettings.mockResolvedValue(s)
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-test="setup-custom-provider-0"]').exists()).toBe(false)
+    await wrapper.find('[data-test="setup-add-provider"]').trigger('click')
+    expect(wrapper.find('#cp-0-secret').attributes('placeholder')).toBe('Not set')
   })
 
   it('signs out, even if the request fails', async () => {

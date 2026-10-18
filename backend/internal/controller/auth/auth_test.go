@@ -47,6 +47,10 @@ func newEnv(t *testing.T) *env {
 	}
 	e.google.EXPECT().Name().Return(oauth.ProviderGoogle).AnyTimes()
 	e.github.EXPECT().Name().Return(oauth.ProviderGitHub).AnyTimes()
+	e.google.EXPECT().Label().Return("Google").AnyTimes()
+	e.github.EXPECT().Label().Return("GitHub").AnyTimes()
+	e.google.EXPECT().Icon().Return("").AnyTimes()
+	e.github.EXPECT().Icon().Return("<svg/>").AnyTimes()
 	e.ctrl = New(Params{
 		Providers: []oauth.Provider{e.google, e.github},
 		Token:     e.token,
@@ -68,7 +72,10 @@ func TestNew_DefaultClock(t *testing.T) {
 func TestGetAuthConfig(t *testing.T) {
 	e := newEnv(t)
 	rs := e.ctrl.GetAuthConfig(context.Background())
-	assert.Equal(t, []string{"google", "github"}, rs.Providers)
+	assert.Equal(t, []entity.AuthProvider{
+		{ID: "google", Name: "Google"},
+		{ID: "github", Name: "GitHub", Icon: "<svg/>"},
+	}, rs.Providers)
 }
 
 func TestStartLogin(t *testing.T) {
@@ -87,10 +94,18 @@ func TestStartLogin(t *testing.T) {
 		assert.ErrorIs(t, err, _errBoom)
 	})
 
+	t.Run("provider unavailable", func(t *testing.T) {
+		e := newEnv(t)
+		e.token.EXPECT().CreateStateToken("github", "/").Return("st", nil)
+		e.github.EXPECT().AuthURL(gomock.Any(), "st").Return("", _errBoom)
+		_, err := e.ctrl.StartLogin(ctx, &entity.StartLoginRequest{Provider: "github"})
+		assert.ErrorIs(t, err, ErrProviderUnavailable)
+	})
+
 	t.Run("ok sanitizes redirect", func(t *testing.T) {
 		e := newEnv(t)
 		e.token.EXPECT().CreateStateToken("github", "/").Return("st", nil)
-		e.github.EXPECT().AuthURL("st").Return("https://github.com/login?state=st")
+		e.github.EXPECT().AuthURL(gomock.Any(), "st").Return("https://github.com/login?state=st", nil)
 		rs, err := e.ctrl.StartLogin(ctx, &entity.StartLoginRequest{Provider: "github", RedirectURL: "//evil.com"})
 		require.NoError(t, err)
 		assert.Equal(t, &entity.StartLoginResponse{AuthURL: "https://github.com/login?state=st", State: "st"}, rs)

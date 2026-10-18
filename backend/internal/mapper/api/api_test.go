@@ -90,7 +90,8 @@ func TestFromHTTPRequestToGetCurrentUserRequestEntity(t *testing.T) {
 }
 
 func TestFromGetAuthConfigResponseEntityToHTTPResponse(t *testing.T) {
-	assert.JSONEq(t, `{"providers":["google"]}`, string(FromGetAuthConfigResponseEntityToHTTPResponse(&entity.GetAuthConfigResponse{Providers: []string{"google"}})))
+	assert.JSONEq(t, `{"providers":[{"id":"okta","name":"Okta","icon":"<svg/>"}]}`, string(FromGetAuthConfigResponseEntityToHTTPResponse(
+		&entity.GetAuthConfigResponse{Providers: []entity.AuthProvider{{ID: "okta", Name: "Okta", Icon: "<svg/>"}}})))
 	assert.JSONEq(t, `{"providers":[]}`, string(FromGetAuthConfigResponseEntityToHTTPResponse(&entity.GetAuthConfigResponse{})))
 }
 

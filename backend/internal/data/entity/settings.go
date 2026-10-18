@@ -3,10 +3,44 @@ package entity
 type (
 	// Settings are the server settings root can change from the setup page.
 	Settings struct {
+		Domain   DomainSettings
+		TLS      TLSSettings
 		Credits  CreditSettings
 		Database DatabaseSettings
 		Storage  StorageSettings
 		Auth     AuthSettings
+	}
+
+	// DomainSettings choose where the app and the dynamic subdomains are
+	// served.
+	DomainSettings struct {
+		// AppURL is the public URL of the app, e.g. https://app.tmphost.io.
+		// Its host is the app host, and OAuth callbacks are built on it.
+		AppURL string
+		// SitesDomain is the parent domain of the dynamic subdomains, e.g.
+		// tmphost.io for f<11 characters>.tmphost.io. Empty disables them.
+		SitesDomain string
+	}
+
+	// TLSSettings make the server terminate HTTPS itself.
+	TLSSettings struct {
+		Enabled bool
+		// Port is the HTTPS port; the app port then redirects to it.
+		Port int
+		// Certificate and PrivateKey are the PEM pair served for the app
+		// host. PrivateKey is a secret.
+		Certificate string
+		PrivateKey  string
+		Lego        LegoSettings
+	}
+
+	// LegoSettings obtain a wildcard certificate for the dynamic subdomains
+	// from Let's Encrypt with lego, over the Cloudflare DNS-01 challenge.
+	LegoSettings struct {
+		Enabled bool
+		// Email is the ACME account email; admin@<sites domain> when empty.
+		Email              string
+		CloudflareAPIToken string
 	}
 
 	// CreditSettings configure the operation credit grant.
@@ -54,6 +88,22 @@ type (
 	AuthSettings struct {
 		Google OAuthClientSettings
 		GitHub OAuthClientSettings
+		// Providers are custom OpenID Connect providers.
+		Providers []OAuthProviderSettings
+	}
+
+	// OAuthProviderSettings are a custom OpenID Connect sign-in provider.
+	OAuthProviderSettings struct {
+		// ID is the provider's route name, derived from Name.
+		ID   string
+		Name string
+		// Icon is the SVG markup shown on the sign-in button.
+		Icon         string
+		ClientID     string
+		ClientSecret string
+		// AuthURL is the OpenID Connect issuer; the endpoints are discovered
+		// from its /.well-known/openid-configuration.
+		AuthURL string
 	}
 
 	// OAuthClientSettings are an OAuth app registration.
@@ -69,6 +119,10 @@ type (
 		S3SecretAccessKey  bool
 		GoogleClientSecret bool
 		GitHubClientSecret bool
+		TLSPrivateKey      bool
+		CloudflareAPIToken bool
+		// ProviderClientSecrets is keyed by custom provider ID.
+		ProviderClientSecrets map[string]bool
 	}
 
 	// RootLoginRequest carries a root access token.

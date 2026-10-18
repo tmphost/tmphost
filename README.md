@@ -15,12 +15,12 @@ Go (Fiber, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
 ```sh
 cp backend/cmd/server/.env.example backend/cmd/server/.env   # fill in OAuth apps, JWT secret, master key
 set -a; . backend/cmd/server/.env; set +a
-make dev-backend    # API on :3000
+make dev-backend    # API on :2027
 make dev-frontend   # app on http://localhost:5173 (proxies /api)
 ```
 
-OAuth callback URLs to register: `<TMPHOST_BASE_URL>/api/v1/auth/google/callback`
-and `<TMPHOST_BASE_URL>/api/v1/auth/github/callback`.
+OAuth callback URLs to register: `<app URL>/api/v1/auth/<provider>/callback`
+(`google`, `github`, or a custom provider's ID; the setup page shows each one).
 
 Database: SQLite by default (`TMPHOST_SQLITE_DSN`); set
 `TMPHOST_POSTGRES_ENABLED=true` and `TMPHOST_POSTGRES_DSN`
@@ -37,9 +37,24 @@ make test    # 100% coverage is enforced on both sides
 
 `/setup` opens only with the root access token (`TMPHOST_AUTH_ROOT_ACCESS_TOKEN`;
 when it is empty, a random one is generated and printed at startup). There you
-can change the monthly credit grant (applies immediately), the database
-(SQLite or PostgreSQL), S3 storage and the sign-in providers (these apply after
-a restart).
+can change the monthly credit grant (applies immediately), and these, which
+apply after a restart:
+
+- **Domains**: the app URL (default `http://localhost:2027`; e.g.
+  `https://app.tmphost.io`, any domain or subdomain) and the sites domain
+  (e.g. `tmphost.io`) whose dynamic subdomains `f<11 characters>.<sites domain>`
+  the server answers. Other hosts get a 404; localhost always reaches the app.
+- **TLS**: serve HTTPS on its own port (default 443) and redirect the app port
+  to it. The app host uses an uploaded PEM certificate and key; the dynamic
+  subdomains use a Let's Encrypt wildcard certificate (`*.<sites domain>`)
+  obtained with lego over the Cloudflare DNS-01 challenge (can be switched
+  off), renewed when under 30 days and cached encrypted next to the settings
+  file. When lego is on and the app host is directly under the sites domain,
+  the wildcard covers it and no upload is needed.
+- **Database** (SQLite or PostgreSQL) and **S3 storage**.
+- **Sign-in providers**: Google, GitHub, and any number of custom OpenID
+  Connect providers (name, SVG icon, client ID, client secret, auth URL = the
+  issuer; endpoints come from its `/.well-known/openid-configuration`).
 
 Settings are saved to `TMPHOST_SETTINGS_FILE` (default
 `./_storage/settings.json`, mode 0600) and override the config file and
@@ -62,9 +77,9 @@ image (`FROM scratch`, runs as `nobody`) holds just the binary and CA certs.
 
 ```sh
 make docker
-docker run -p 3000:3000 -v tmphost-data:/data \
+docker run -p 2027:2027 -v tmphost-data:/data \
   -e TMPHOSTIO_MASTER_KEY=... -e TMPHOST_AUTH_JWT_SECRET=... -e TMPHOST_AUTH_ROOT_ACCESS_TOKEN=... \
-  -e TMPHOST_BASE_URL=https://tmphost.example.com tmphost
+  -e TMPHOST_BASE_URL=https://app.tmphost.io tmphost
 ```
 
 Settings and the SQLite database live in the `/data` volume.

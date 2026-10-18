@@ -34,6 +34,9 @@ var (
 	ErrEmailNotVerified = errors.New("email not verified")
 	// ErrProviderExchange is returned when the provider rejects the code.
 	ErrProviderExchange = errors.New("provider exchange failed")
+	// ErrProviderUnavailable is returned when the provider cannot start a
+	// sign-in, e.g. its OpenID Connect discovery fails.
+	ErrProviderUnavailable = errors.New("provider unavailable")
 	// ErrUnauthorized is returned for a missing or invalid session.
 	ErrUnauthorized = errors.New("unauthorized")
 )
@@ -95,10 +98,15 @@ func New(p Params) Controller {
 }
 
 func (c *controller) GetAuthConfig(_ context.Context) *entity.GetAuthConfigResponse {
-	return &entity.GetAuthConfigResponse{Providers: append([]string{}, c.order...)}
+	providers := make([]entity.AuthProvider, len(c.order))
+	for i, name := range c.order {
+		p := c.providers[name]
+		providers[i] = entity.AuthProvider{ID: name, Name: p.Label(), Icon: p.Icon()}
+	}
+	return &entity.GetAuthConfigResponse{Providers: providers}
 }
 
-func (c *controller) StartLogin(_ context.Context, rq *entity.StartLoginRequest) (*entity.StartLoginResponse, error) {
+func (c *controller) StartLogin(ctx context.Context, rq *entity.StartLoginRequest) (*entity.StartLoginResponse, error) {
 	provider, ok := c.providers[rq.Provider]
 	if !ok {
 		return nil, ErrUnknownProvider
@@ -107,7 +115,11 @@ func (c *controller) StartLogin(_ context.Context, rq *entity.StartLoginRequest)
 	if err != nil {
 		return nil, fmt.Errorf("create state: %w", err)
 	}
-	return &entity.StartLoginResponse{AuthURL: provider.AuthURL(state), State: state}, nil
+	authURL, err := provider.AuthURL(ctx, state)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrProviderUnavailable, err)
+	}
+	return &entity.StartLoginResponse{AuthURL: authURL, State: state}, nil
 }
 
 func (c *controller) CompleteLogin(ctx context.Context, rq *entity.CompleteLoginRequest) (*entity.CompleteLoginResponse, error) {

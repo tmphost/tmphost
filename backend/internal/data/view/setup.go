@@ -10,10 +10,34 @@ type (
 	// always empty in responses (see SecretsSet), and an empty secret in a
 	// request keeps the stored value.
 	Settings struct {
+		Domain   DomainSettings   `json:"domain"`
+		TLS      TLSSettings      `json:"tls"`
 		Credits  CreditSettings   `json:"credits"`
 		Database DatabaseSettings `json:"database"`
 		Storage  StorageSettings  `json:"storage"`
 		Auth     AuthSettings     `json:"auth"`
+	}
+
+	// DomainSettings is the domain section.
+	DomainSettings struct {
+		AppURL      string `json:"appUrl"`
+		SitesDomain string `json:"sitesDomain"`
+	}
+
+	// TLSSettings is the tls section.
+	TLSSettings struct {
+		Enabled     bool         `json:"enabled"`
+		Port        int          `json:"port"`
+		Certificate string       `json:"certificate"`
+		PrivateKey  string       `json:"privateKey"`
+		Lego        LegoSettings `json:"lego"`
+	}
+
+	// LegoSettings is the tls.lego section.
+	LegoSettings struct {
+		Enabled            bool   `json:"enabled"`
+		Email              string `json:"email"`
+		CloudflareAPIToken string `json:"cloudflareApiToken"`
 	}
 
 	// CreditSettings is the credits section.
@@ -56,8 +80,19 @@ type (
 
 	// AuthSettings is the auth section.
 	AuthSettings struct {
-		Google OAuthClientSettings `json:"google"`
-		GitHub OAuthClientSettings `json:"github"`
+		Google    OAuthClientSettings     `json:"google"`
+		GitHub    OAuthClientSettings     `json:"github"`
+		Providers []OAuthProviderSettings `json:"providers"`
+	}
+
+	// OAuthProviderSettings is a custom OpenID Connect provider.
+	OAuthProviderSettings struct {
+		ID           string `json:"id"`
+		Name         string `json:"name"`
+		Icon         string `json:"icon"`
+		ClientID     string `json:"clientId"`
+		ClientSecret string `json:"clientSecret"`
+		AuthURL      string `json:"authUrl"`
 	}
 
 	// OAuthClientSettings is an OAuth app registration.
@@ -68,10 +103,13 @@ type (
 
 	// SecretsSet reports which secrets have a stored value.
 	SecretsSet struct {
-		PostgresDSN        bool `json:"postgresDsn"`
-		S3SecretAccessKey  bool `json:"s3SecretAccessKey"`
-		GoogleClientSecret bool `json:"googleClientSecret"`
-		GitHubClientSecret bool `json:"githubClientSecret"`
+		PostgresDSN           bool            `json:"postgresDsn"`
+		S3SecretAccessKey     bool            `json:"s3SecretAccessKey"`
+		GoogleClientSecret    bool            `json:"googleClientSecret"`
+		GitHubClientSecret    bool            `json:"githubClientSecret"`
+		TLSPrivateKey         bool            `json:"tlsPrivateKey"`
+		CloudflareAPIToken    bool            `json:"cloudflareApiToken"`
+		ProviderClientSecrets map[string]bool `json:"providerClientSecrets"`
 	}
 
 	// SettingsRequest is the PUT /setup/settings body.

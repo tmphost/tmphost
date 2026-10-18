@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 // The Go server proxies nothing in development; Vite forwards the API to it.
 // Point TMPHOST_BASE_URL at this dev server so OAuth callbacks land here and
 // the session cookie is set on the same origin as the app.
-const apiTarget = process.env.TMPHOST_DEV_API_TARGET || 'http://localhost:3000'
+const apiTarget = process.env.TMPHOST_DEV_API_TARGET || 'http://localhost:2027'
 
 export default defineConfig({
   // Relative asset URLs; the Go server rewrites them under its base path.

@@ -21,6 +21,8 @@ var _errBoom = errors.New("boom")
 
 func defaults() entity.Settings {
 	return entity.Settings{
+		Domain:  entity.DomainSettings{AppURL: "http://localhost:2027"},
+		TLS:     entity.TLSSettings{Port: DefaultTLSPort},
 		Credits: entity.CreditSettings{MonthlyGrant: 250},
 		Database: entity.DatabaseSettings{
 			Driver:   DriverSQLite,
@@ -68,6 +70,17 @@ func TestNew(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 500, ctrl.MonthlyGrant())
 		assert.Equal(t, saved, ctrl.Current())
+	})
+
+	t.Run("saved settings without an app URL keep the configured one", func(t *testing.T) {
+		repo := mockrepo.NewMockSettingsRepository(mc)
+		saved := defaults()
+		saved.Domain.AppURL = ""
+		saved.TLS.Port = 0
+		repo.EXPECT().LoadSettings().Return(mappermodel.FromSettingsEntityToSettingsModel(saved), nil)
+		ctrl, err := New(Params{Repository: repo, RootAccessToken: "x", Defaults: defaults()})
+		require.NoError(t, err)
+		assert.Equal(t, defaults(), ctrl.Current())
 	})
 
 	t.Run("load error", func(t *testing.T) {
@@ -123,7 +136,9 @@ func TestGetSettings_HidesSecrets(t *testing.T) {
 	assert.Empty(t, rs.Settings.Database.Postgres.DSN)
 	assert.Empty(t, rs.Settings.Storage.S3.SecretAccessKey)
 	assert.Empty(t, rs.Settings.Auth.Google.ClientSecret)
-	assert.Equal(t, entity.SecretsSet{PostgresDSN: true, S3SecretAccessKey: true, GoogleClientSecret: true}, rs.SecretsSet)
+	assert.Equal(t, entity.SecretsSet{
+		PostgresDSN: true, S3SecretAccessKey: true, GoogleClientSecret: true, ProviderClientSecrets: map[string]bool{},
+	}, rs.SecretsSet)
 	assert.Equal(t, "g", rs.Settings.Auth.Google.ClientID)
 	assert.False(t, rs.RestartRequired)
 }
