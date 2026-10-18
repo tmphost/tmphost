@@ -219,6 +219,8 @@ func TestSetupFlow_SettingsApplyAndPersist(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, string(raw), "monthlyGrant")
 	assert.NotContains(t, string(raw), "okta-client-secret")
+	// Quoted, so random base64 ciphertext can never match it by chance.
+	assert.NotContains(t, string(raw), `"hs"`)
 	cfg.MasterKey = "another-master-key-of-32-characters!"
 	_, err = New(cfg, fstest.MapFS{})
 	assert.ErrorIs(t, err, encryption.ErrDecrypt)
