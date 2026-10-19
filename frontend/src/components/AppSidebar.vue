@@ -22,7 +22,6 @@ const NAV = [
     section: 'Overview',
     items: [
       { to: '/', label: 'Files', icon: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z' },
-      { to: '/credits', label: 'Credits', icon: 'M3 3v18h18M7 15l4-4 3 3 5-6' },
       {
         to: '/connect',
         label: 'Connect',
@@ -132,10 +131,12 @@ function logout() {
         </template>
       </div>
 
-      <!-- Operation credits -->
-      <div
+      <!-- Operation credits; opens the credits page -->
+      <router-link
         v-if="user && !compact"
-        class="mb-3 rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3"
+        to="/credits"
+        title="View credit activity"
+        class="block mb-3 rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 hover:border-gray-300 dark:hover:border-zinc-700 transition-colors"
         data-test="sidebar-credits"
       >
         <div class="flex items-baseline justify-between">
@@ -148,7 +149,7 @@ function logout() {
           <div class="h-full bg-gray-900 dark:bg-zinc-100 rounded-full" :style="{ width: `${percent}%` }" data-test="credits-bar"></div>
         </div>
         <p v-if="renewal" class="mt-1.5 text-[10px] text-gray-400 dark:text-zinc-500">{{ renewal }}</p>
-      </div>
+      </router-link>
 
       <!-- Account -->
       <div v-click-outside="closeUserMenu" class="relative pt-3 border-t border-gray-200 dark:border-zinc-800">
