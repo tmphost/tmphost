@@ -60,6 +60,17 @@ func FromHTTPRequestToGetFolderRequestEntity(c fiber.Ctx) *entity.GetFolderReque
 	return &entity.GetFolderRequest{UserID: userID, FolderID: folderID}
 }
 
+// FromHTTPRequestToUpdateFolderRequestEntity reads PATCH /folders/:id,
+// whose body must set the title.
+func FromHTTPRequestToUpdateFolderRequestEntity(c fiber.Ctx) *entity.UpdateFolderRequest {
+	rq := FromHTTPRequestToGetFolderRequestEntity(c)
+	var body view.UpdateFolderRequest
+	if rq == nil || json.Unmarshal(c.Body(), &body) != nil || body.Title == nil {
+		return nil
+	}
+	return &entity.UpdateFolderRequest{UserID: rq.UserID, FolderID: rq.FolderID, Title: *body.Title}
+}
+
 // FromHTTPRequestToDeleteFolderRequestEntity reads DELETE /folders/:id.
 func FromHTTPRequestToDeleteFolderRequestEntity(c fiber.Ctx) *entity.DeleteFolderRequest {
 	rq := FromHTTPRequestToGetFolderRequestEntity(c)
@@ -168,6 +179,11 @@ func FromGetFolderResponseEntityToHTTPResponse(rs *entity.GetFolderResponse) []b
 	return marshal(view.GetFolderResponse{Folder: FromFolderEntityToFolderView(rs.Folder), Files: FromFileEntitiesToFileViews(rs.Files)})
 }
 
+// FromUpdateFolderResponseEntityToHTTPResponse renders PATCH /folders/:id.
+func FromUpdateFolderResponseEntityToHTTPResponse(rs *entity.UpdateFolderResponse) []byte {
+	return marshal(view.FolderResponse{Folder: FromFolderEntityToFolderView(rs.Folder)})
+}
+
 // FromPutFilesResponseEntityToHTTPResponse renders PUT /folders/:id/files/*,
 // which writes exactly one file.
 func FromPutFilesResponseEntityToHTTPResponse(rs *entity.PutFilesResponse) []byte {
@@ -177,10 +193,12 @@ func FromPutFilesResponseEntityToHTTPResponse(rs *entity.PutFilesResponse) []byt
 // FromFolderEntityToFolderView maps a folder to its JSON view.
 func FromFolderEntityToFolderView(e entity.Folder) view.Folder {
 	return view.Folder{
-		ID:        idgen.FormatFolderID(e.ID),
-		CreatedAt: e.CreatedAt.UTC().Format(time.RFC3339),
-		ExpiresAt: e.ExpiresAt.UTC().Format(time.RFC3339),
-		URL:       e.URL,
+		ID:           idgen.FormatFolderID(e.ID),
+		CreatedAt:    e.CreatedAt.UTC().Format(time.RFC3339),
+		ExpiresAt:    e.ExpiresAt.UTC().Format(time.RFC3339),
+		URL:          e.URL,
+		Title:        e.Title,
+		DefaultTitle: e.DefaultTitle,
 	}
 }
 

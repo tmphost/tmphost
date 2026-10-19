@@ -14,4 +14,6 @@ type Folder struct {
 	CreatedAt time.Time
 	UserID    int64     `gorm:"index;not null"`
 	ExpiresAt time.Time `gorm:"index;not null"`
+	// Title is the name the owner gave the folder; empty until renamed.
+	Title string `gorm:"size:400;not null;default:''"`
 }

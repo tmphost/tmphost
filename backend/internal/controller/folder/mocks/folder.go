@@ -181,3 +181,18 @@ func (mr *MockControllerMockRecorder) PutFiles(ctx, rq interface{}) *gomock.Call
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutFiles", reflect.TypeOf((*MockController)(nil).PutFiles), ctx, rq)
 }
+
+// UpdateFolder mocks base method.
+func (m *MockController) UpdateFolder(ctx context.Context, rq *entity.UpdateFolderRequest) (*entity.UpdateFolderResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateFolder", ctx, rq)
+	ret0, _ := ret[0].(*entity.UpdateFolderResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateFolder indicates an expected call of UpdateFolder.
+func (mr *MockControllerMockRecorder) UpdateFolder(ctx, rq interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFolder", reflect.TypeOf((*MockController)(nil).UpdateFolder), ctx, rq)
+}

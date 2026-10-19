@@ -25,6 +25,11 @@ type (
 		CreatedAt string `json:"createdAt"`
 		ExpiresAt string `json:"expiresAt"`
 		URL       string `json:"url"`
+		// Title is the name the owner gave the folder; empty until renamed.
+		Title string `json:"title"`
+		// DefaultTitle is shown while Title is empty: the name of the
+		// folder's only file, else its ID.
+		DefaultTitle string `json:"defaultTitle"`
 	}
 
 	// File is an uploaded file.
@@ -38,6 +43,11 @@ type (
 	// CreateFolderRequest is the POST /folders body.
 	CreateFolderRequest struct {
 		TTLMinutes int `json:"ttlMinutes"`
+	}
+
+	// UpdateFolderRequest is the PATCH /folders/:id body.
+	UpdateFolderRequest struct {
+		Title *string `json:"title"`
 	}
 
 	// FolderResponse wraps a folder.

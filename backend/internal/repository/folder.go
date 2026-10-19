@@ -27,6 +27,8 @@ type (
 		// ListExpiredFolders returns up to limit folders that expired at or
 		// before now, oldest expiry first.
 		ListExpiredFolders(ctx context.Context, now time.Time, limit int) ([]model.Folder, error)
+		// UpdateFolderTitle sets a folder's title.
+		UpdateFolderTitle(ctx context.Context, id int64, title string) error
 		DeleteFolder(ctx context.Context, id int64) error
 	}
 
@@ -82,6 +84,10 @@ func (r *folderRepository) ListExpiredFolders(ctx context.Context, now time.Time
 		return nil, err
 	}
 	return folders, nil
+}
+
+func (r *folderRepository) UpdateFolderTitle(ctx context.Context, id int64, title string) error {
+	return r.db.WithContext(ctx).Model(&model.Folder{}).Where("id = ?", id).Update("title", title).Error
 }
 
 func (r *folderRepository) DeleteFolder(ctx context.Context, id int64) error {

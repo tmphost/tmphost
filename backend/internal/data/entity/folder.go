@@ -18,6 +18,11 @@ type (
 		ExpiresAt time.Time
 		// URL is the folder's public URL; its files are served below it.
 		URL string
+		// Title is the name the owner gave the folder; empty until renamed.
+		Title string
+		// DefaultTitle names a folder without a title: the name of its only
+		// file, else its ID.
+		DefaultTitle string
 	}
 
 	// File is an uploaded file.
@@ -89,6 +94,19 @@ type (
 	GetFolderResponse struct {
 		Folder Folder
 		Files  []File
+	}
+
+	// UpdateFolderRequest renames one of a user's folders.
+	UpdateFolderRequest struct {
+		UserID   int64
+		FolderID int64
+		// Title is the new title; empty clears it.
+		Title string
+	}
+
+	// UpdateFolderResponse carries the renamed folder.
+	UpdateFolderResponse struct {
+		Folder Folder
 	}
 
 	// DeleteFolderRequest deletes a folder and its files.
