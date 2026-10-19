@@ -23,7 +23,14 @@ app:
   # proxyHeader (the rightmost address that is not a trusted proxy):
   # anonymous uploads are limited per client IP.
   trustedProxies: ${TMPHOSTIO_TRUSTED_PROXIES:}
-  proxyHeader: ${TMPHOSTIO_PROXY_HEADER:X-Forwarded-For}
+  # Behind Cloudflare: also trust Cloudflare's published edge ranges
+  # (cloudflare.com/ips) and read the client IP from CF-Connecting-IP. The
+  # header is honored only when the connection comes from those ranges (or
+  # trustedProxies), so a client that reaches the origin directly can't
+  # spoof it.
+  cloudflare: ${TMPHOSTIO_CLOUDFLARE:false}
+  # Defaults to CF-Connecting-IP with cloudflare, else X-Forwarded-For.
+  proxyHeader: ${TMPHOSTIO_PROXY_HEADER:}
 # HTTPS terminated by the server with Let's Encrypt certificates, obtained
 # and renewed automatically over TLS-ALPN-01 (Let's Encrypt must reach the
 # HTTPS port as 443). lego also covers the dynamic subdomains: one certificate

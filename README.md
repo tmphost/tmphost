@@ -23,6 +23,14 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
 - Without signing in, the web app's Upload page makes folders that live at
   most `files.anonymousMaxTtlMinutes` (`TMPHOSTIO_FILES_ANONYMOUS_MAX_TTL_MINUTES`,
   10 minutes by default; root can change it on /setup).
+- Behind a proxy, the per-IP limits of anonymous uploads count the client IP
+  the proxy forwards. Behind Cloudflare, set `TMPHOSTIO_CLOUDFLARE=true`:
+  requests from Cloudflare's published edge ranges
+  ([cloudflare.com/ips](https://www.cloudflare.com/ips/), embedded in the
+  binary) are attributed to their `CF-Connecting-IP`, and anyone else who
+  sends that header is counted by their own address. Other proxies go in
+  `TMPHOSTIO_TRUSTED_PROXIES` (IPs or CIDR ranges); their header is
+  `TMPHOSTIO_PROXY_HEADER` (`X-Forwarded-For` by default).
 - Storage is local disk (`TMPHOSTIO_STORAGE_LOCAL_PATH`) or an S3 bucket, under
   `u<userId>/<folderId>/<path>`. Paths are at most 5 directories deep and are
   validated server-side, so a file can never leave its folder. The database
