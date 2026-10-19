@@ -63,6 +63,11 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   to the sites domain; needs wildcard DNS and a certificate, which the
   built-in TLS obtains when it is the sites domain). Both are served with `Content-Security-Policy:
   sandbox`, so hosted pages never run with the app's origin.
+- A Markdown file (`.md`, `.markdown`) is served as is, or with
+  `?format=html` as a reading page: GitHub-flavoured Markdown (tables, task
+  lists, strikethrough, footnotes) in a wide serif column that follows the
+  visitor's light or dark theme, titled after its first `#` heading. Raw
+  HTML and `javascript:` links in the source are left out.
 
 ## MCP, CLI and OAuth
 
@@ -76,7 +81,10 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   (`/oauth2/authorize`) and refresh tokens (`/oauth2/token`), discovered via
   `/.well-known/oauth-authorization-server` and
   `/.well-known/oauth-protected-resource/mcp`. The CLI uses the built-in
-  public client ID `00000000001` with a loopback redirect. Access tokens also
+  public client ID `00000000001` with a loopback redirect, or, where no
+  browser can reach it (SSH, containers), the device flow (RFC 8628):
+  `/oauth2/device/code` hands out a code the user enters at `/auth/device`
+  while the CLI polls `/oauth2/token`. Access tokens also
   work as Bearer tokens on `/api/v1`. The MCP domain is an issuer of its own
   (`https://<mcp domain>`), with its registration and token endpoints on that
   host; its users sign in and consent on the app URL at

@@ -11,6 +11,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/golang/mock/gomock"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
 	"github.com/tmphost/tmphost/backend/internal/data/model"
+	"github.com/tmphost/tmphost/backend/internal/markdown"
 	"github.com/tmphost/tmphost/backend/internal/repository"
 	mockrepo "github.com/tmphost/tmphost/backend/internal/repository/mocks"
 	"github.com/tmphost/tmphost/backend/internal/service/idgen"
@@ -775,6 +777,43 @@ func TestOpenPublicFile(t *testing.T) {
 	})
 }
 
+func TestOpenPublicFile_MarkdownAsHTML(t *testing.T) {
+	ctx := context.Background()
+	open := func(t *testing.T, path, format string, body io.ReadCloser) (*entity.OpenFileResponse, error) {
+		e := newEnv(t)
+		e.liveFolder(time.Hour)
+		e.storage.EXPECT().Get(ctx, _prefix+path).Return(body, storage.Object{Size: 9, ModTime: _now}, nil)
+		return e.ctrl.OpenPublicFile(ctx, &entity.OpenPublicFileRequest{FolderID: 1000, Path: path, Format: format})
+	}
+
+	t.Run("rendered", func(t *testing.T) {
+		rs, err := open(t, "docs/README.md", "html", io.NopCloser(strings.NewReader("# Hello\n")))
+		require.NoError(t, err)
+		page, _ := io.ReadAll(rs.Body)
+		assert.NoError(t, rs.Body.Close())
+		assert.Equal(t, "text/html; charset=utf-8", rs.ContentType)
+		assert.Equal(t, int64(len(page)), rs.Size)
+		assert.Equal(t, _now, rs.ModTime)
+		assert.Contains(t, string(page), "<title>Hello</title>")
+	})
+	t.Run("not markdown", func(t *testing.T) {
+		body := io.NopCloser(strings.NewReader("x"))
+		rs, err := open(t, "a.txt", "html", body)
+		require.NoError(t, err)
+		assert.Equal(t, body, rs.Body)
+	})
+	t.Run("raw without the format", func(t *testing.T) {
+		body := io.NopCloser(strings.NewReader("# Hello"))
+		rs, err := open(t, "a.md", "", body)
+		require.NoError(t, err)
+		assert.Equal(t, body, rs.Body)
+	})
+	t.Run("read fails", func(t *testing.T) {
+		_, err := open(t, "a.md", "html", io.NopCloser(iotest.ErrReader(errBoom)))
+		assert.ErrorIs(t, err, errBoom)
+	})
+}
+
 func TestOpenPublicFile_Errors(t *testing.T) {
 	ctx := context.Background()
 	rq := &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: "a.txt"}
@@ -998,4 +1037,19 @@ func TestOpenPublicFile_Redirects(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, rs.RedirectURL)
 	assert.Equal(t, "text/html; charset=utf-8", rs.ContentType)
+
+	// Markdown read as a page is rendered here from its bytes; as a file
+	// it redirects like any other.
+	files = model.FolderFiles{"big.md": {Size: 2 << 20}}
+	e.folderWithFiles(files)
+	e.storage.EXPECT().Get(ctx, _prefix+"big.md").Return(io.NopCloser(strings.NewReader("# Hi")), storage.Object{Size: 2 << 20}, nil)
+	rs, err = e.ctrl.OpenPublicFile(ctx, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "big.md", Format: markdown.FormatHTML})
+	require.NoError(t, err)
+	assert.Empty(t, rs.RedirectURL)
+	assert.Equal(t, markdown.ContentType, rs.ContentType)
+	e.folderWithFiles(files)
+	signer.EXPECT().SignGet(ctx, _prefix+"big.md", gomock.Any()).Return("https://bucket/md", nil)
+	rs, err = e.ctrl.OpenPublicFile(ctx, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "big.md"})
+	require.NoError(t, err)
+	assert.Equal(t, "https://bucket/md", rs.RedirectURL)
 }

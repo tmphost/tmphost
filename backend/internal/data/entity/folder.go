@@ -185,6 +185,9 @@ type (
 		// Path is the file path; empty or ending in "/" means the
 		// directory's index.html.
 		Path string
+		// Format is the ?format= query value; "html" renders a Markdown
+		// file as a page.
+		Format string
 	}
 
 	// OpenFileResponse is an open file. The caller closes Body. A large

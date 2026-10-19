@@ -44,6 +44,7 @@ const (
 	_clientAudience  = "oauth:client"
 	_clientSubject   = "client"
 	_consentAudience = "oauth:consent"
+	_deviceAudience  = "oauth:device_consent"
 	_codeAudience    = "oauth:code"
 	_accessAudience  = "oauth:access"
 	_refreshAudience = "oauth:refresh"
@@ -78,6 +79,12 @@ type (
 		CreateConsentToken(grant OAuthGrant) (string, error)
 		// ValidateConsentToken returns the request a consent token holds.
 		ValidateConsentToken(consent string) (OAuthGrant, error)
+		// CreateDeviceConsentToken signs a device authorization awaiting
+		// the user's answer.
+		CreateDeviceConsentToken(grant OAuthGrant) (string, error)
+		// ValidateDeviceConsentToken returns the device authorization a
+		// device consent token holds.
+		ValidateDeviceConsentToken(consent string) (OAuthGrant, error)
 		// CreateAuthorizationCode signs an approved authorization request.
 		CreateAuthorizationCode(grant OAuthGrant) (string, error)
 		// ValidateAuthorizationCode returns the request a code approves.
@@ -115,6 +122,9 @@ type (
 		RedirectURI   string
 		CodeChallenge string
 		State         string
+		// DeviceCode is the digest of a device authorization's device
+		// code, on a device consent.
+		DeviceCode string
 	}
 
 	// Config holds the token signing settings.
@@ -145,6 +155,7 @@ type (
 		RedirectURI   string `json:"ruri,omitempty"`
 		CodeChallenge string `json:"cch,omitempty"`
 		State         string `json:"st,omitempty"`
+		DeviceCode    string `json:"dch,omitempty"`
 	}
 )
 
@@ -251,6 +262,14 @@ func (s *service) ValidateConsentToken(consent string) (OAuthGrant, error) {
 	return s.parseGrant(consent, _consentAudience)
 }
 
+func (s *service) CreateDeviceConsentToken(grant OAuthGrant) (string, error) {
+	return s.signGrant(grant, _deviceAudience, ConsentTTL)
+}
+
+func (s *service) ValidateDeviceConsentToken(consent string) (OAuthGrant, error) {
+	return s.parseGrant(consent, _deviceAudience)
+}
+
 func (s *service) CreateAuthorizationCode(grant OAuthGrant) (string, error) {
 	return s.signGrant(grant, _codeAudience, AuthorizationCodeTTL)
 }
@@ -289,6 +308,7 @@ func (s *service) signGrant(grant OAuthGrant, audience string, ttl time.Duration
 		RedirectURI:      grant.RedirectURI,
 		CodeChallenge:    grant.CodeChallenge,
 		State:            grant.State,
+		DeviceCode:       grant.DeviceCode,
 	})
 }
 
@@ -307,6 +327,7 @@ func (s *service) parseGrant(token, audience string) (OAuthGrant, error) {
 		RedirectURI:   claims.RedirectURI,
 		CodeChallenge: claims.CodeChallenge,
 		State:         claims.State,
+		DeviceCode:    claims.DeviceCode,
 	}, nil
 }
 

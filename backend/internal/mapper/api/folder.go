@@ -137,7 +137,7 @@ func FromHTTPRequestToOpenPublicFileRequestEntity(c fiber.Ctx, domain string) *e
 	if err != nil {
 		return nil
 	}
-	return &entity.OpenPublicFileRequest{FolderID: folderID, Path: p}
+	return &entity.OpenPublicFileRequest{FolderID: folderID, Path: p, Format: c.Query("format")}
 }
 
 // FromHTTPRequestToOpenPublicFileByPathRequestEntity reads a request to
@@ -157,7 +157,7 @@ func FromHTTPRequestToOpenPublicFileByPathRequestEntity(c fiber.Ctx) *entity.Ope
 	if p != "" && strings.HasSuffix(c.Path(), "/") {
 		p += "/"
 	}
-	return &entity.OpenPublicFileRequest{UserID: userID, FolderID: folderID, Path: p}
+	return &entity.OpenPublicFileRequest{UserID: userID, FolderID: folderID, Path: p, Format: c.Query("format")}
 }
 
 // FromGetLimitsResponseEntityToHTTPResponse renders GET /limits.

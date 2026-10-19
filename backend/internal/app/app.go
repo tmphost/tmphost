@@ -227,6 +227,7 @@ type (
 		db        *gorm.DB
 		credits   credit.Controller
 		folders   folderctrl.Controller
+		oauth     oauthctrl.Controller
 		store     storage.Service
 		scheduler scheduler.Service
 		// The rest is set only with TLS enabled.
@@ -304,13 +305,22 @@ func New(cfg Config, web fs.FS) (*App, error) {
 	f := fiber.New(fiberConfig(cfg.App, bodyLimit))
 	f.Use(recover.New())
 	credits := credit.New(credit.Params{Users: users, Grant: setup.MonthlyGrant})
+	oauth := oauthctrl.New(oauthctrl.Params{
+		Token:       tokens,
+		Users:       users,
+		Devices:     repository.NewDeviceCodeRepository(db),
+		DeviceQuota: quota.New(quota.Params{Limit: oauthctrl.DeviceAttempts, Window: oauthctrl.DeviceWindow}),
+		Issuer:      baseURL,
+		Resource:    baseURL + MCPPath,
+		MCPResource: mcpURL,
+	})
 	api.New(api.Params{
 		Router:         f,
 		Hosts:          hostRouter(h),
 		Auth:           auth,
 		Setup:          setup,
 		Folders:        folders,
-		OAuth:          oauthctrl.New(oauthctrl.Params{Token: tokens, Users: users, Issuer: baseURL, Resource: baseURL + MCPPath, MCPResource: mcpURL}),
+		OAuth:          oauth,
 		Credits:        credits,
 		FileSettings:   setup.FileLimits,
 		AllowedOrigins: setup.AllowedOrigins,
@@ -336,12 +346,14 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		db:        db,
 		credits:   credits,
 		folders:   folders,
+		oauth:     oauth,
 		store:     store,
 		scheduler: scheduler.New(),
 	}
 	// Both are valid constant specs, so these cannot fail.
 	_ = a.scheduler.AddFunc(credit.RenewalSchedule, a.renewCredits)
 	_ = a.scheduler.AddFunc(folderctrl.SweepSchedule, a.sweepFolders)
+	_ = a.scheduler.AddFunc(oauthctrl.DeviceSweepSchedule, a.sweepDeviceCodes)
 	if cfg.TLS.Enabled {
 		a.setupTLS(cfg, enc, h)
 	}
@@ -453,6 +465,14 @@ func (a *App) sweepFolders() {
 	}
 	if rs.Deleted > 0 {
 		zlog.Info().Int("deleted", rs.Deleted).Msg("folder sweep: deleted expired folders")
+	}
+}
+
+func (a *App) sweepDeviceCodes() {
+	ctx, cancel := context.WithTimeout(context.Background(), _sweepTimeout)
+	defer cancel()
+	if err := a.oauth.SweepDeviceCodes(ctx); err != nil {
+		zlog.Error().Err(err).Msg("device code sweep: failed")
 	}
 }
 

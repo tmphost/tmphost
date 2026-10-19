@@ -101,6 +101,9 @@ func New(p Params) {
 		p.Router.Post(path, OptionalAuthenticate(p.Auth), oauth.Consent)
 	}
 	p.Router.Post(oauthctrl.TokenPath, oauth.Token)
+	p.Router.Post(oauthctrl.DeviceCodePath, oauth.DeviceCode)
+	p.Router.Get(oauthctrl.DevicePath, OptionalAuthenticate(p.Auth), oauth.Device)
+	p.Router.Post(oauthctrl.DevicePath, OptionalAuthenticate(p.Auth), oauth.DeviceConsent)
 
 	p.Router.Get(AuthPrefix+"/config", auth.Config)
 	p.Router.Get(AuthPrefix+"/:provider/login", auth.Login)

@@ -211,6 +211,8 @@ func TestFromHTTPRequestToOpenPublicFileRequestEntity(t *testing.T) {
 	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "site/a b.html"},
 		read("Tmp.Host:3000", "000000RS.tmp.host:3000", get("/site/a%20b.html")))
 	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: ""}, read("tmp.host", "000000rs.tmp.host", get("/")))
+	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "a.md", Format: "html"},
+		read("tmp.host", "000000rs.tmp.host", get("/a.md?format=html")))
 
 	for name, tc := range map[string]struct {
 		domain, host string
@@ -243,6 +245,7 @@ func TestFromHTTPRequestToOpenPublicFileByPathRequestEntity(t *testing.T) {
 	}
 	assert.Equal(t, &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: "site/a b.html"}, read("/files/7/000000rs/site/a%20b.html"))
 	assert.Equal(t, &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: ""}, read("/files/7/000000rs/"))
+	assert.Equal(t, &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: "a.md", Format: "html"}, read("/files/7/000000rs/a.md?format=html"))
 	assert.Equal(t, &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: "site/"}, read("/files/7/000000rs/site/"),
 		"a directory keeps its slash, for its index.html")
 	assert.Nil(t, read("/files/x_y/000000rs/a"), "bad user")
