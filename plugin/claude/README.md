@@ -9,10 +9,10 @@ files with it.
 /plugin install tmphost --marketplace tmphost/tmphost
 ```
 
-It connects to `<server>/mcp`, by default `https://mcp.tmphost.io/mcp`, and
-signs in through the browser on the first tool call. For a self-hosted
-server, set the plugin's `server` option to its MCP domain or app URL with
-`/plugin configure tmphost@tmphost`.
+It connects to `https://mcp.tmphost.io/mcp` and signs in through the browser
+on the first tool call. To use a self-hosted tmphost, add your own MCP server
+pointing at its MCP domain or app URL instead:
+`claude mcp add --transport http tmphost https://mcp.example.com/mcp`.
 
 [Privacy Policy](https://tmphost.io/privacy) ·
 [Terms of Service](https://tmphost.io/tos)
