@@ -25,6 +25,10 @@ type (
 		// SitesDomain is the parent domain of the dynamic subdomains, e.g.
 		// tmphost.io for <11 characters>.tmphost.io. Empty disables them.
 		SitesDomain string
+		// AllowedOrigins are other web origins, e.g. https://tmphost.io,
+		// that may call the API from a browser (CORS, with credentials) and
+		// upload without signing in. They apply without a restart.
+		AllowedOrigins []string
 	}
 
 	// TLSSettings make the server terminate HTTPS itself, with Let's

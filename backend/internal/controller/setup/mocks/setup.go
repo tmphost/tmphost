@@ -35,6 +35,20 @@ func (m *MockController) EXPECT() *MockControllerMockRecorder {
 	return m.recorder
 }
 
+// AllowedOrigins mocks base method.
+func (m *MockController) AllowedOrigins() []string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AllowedOrigins")
+	ret0, _ := ret[0].([]string)
+	return ret0
+}
+
+// AllowedOrigins indicates an expected call of AllowedOrigins.
+func (mr *MockControllerMockRecorder) AllowedOrigins() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllowedOrigins", reflect.TypeOf((*MockController)(nil).AllowedOrigins))
+}
+
 // Authenticate mocks base method.
 func (m *MockController) Authenticate(ctx context.Context, rq *entity.AuthenticateRootRequest) error {
 	m.ctrl.T.Helper()

@@ -7,6 +7,7 @@ package setup
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -173,6 +174,7 @@ func TestUpdateSettings_CreditsApplyLive(t *testing.T) {
 	next.Files.AnonymousMaxTTLMinutes = 5
 	next.Files.Subdomains = true
 	next.Files.PublicDomain = " Files.Example.com:8443 "
+	next.Domain.AllowedOrigins = []string{" HTTPS://TmpHost.io/ ", "", "https://www.tmphost.io", "https://tmphost.io"}
 
 	e.repo.EXPECT().SaveSettings(gomock.Any()).DoAndReturn(func(m model.Settings) error {
 		assert.Equal(t, 400, m.Credits.MonthlyGrant)
@@ -183,7 +185,8 @@ func TestUpdateSettings_CreditsApplyLive(t *testing.T) {
 	})
 	rs, err := e.ctrl.UpdateSettings(ctx, &entity.UpdateSettingsRequest{Settings: next})
 	require.NoError(t, err)
-	assert.False(t, rs.RestartRequired, "credits, max TTLs and public URLs apply without a restart")
+	assert.False(t, rs.RestartRequired, "credits, max TTLs, public URLs and allowed origins apply without a restart")
+	assert.Equal(t, []string{"https://tmphost.io", "https://www.tmphost.io"}, e.ctrl.AllowedOrigins(), "normalized, blanks and repeats dropped")
 	assert.Equal(t, 400, e.ctrl.MonthlyGrant())
 	assert.Equal(t, 900, e.ctrl.SignupGrant())
 	assert.Equal(t, entity.FileSettings{MaxTTLMinutes: 60, MaxUploadMB: 16, AnonymousMaxTTLMinutes: 5, Subdomains: true, PublicDomain: "files.example.com:8443"}, e.ctrl.FileLimits())
@@ -264,6 +267,16 @@ func TestUpdateSettings_Validation(t *testing.T) {
 		"domain with path":         func(s *entity.Settings) { s.Files.PublicDomain = "tmphost.io/x" },
 		"domain with bad label":    func(s *entity.Settings) { s.Files.PublicDomain = "-x.tmphost.io" },
 		"github id without secret": func(s *entity.Settings) { s.Auth.GitHub = entity.OAuthClientSettings{ClientID: "h"} },
+		"origin with path":         func(s *entity.Settings) { s.Domain.AllowedOrigins = []string{"https://tmphost.io/x"} },
+		"origin without scheme":    func(s *entity.Settings) { s.Domain.AllowedOrigins = []string{"tmphost.io"} },
+		"origin not http":          func(s *entity.Settings) { s.Domain.AllowedOrigins = []string{"ftp://tmphost.io"} },
+		"origin with query":        func(s *entity.Settings) { s.Domain.AllowedOrigins = []string{"https://tmphost.io?"} },
+		"origin unparsable":        func(s *entity.Settings) { s.Domain.AllowedOrigins = []string{"http://[::1"} },
+		"too many origins": func(s *entity.Settings) {
+			for i := range _maxOrigins + 1 {
+				s.Domain.AllowedOrigins = append(s.Domain.AllowedOrigins, fmt.Sprintf("https://o%d.tmphost.io", i))
+			}
+		},
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {

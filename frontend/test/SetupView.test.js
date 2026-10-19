@@ -19,7 +19,7 @@ import { useToasts } from '../src/composables/useToasts'
 function state(overrides = {}) {
   return {
     settings: {
-      domain: { appUrl: 'https://app.tmphost.io/', sitesDomain: 'tmphost.io' },
+      domain: { appUrl: 'https://app.tmphost.io/', sitesDomain: 'tmphost.io', allowedOrigins: ['https://tmphost.io'] },
       tls: { enabled: false, port: 443, email: '', lego: { enabled: false, cloudflareApiToken: '' } },
       credits: { monthlyGrant: 250, signupGrant: 1000 },
       database: {
@@ -331,8 +331,10 @@ describe('SetupView', () => {
     expect(wrapper.find('#lego-token').attributes('placeholder')).toBe('Optional')
     expect(tls.text()).toContain('*.tmphost.io')
 
+    expect(wrapper.find('#allowed-origins').element.value).toBe('https://tmphost.io')
     await wrapper.find('#app-url').setValue('https://example.org')
     await wrapper.find('#sites-domain').setValue('')
+    await wrapper.find('#allowed-origins').setValue(' https://example.org \n\nhttps://www.example.org\n')
     expect(tls.text()).toContain('*.sites domain')
     await wrapper.find('[data-test="setup-tls-enabled"]').setValue(true)
     await wrapper.find('[data-test="setup-lego-enabled"]').setValue(true)
@@ -345,9 +347,22 @@ describe('SetupView', () => {
     await flushPromises()
 
     expect(saveSettings.mock.calls[0][0]).toMatchObject({
-      domain: { appUrl: 'https://example.org', sitesDomain: '' },
+      domain: { appUrl: 'https://example.org', sitesDomain: '', allowedOrigins: ['https://example.org', 'https://www.example.org'] },
       tls: { enabled: true, port: 8443, email: 'ops@example.org', lego: { enabled: true, cloudflareApiToken: 'cf' } },
     })
+  })
+
+  it('saves no allowed origins when none are set', async () => {
+    const empty = state()
+    empty.settings.domain = { appUrl: 'https://app.tmphost.io', sitesDomain: '', allowedOrigins: null }
+    fetchSettings.mockResolvedValue(empty)
+    saveSettings.mockImplementation(async (settings) => state({ settings }))
+    const wrapper = await mountView()
+    expect(wrapper.find('#allowed-origins').element.value).toBe('')
+    expect(wrapper.find('[data-test="setup-domain"]').text()).toContain('Applies right away')
+    await wrapper.find('[data-test="setup-form"]').trigger('submit')
+    await flushPromises()
+    expect(saveSettings.mock.calls[0][0].domain.allowedOrigins).toEqual([])
   })
 
   it('shows a saved Cloudflare token as kept', async () => {

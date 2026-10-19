@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -71,10 +72,13 @@ type (
 		SignupGrant func() int
 		// BasePath is the path prefix the app is served under ("" or "/x").
 		BasePath string
-		// BaseURL is the app's public URL; its origin is the only one
-		// anonymous requests are accepted from.
+		// BaseURL is the app's public URL; anonymous requests are accepted
+		// from its origin.
 		BaseURL string
-		Now     func() time.Time
+		// AllowedOrigins returns the other origins anonymous requests are
+		// accepted from. It may be nil.
+		AllowedOrigins func() []string
+		Now            func() time.Time
 	}
 
 	controller struct {
@@ -87,6 +91,7 @@ type (
 		signup    func() int
 		basePath  string
 		webOrigin string
+		allowed   func() []string
 		now       func() time.Time
 	}
 )
@@ -102,6 +107,7 @@ func New(p Params) Controller {
 		signup:    credit.SignupGrantOrDefault(p.SignupGrant),
 		basePath:  strings.TrimRight(p.BasePath, "/"),
 		webOrigin: origin(p.BaseURL),
+		allowed:   p.AllowedOrigins,
 		now:       p.Now,
 	}
 	if c.now == nil {
@@ -212,7 +218,7 @@ func (c *controller) AuthenticateAnonymous(_ context.Context, rq *entity.Authent
 	if from == "" {
 		from = origin(rq.Referer)
 	}
-	if c.webOrigin == "" || !strings.EqualFold(from, c.webOrigin) {
+	if !c.trustedOrigin(from) {
 		return nil, ErrUnauthorized
 	}
 	id := idgen.AnonymousUserID(rq.IP)
@@ -283,6 +289,21 @@ func sanitizeRedirect(path string) string {
 }
 
 // origin is the scheme://host[:port] of an absolute URL, or "".
+// trustedOrigin reports whether from is the app's own origin or an allowed
+// one.
+func (c *controller) trustedOrigin(from string) bool {
+	if from == "" {
+		return false
+	}
+	if strings.EqualFold(from, c.webOrigin) {
+		return true
+	}
+	if c.allowed == nil {
+		return false
+	}
+	return slices.ContainsFunc(c.allowed(), func(o string) bool { return strings.EqualFold(from, o) })
+}
+
 func origin(raw string) string {
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme == "" || u.Host == "" {
