@@ -76,6 +76,7 @@ describe('ConnectView', () => {
       'irm https://raw.githubusercontent.com/tmphost/tmphost/main/install.ps1 | iex',
     )
     expect(wrapper.find('[data-test="snippet-cli-login"]').text()).toBe(`tmphost login --server ${server()}`)
+    expect(wrapper.find('[data-test="snippet-cli-login-device"]').text()).toBe(`tmphost login --device --server ${server()}`)
     expect(wrapper.find('[data-test="snippet-cli-examples"]').text().split('\n')).toEqual([
       'tmphost file upload ./index.html --ttl 1h',
       'tmphost file get --id <id>',

@@ -111,6 +111,8 @@ func TestMetadata(t *testing.T) {
 		AuthorizationEndpoint: _issuer + "/oauth2/authorize",
 		TokenEndpoint:         _issuer + "/oauth2/token",
 		RegistrationEndpoint:  _issuer + "/oauth2/register",
+		// Only the app host's issuer serves the CLI's device flow.
+		DeviceAuthorizationEndpoint: _issuer + "/oauth2/device/code",
 	}, e.ctrl.GetServerMetadata(context.Background(), &entity.GetOAuthServerMetadataRequest{Host: "mcp.t.io"}))
 	assert.Equal(t, &entity.GetProtectedResourceMetadataResponse{
 		Resource: _issuer + "/mcp", AuthorizationServers: []string{_issuer},

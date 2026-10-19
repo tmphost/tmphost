@@ -32,6 +32,7 @@ From source: `cd cli && go build -o tmphost .` (or `make cli`, which writes
 ```sh
 tmphost login                              # https://tmphost.io
 tmphost login --server https://files.example.com
+tmphost login --device                     # no browser here, e.g. over SSH
 ```
 
 `login` opens the browser to approve the CLI (OAuth 2.1 with PKCE; the URL is
@@ -40,6 +41,13 @@ The tokens are saved to `$TMPHOSTIO_CONFIG`, or `tmphost/config.json` under your
 user config directory, readable only by you, and refreshed automatically.
 `tmphost logout` forgets them. `--server` or `TMPHOSTIO_SERVER` picks the server;
 tokens are only ever sent to the server that issued them.
+
+On a machine without a browser (over SSH, in a container, on a server),
+`login` prints a link and a code instead (the OAuth device flow, RFC 8628):
+open the link on any device, enter the code, approve, and the CLI picks up
+the tokens. That is the default when `$SSH_CONNECTION` or `$SSH_TTY` is set,
+or on Linux without `$DISPLAY` or `$WAYLAND_DISPLAY`; `--device` and
+`--browser` choose a flow yourself.
 
 ## Usage
 
