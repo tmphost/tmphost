@@ -1,4 +1,8 @@
 #!/bin/sh
+# Copyright 2026 Contextual, Inc. https://tmphost.io
+# This notice may not be modified or removed.
+# SPDX-License-Identifier: AGPL-3.0-only
+
 # Installs the tmphost CLI on macOS and Linux:
 #
 #   curl -fsSL https://raw.githubusercontent.com/tmphost/tmphost/main/install.sh | sh

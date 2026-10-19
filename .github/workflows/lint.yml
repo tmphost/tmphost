@@ -1,3 +1,7 @@
+# Copyright 2026 Contextual, Inc. https://tmphost.io
+# This notice may not be modified or removed.
+# SPDX-License-Identifier: AGPL-3.0-only
+
 name: Lint
 
 on:
@@ -6,11 +10,13 @@ on:
       - main
     paths:
       - 'backend/**'
+      - 'cli/**'
       - 'frontend/**'
       - '.github/workflows/lint.yml'
   pull_request:
     paths:
       - 'backend/**'
+      - 'cli/**'
       - 'frontend/**'
       - '.github/workflows/lint.yml'
   workflow_dispatch:
@@ -19,11 +25,16 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  backend:
-    name: golangci-lint
+  go:
+    name: golangci-lint (${{ matrix.module }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each Go module carries its own .golangci.yml.
+        module: [backend, cli]
 
     steps:
       - name: Checkout
@@ -32,16 +43,16 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: backend/go.mod
-          cache-dependency-path: backend/go.sum
+          go-version-file: ${{ matrix.module }}/go.mod
+          cache-dependency-path: ${{ matrix.module }}/go.sum
 
       - name: golangci-lint
-        # Rules live in backend/.golangci.yml. Pinned so a new release cannot
+        # Rules live in <module>/.golangci.yml. Pinned so a new release cannot
         # fail an unchanged tree.
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.15.0
-          working-directory: backend
+          working-directory: ${{ matrix.module }}
 
   frontend:
     name: ESLint
