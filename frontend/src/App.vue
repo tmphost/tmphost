@@ -9,6 +9,7 @@ import { computed, provide, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppSidebar from './components/AppSidebar.vue'
 import ToastStack from './components/ToastStack.vue'
+import UpdateBanner from './components/UpdateBanner.vue'
 import { useTooltipStore } from './stores/tooltipStore'
 import { clearUserCache, fetchUser, logout } from './api'
 import { useToasts } from './composables/useToasts'
@@ -115,5 +116,6 @@ watch(
     >{{ tooltipStore.text }}</div>
 
     <ToastStack />
+    <UpdateBanner />
   </div>
 </template>

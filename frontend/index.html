@@ -11,6 +11,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>tmphost.io</title>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <!-- Relative, like every href here: the Go server rewrites "./" under its base path. -->
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="tmphost" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="theme-color" content="#fafafa" />
     <script>
       // Apply the saved theme before first paint, so a dark page does not

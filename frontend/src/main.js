@@ -4,9 +4,15 @@
 
 import { createWebHistory } from 'vue-router'
 import { createtmphostApp } from './app'
+import { registerServiceWorker } from './composables/usePwaUpdate'
+
+const basePath = window.__TMPHOST_BASE_PATH__ || ''
 
 const { app } = createtmphostApp({
-  history: createWebHistory(window.__TMPHOST_BASE_PATH__ || '/'),
+  history: createWebHistory(basePath || '/'),
   platform: 'web',
 })
 app.mount('#app')
+
+// Browser only: installs the PWA and downloads new versions in the background.
+registerServiceWorker({ basePath })
