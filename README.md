@@ -52,6 +52,10 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   writes of a path land in order, are retried 3 times, are listed and
   served from memory until they land, and finish before shutdown. Past
   another 256 MB of writes in flight, uploads wait for the bucket again.
+- Folder lookups are served from memory too, up to 64 MB in all
+  (`TMPHOSTIO_CACHE_FOLDERS_MAX_MB`, least recently used dropped first; 0
+  turns it off). Writing to a folder or its expiry drops it, and the next
+  lookup reads it from the database again.
 - With S3, downloads of files over 1 MB (`TMPHOSTIO_STORAGE_REDIRECT_OVER_MB`,
   0 turns it off) on public URLs, the API and the CLI answer `302 Found` to
   a URL of the bucket signed for 15 minutes (`TMPHOSTIO_STORAGE_REDIRECT_TTL`),

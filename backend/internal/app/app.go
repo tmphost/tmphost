@@ -66,6 +66,7 @@ type (
 		Storage   StorageConfig
 		S3        S3Config
 		Files     FilesConfig
+		Cache     CacheConfig
 		IDGen     IDGenConfig
 	}
 
@@ -193,6 +194,18 @@ type (
 		Async bool `yaml:"async"`
 	}
 
+	// CacheConfig is the "cache" section.
+	CacheConfig struct {
+		Folders FolderCacheConfig `yaml:"folders"`
+	}
+
+	// FolderCacheConfig is the "cache.folders" section: folders looked up
+	// by ID are kept in memory, up to MaxMB in all, until they are written
+	// to or expire. A zero MaxMB turns it off.
+	FolderCacheConfig struct {
+		MaxMB int `yaml:"maxMb"`
+	}
+
 	// S3Config is the "s3" section (an S3-compatible bucket).
 	S3Config struct {
 		Endpoint        string `yaml:"endpoint"`
@@ -287,7 +300,7 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		MCPURL:         mcpURL,
 	})
 	folders := folderctrl.New(folderctrl.Params{
-		Folders:        repository.NewFolderRepository(db),
+		Folders:        repository.NewCachedFolderRepository(repository.NewFolderRepository(db), int64(cfg.Cache.Folders.MaxMB)<<20),
 		Users:          users,
 		Storage:        store,
 		Anonymous:      quota.New(quota.Params{Limit: folderctrl.AnonymousOps, Window: folderctrl.AnonymousWindow}),
