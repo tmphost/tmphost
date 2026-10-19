@@ -149,9 +149,11 @@ describe('FilesView', () => {
     vi.advanceTimersByTime(30 * 60 * 1000)
     await wrapper.vm.$nextTick()
     expect(oldExpires()).toBe('15m')
+    // An expired folder drops off the list on the tick it runs out.
     vi.advanceTimersByTime(15 * 60 * 1000)
     await wrapper.vm.$nextTick()
-    expect(oldExpires()).toBe('Expired')
+    expect(wrapper.find('[data-test="folder-old"]').exists()).toBe(false)
+    expect(wrapper.findAll('[data-test="folder-title"]').map((b) => b.text())).toEqual(['new'])
 
     const clear = vi.spyOn(globalThis, 'clearInterval')
     wrapper.unmount()
@@ -406,6 +408,17 @@ describe('FilesView', () => {
     expect(lastToast()).toMatchObject({ type: 'error', message: 'Failed to load folder (500)' })
     expect(wrapper.find('[data-test="upload-target"]').text()).toContain('old')
     expect(wrapper.find('[data-test="upload-start"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('shows the empty state once every folder has expired', async () => {
+    listFolders.mockResolvedValue([folders[0]])
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-test="folders-empty"]').exists()).toBe(false)
+
+    vi.advanceTimersByTime(45 * 60 * 1000)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-test="folder-old"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="folders-empty"]').text()).toContain('No folders yet')
   })
 
   it('blocks uploads into a folder that has expired', async () => {

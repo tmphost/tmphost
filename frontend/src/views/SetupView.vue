@@ -154,7 +154,7 @@ async function uploadIcon(provider, event) {
 }
 
 function callbackUrl(provider) {
-  return `${form.value.domain.appUrl.replace(/\/+$/, '')}/api/v1/auth/${providerSlug(provider.name)}/callback`
+  return `${form.value.domain.appUrl.replace(/\/+$/, '')}/auth/${providerSlug(provider.name)}/callback`
 }
 
 function providerSecretSet(provider) {

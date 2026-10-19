@@ -68,7 +68,7 @@ make dev-backend    # API on :2027
 make dev-frontend   # app on http://localhost:5173 (proxies /api)
 ```
 
-OAuth callback URLs to register: `<app URL>/api/v1/auth/<provider>/callback`
+OAuth callback URLs to register: `<app URL>/auth/<provider>/callback`
 (`google`, `github`, or a custom provider's ID; the setup page shows each one).
 
 Database: SQLite by default (`TMPHOSTIO_SQLITE_DSN`); set

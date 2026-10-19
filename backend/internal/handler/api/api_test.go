@@ -67,7 +67,7 @@ func cookieNamed(res *http.Response, name string) *http.Cookie {
 func TestConfig(t *testing.T) {
 	app, ctrl := newApp(t)
 	ctrl.EXPECT().GetAuthConfig(gomock.Any()).Return(&entity.GetAuthConfigResponse{Providers: []entity.AuthProvider{{ID: "google", Name: "Google"}}})
-	res, body := do(t, app, http.MethodGet, "/api/v1/auth/config")
+	res, body := do(t, app, http.MethodGet, "/auth/config")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, fiber.MIMEApplicationJSON, res.Header.Get(fiber.HeaderContentType))
 	assert.JSONEq(t, `{"providers":[{"id":"google","name":"Google","icon":""}]}`, body)
@@ -78,13 +78,13 @@ func TestLogin(t *testing.T) {
 		app, ctrl := newApp(t)
 		ctrl.EXPECT().StartLogin(gomock.Any(), &entity.StartLoginRequest{Provider: "google", RedirectURL: "/x"}).
 			Return(&entity.StartLoginResponse{AuthURL: "https://accounts.google.com/o?state=st", State: "st"}, nil)
-		res, _ := do(t, app, http.MethodGet, "/api/v1/auth/google/login?redirect_url=/x")
+		res, _ := do(t, app, http.MethodGet, "/auth/google/login?redirect_url=/x")
 		assert.Equal(t, http.StatusFound, res.StatusCode)
 		assert.Equal(t, "https://accounts.google.com/o?state=st", res.Header.Get("Location"))
 		ck := cookieNamed(res, mapper.StateCookie)
 		require.NotNil(t, ck)
 		assert.Equal(t, "st", ck.Value)
-		assert.Equal(t, "/base/api/v1/auth", ck.Path)
+		assert.Equal(t, "/base/auth", ck.Path)
 		assert.True(t, ck.HttpOnly)
 		assert.True(t, ck.Secure)
 		assert.Equal(t, http.SameSiteLaxMode, ck.SameSite)
@@ -94,7 +94,7 @@ func TestLogin(t *testing.T) {
 	t.Run("unknown provider", func(t *testing.T) {
 		app, ctrl := newApp(t)
 		ctrl.EXPECT().StartLogin(gomock.Any(), gomock.Any()).Return(nil, authctrl.ErrUnknownProvider)
-		res, body := do(t, app, http.MethodGet, "/api/v1/auth/x/login")
+		res, body := do(t, app, http.MethodGet, "/auth/x/login")
 		assert.Equal(t, http.StatusNotFound, res.StatusCode)
 		assert.JSONEq(t, `{"error":"unknown provider"}`, body)
 	})
@@ -102,7 +102,7 @@ func TestLogin(t *testing.T) {
 	t.Run("provider unavailable", func(t *testing.T) {
 		app, ctrl := newApp(t)
 		ctrl.EXPECT().StartLogin(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("%w: down", authctrl.ErrProviderUnavailable))
-		res, _ := do(t, app, http.MethodGet, "/api/v1/auth/okta/login")
+		res, _ := do(t, app, http.MethodGet, "/auth/okta/login")
 		assert.Equal(t, http.StatusFound, res.StatusCode)
 		assert.Equal(t, "/base/login?error=provider_error", res.Header.Get("Location"))
 	})
@@ -110,7 +110,7 @@ func TestLogin(t *testing.T) {
 	t.Run("controller error", func(t *testing.T) {
 		app, ctrl := newApp(t)
 		ctrl.EXPECT().StartLogin(gomock.Any(), gomock.Any()).Return(nil, errBoom)
-		res, _ := do(t, app, http.MethodGet, "/api/v1/auth/google/login")
+		res, _ := do(t, app, http.MethodGet, "/auth/google/login")
 		assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
 	})
 
@@ -129,7 +129,7 @@ func TestCallback_Success(t *testing.T) {
 		Provider: "github", Code: "c", State: "st", StateCookie: "st",
 	}).Return(&entity.CompleteLoginResponse{SessionToken: "session", RedirectURL: "/base/settings"}, nil)
 
-	res, _ := do(t, app, http.MethodGet, "/api/v1/auth/github/callback?code=c&state=st",
+	res, _ := do(t, app, http.MethodGet, "/auth/github/callback?code=c&state=st",
 		&http.Cookie{Name: mapper.StateCookie, Value: "st"})
 	assert.Equal(t, http.StatusFound, res.StatusCode)
 	assert.Equal(t, "/base/settings", res.Header.Get("Location"))
@@ -161,7 +161,7 @@ func TestCallback_Errors(t *testing.T) {
 		t.Run(tc.code, func(t *testing.T) {
 			app, ctrl := newApp(t)
 			ctrl.EXPECT().CompleteLogin(gomock.Any(), gomock.Any()).Return(nil, tc.err)
-			res, _ := do(t, app, http.MethodGet, "/api/v1/auth/google/callback?code=c&state=st")
+			res, _ := do(t, app, http.MethodGet, "/auth/google/callback?code=c&state=st")
 			assert.Equal(t, http.StatusFound, res.StatusCode)
 			assert.Equal(t, "/base/login?error="+tc.code, res.Header.Get("Location"))
 			assert.Nil(t, cookieNamed(res, mapper.SessionCookie))
@@ -170,14 +170,14 @@ func TestCallback_Errors(t *testing.T) {
 
 	t.Run("cancelled", func(t *testing.T) {
 		app, _ := newApp(t)
-		res, _ := do(t, app, http.MethodGet, "/api/v1/auth/google/callback?error=access_denied")
+		res, _ := do(t, app, http.MethodGet, "/auth/google/callback?error=access_denied")
 		assert.Equal(t, "/base/login?error="+LoginErrorCancelled, res.Header.Get("Location"))
 	})
 }
 
 func TestLogout(t *testing.T) {
 	app, _ := newApp(t)
-	res, _ := do(t, app, http.MethodPost, "/api/v1/auth/logout")
+	res, _ := do(t, app, http.MethodPost, "/auth/logout")
 	assert.Equal(t, http.StatusNoContent, res.StatusCode)
 	ck := cookieNamed(res, mapper.SessionCookie)
 	require.NotNil(t, ck)

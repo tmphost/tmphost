@@ -36,7 +36,7 @@ export function clearUserCache() {
 
 // fetchAuthConfig lists the sign-in providers the server has enabled.
 export async function fetchAuthConfig() {
-  const res = await fetch(`${API_BASE_URL}/auth/config`)
+  const res = await fetch(`${BASE_PATH}/auth/config`)
   if (!res.ok) throw new Error(`Failed to load sign-in options (${res.status})`)
   const body = await res.json()
   return body.providers
@@ -45,13 +45,13 @@ export async function fetchAuthConfig() {
 // providerLoginUrl is the server route that starts an OAuth round trip.
 // redirect is an in-app path to land on afterwards.
 export function providerLoginUrl(provider, redirect) {
-  const url = `${API_BASE_URL}/auth/${encodeURIComponent(provider)}/login`
+  const url = `${BASE_PATH}/auth/${encodeURIComponent(provider)}/login`
   return redirect ? `${url}?redirect_url=${encodeURIComponent(redirect)}` : url
 }
 
 export async function logout() {
   try {
-    await fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', credentials: 'same-origin' })
+    await fetch(`${BASE_PATH}/auth/logout`, { method: 'POST', credentials: 'same-origin' })
   } finally {
     clearUserCache()
   }

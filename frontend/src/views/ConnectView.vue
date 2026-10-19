@@ -68,8 +68,8 @@ const SECTIONS = [
     id: 'mcp',
     label: 'MCP',
     title: 'MCP clients',
-    // A plug.
-    icon: 'M9 3v4m6-4v4M7 7h10v4a5 5 0 0 1-10 0V7zm5 9v5',
+    // The official MCP logo (modelcontextprotocol/docs/logo), scaled from its 195 viewBox to 24.
+    icon: 'M3.08 12.04L11.43 3.69C12.59 2.54 14.46 2.54 15.61 3.69V3.69C16.76 4.84 16.76 6.71 15.61 7.87L9.3 14.18M9.39 14.09L15.61 7.87C16.76 6.71 18.63 6.71 19.79 7.87L19.83 7.91C20.98 9.06 20.98 10.93 19.83 12.09L12.27 19.64C11.89 20.03 11.89 20.65 12.27 21.04L13.83 22.59M13.52 5.78L7.34 11.96C6.19 13.11 6.19 14.98 7.34 16.13V16.13C8.49 17.29 10.37 17.29 11.52 16.13L17.7 9.95',
     intro: 'Add tmphost to Claude, Cursor or any MCP client that speaks streamable HTTP.',
     note: 'The client opens your browser to sign in and shows a consent screen. No secret or key is needed.',
     snippets: MCP_SNIPPETS,

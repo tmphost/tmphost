@@ -411,7 +411,7 @@ func openStorage(cfg Config) (storage.Service, error) {
 
 func providers(cfg Config) []oauth.Provider {
 	callback := func(name string) string {
-		return strings.TrimRight(cfg.App.BaseURL, "/") + api.RoutePrefix + "/auth/" + name + "/callback"
+		return strings.TrimRight(cfg.App.BaseURL, "/") + api.AuthPrefix + "/" + name + "/callback"
 	}
 	var out []oauth.Provider
 	if g := cfg.Auth.Google; g.ClientID != "" {
