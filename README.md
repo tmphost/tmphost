@@ -47,6 +47,7 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
 ```sh
 cp backend/cmd/server/.env.example backend/cmd/server/.env   # fill in OAuth apps, JWT secret, master key
 set -a; . backend/cmd/server/.env; set +a
+make dev            # both at once (Ctrl-C stops both), or separately:
 make dev-backend    # API on :2027
 make dev-frontend   # app on http://localhost:5173 (proxies /api)
 ```
