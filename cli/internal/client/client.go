@@ -100,7 +100,7 @@ type Client struct {
 	http    *http.Client
 }
 
-// New returns a client for server (e.g. "https://tmphost.io").
+// New returns a client for server (e.g. "https://app.tmphost.io").
 func New(server string, tokens TokenSource) *Client {
 	// No client timeout: large uploads on slow links legitimately take long,
 	// and callers bound requests with their context instead.
