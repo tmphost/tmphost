@@ -178,6 +178,10 @@ type (
 	StorageCacheConfig struct {
 		TTL   time.Duration `yaml:"ttl"`
 		MaxMB int           `yaml:"maxMb"`
+		// Async answers an upload to S3 once it is in memory and writes it
+		// to the bucket in the background. Local disk writes stay
+		// synchronous.
+		Async bool `yaml:"async"`
 	}
 
 	// S3Config is the "s3" section (an S3-compatible bucket).
@@ -214,6 +218,7 @@ type (
 		db        *gorm.DB
 		credits   credit.Controller
 		folders   folderctrl.Controller
+		store     storage.Service
 		scheduler scheduler.Service
 		// The rest is set only with TLS enabled.
 		tlsAddr  string
@@ -320,6 +325,7 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		db:        db,
 		credits:   credits,
 		folders:   folders,
+		store:     store,
 		scheduler: scheduler.New(),
 	}
 	// Both are valid constant specs, so these cannot fail.
@@ -396,8 +402,8 @@ func (a *App) Listen() error {
 	return a.listenTLS()
 }
 
-// Shutdown stops the server and the jobs gracefully, then closes the
-// database.
+// Shutdown stops the server and the jobs gracefully, waits for uploads
+// still being written in the background, then closes the database.
 func (a *App) Shutdown(ctx context.Context) error {
 	err := a.fiber.ShutdownWithContext(ctx)
 	if a.certs != nil {
@@ -405,6 +411,7 @@ func (a *App) Shutdown(ctx context.Context) error {
 		a.certs.Stop()
 	}
 	a.scheduler.Stop()
+	err = errors.Join(err, storage.Flush(ctx, a.store))
 	return errors.Join(err, a.closeDB())
 }
 
@@ -444,7 +451,9 @@ func openStorage(cfg Config) (storage.Service, error) {
 		return nil, err
 	}
 	c := cfg.Storage.Cache
-	return storage.NewCached(store, storage.CacheConfig{TTL: c.TTL, MaxBytes: int64(c.MaxMB) << 20}), nil
+	return storage.NewCached(store, storage.CacheConfig{
+		TTL: c.TTL, MaxBytes: int64(c.MaxMB) << 20, Async: c.Async && cfg.Storage.Driver == setupctrl.StorageS3,
+	}), nil
 }
 
 func openStorageDriver(cfg Config) (storage.Service, error) {

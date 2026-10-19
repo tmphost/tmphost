@@ -76,6 +76,9 @@ storage:
   cache:
     ttl: ${TMPHOSTIO_STORAGE_CACHE_TTL:5m}
     maxMb: ${TMPHOSTIO_STORAGE_CACHE_MAX_MB:256}
+    # With S3, answer uploads once they are in memory and write them to the
+    # bucket in the background.
+    async: ${TMPHOSTIO_STORAGE_CACHE_ASYNC:true}
 s3:
   endpoint: ${TMPHOSTIO_S3_ENDPOINT:}
   region: ${TMPHOSTIO_S3_REGION:}

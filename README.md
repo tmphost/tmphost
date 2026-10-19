@@ -45,7 +45,12 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
 - Fresh uploads are also kept in memory and served from there for their
   first 5 minutes (`TMPHOSTIO_STORAGE_CACHE_TTL`), up to 256 MB in all
   (`TMPHOSTIO_STORAGE_CACHE_MAX_MB`, least recently used dropped first; 0
-  turns it off). Deleting a file or folder drops it from memory too.
+  turns it off). Deleting a file or folder drops it from memory too. With
+  S3, an upload is answered once it is in memory and written to the bucket
+  in the background (`TMPHOSTIO_STORAGE_CACHE_ASYNC`, on by default):
+  writes of a path land in order, are retried 3 times, are listed and
+  served from memory until they land, and finish before shutdown. Past
+  another 256 MB of writes in flight, uploads wait for the bucket again.
 - Public URLs: `<TMPHOSTIO_BASE_URL>/files/<userId>/<folderId>/<path>` by
   default, or `<folderId>.<publicDomain>/<path>` with subdomains on
   (`TMPHOSTIO_FILES_SUBDOMAINS`, `TMPHOSTIO_FILES_PUBLIC_DOMAIN`, which defaults

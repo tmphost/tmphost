@@ -248,7 +248,7 @@ func TestSettingsFromConfig(t *testing.T) {
 	cfg.Credits.SignupGrant = 7
 	cfg.Postgres = PostgresConfig{Enabled: true, DSN: "postgres://u:p@h:1/d"}
 	cfg.S3 = S3Config{Endpoint: "e", Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", UsePathStyle: true}
-	cfg.Storage = StorageConfig{Driver: "s3", LocalPath: "/files", Cache: StorageCacheConfig{TTL: 5 * time.Minute, MaxMB: 256}}
+	cfg.Storage = StorageConfig{Driver: "s3", LocalPath: "/files", Cache: StorageCacheConfig{TTL: 5 * time.Minute, MaxMB: 256, Async: true}}
 	cfg.Files = FilesConfig{MaxTTLMinutes: 60, MaxUploadMB: 2, AnonymousMaxTTLMinutes: 15, Subdomains: true, PublicDomain: "tmp.site"}
 	cfg.App.SitesDomain = "tmphost.io"
 	cfg.TLS = TLSConfig{Enabled: true, Email: "e@x.io", Lego: LegoConfig{Enabled: true, CloudflareAPIToken: "cf"}}
