@@ -3,11 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { createPinia } from 'pinia'
 import AppSidebar from '../src/components/AppSidebar.vue'
 import { clickOutside } from '../src/app'
+import { useTooltipStore } from '../src/stores/tooltipStore'
 
 const user = {
   id: 'u1',
@@ -59,13 +60,45 @@ describe('AppSidebar', () => {
     expect(collapsed.find('[data-test="sidebar-brand"]').exists()).toBe(false)
     expect(collapsed.find('[data-test="sidebar-credits"]').exists()).toBe(false)
     expect(collapsed.find('[data-test="sidebar-toggle"]').attributes('title')).toBe('Expand sidebar')
-    expect(collapsed.find('a[title="Files"]').exists()).toBe(true)
+    expect(collapsed.find('a[aria-label="Files"]').exists()).toBe(true)
     collapsed.unmount()
 
     const drawer = await mountSidebar({ collapsed: true, mobileOpen: true })
     expect(drawer.find('[data-test="sidebar-brand"]').exists()).toBe(true)
     expect(drawer.find('[data-test="sidebar"]').classes()).toContain('w-[280px]')
     drawer.unmount()
+  })
+
+  it('names the items in a tooltip only while collapsed', async () => {
+    const collapsed = await mountSidebar({ collapsed: true })
+    const tooltip = useTooltipStore()
+    const connect = collapsed.find('a[href="/connect"]')
+    await connect.trigger('mouseenter')
+    expect(tooltip.visible).toBe(true)
+    expect(tooltip.text).toBe('Connect')
+    await connect.trigger('mouseleave')
+    expect(tooltip.visible).toBe(false)
+
+    const account = collapsed.find('[data-test="user-menu-toggle"]')
+    await account.trigger('mouseenter')
+    expect(tooltip.text).toBe('Ada Lovelace')
+    await account.trigger('click')
+    expect(tooltip.visible).toBe(false)
+
+    // Navigating or expanding drops a tooltip left on screen.
+    await connect.trigger('mouseenter')
+    await collapsed.vm.$router.push('/connect')
+    await flushPromises()
+    expect(tooltip.visible).toBe(false)
+    await connect.trigger('mouseenter')
+    await collapsed.setProps({ collapsed: false })
+    expect(tooltip.visible).toBe(false)
+
+    // Labels are visible when expanded, so no tooltip.
+    await collapsed.find('a[href="/connect"]').trigger('mouseenter')
+    expect(tooltip.visible).toBe(false)
+    expect(collapsed.find('a[aria-label]').exists()).toBe(false)
+    collapsed.unmount()
   })
 
   it('emits toggle-collapse', async () => {

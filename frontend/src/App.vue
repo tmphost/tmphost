@@ -9,12 +9,14 @@ import { computed, provide, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppSidebar from './components/AppSidebar.vue'
 import ToastStack from './components/ToastStack.vue'
+import { useTooltipStore } from './stores/tooltipStore'
 import { clearUserCache, fetchUser, logout } from './api'
 import { useToasts } from './composables/useToasts'
 
 const route = useRoute()
 const router = useRouter()
 const { notifyError } = useToasts()
+const tooltipStore = useTooltipStore()
 
 const user = ref(null)
 // The sidebar starts collapsed on every sign-in.
@@ -103,6 +105,14 @@ watch(
         </div>
       </main>
     </div>
+
+    <!-- Global tooltip: fixed, so the sidebar's overflow never clips it -->
+    <div
+      v-if="tooltipStore.visible"
+      class="fixed z-[120] px-3 py-1.5 text-xs font-semibold text-black dark:text-white bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-sm shadow-lg pointer-events-none whitespace-pre"
+      :style="tooltipStore.style"
+      data-test="tooltip"
+    >{{ tooltipStore.text }}</div>
 
     <ToastStack />
   </div>

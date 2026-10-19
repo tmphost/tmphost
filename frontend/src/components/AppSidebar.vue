@@ -5,9 +5,11 @@
 -->
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import BrandLogo from './BrandLogo.vue'
 import { useThemeStore } from '../stores/themeStore'
+import { useTooltipStore } from '../stores/tooltipStore'
 import { creditsPercent, renewsIn } from '../utils/credits'
 
 const props = defineProps({
@@ -50,6 +52,8 @@ const THEME_OPTIONS = [
 ]
 
 const themeStore = useThemeStore()
+const tooltipStore = useTooltipStore()
+const route = useRoute()
 const isUserMenuOpen = ref(false)
 
 // The mobile drawer always shows labels, whatever the desktop state.
@@ -58,6 +62,19 @@ const percent = computed(() => creditsPercent(props.user))
 const renewal = computed(() => renewsIn(props.user?.creditsRenewAt))
 const displayName = computed(() => props.user?.name || props.user?.email || 'Account')
 const initial = computed(() => displayName.value.charAt(0).toUpperCase())
+
+// Labels are hidden only in the collapsed desktop sidebar, so that is the only
+// place a hover needs to name the item.
+function showTooltip(event, text) {
+  if (!compact.value) return
+  tooltipStore.show(event, text)
+}
+
+function hideTooltip() {
+  tooltipStore.hide()
+}
+
+watch([() => route.fullPath, compact], hideTooltip)
 
 function closeUserMenu() {
   isUserMenuOpen.value = false
@@ -114,7 +131,9 @@ function logout() {
             v-for="item in group.items"
             :key="item.to"
             :to="item.to"
-            :title="compact ? item.label : undefined"
+            :aria-label="compact ? item.label : undefined"
+            @mouseenter="showTooltip($event, item.label)"
+            @mouseleave="hideTooltip"
             :class="[
               'flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs transition-colors',
               compact ? 'justify-center' : '',
@@ -212,7 +231,9 @@ function logout() {
           type="button"
           :class="['flex items-center gap-2.5 w-full py-1.5 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-zinc-800', compact ? 'justify-center' : 'px-2']"
           data-test="user-menu-toggle"
-          @click="isUserMenuOpen = !isUserMenuOpen"
+          @mouseenter="showTooltip($event, displayName)"
+          @mouseleave="hideTooltip"
+          @click="hideTooltip(); isUserMenuOpen = !isUserMenuOpen"
         >
           <span class="w-8 h-8 shrink-0 rounded-full border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden flex items-center justify-center text-xs font-bold text-gray-700 dark:text-zinc-300">
             <img v-if="user?.picture" :src="user.picture" alt="" class="w-full h-full object-cover" referrerpolicy="no-referrer" />
