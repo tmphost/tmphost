@@ -116,6 +116,37 @@ func TestListTools(t *testing.T) {
 	schema, _ := json.Marshal(rs.Tools[0].InputSchema)
 	assert.Contains(t, string(schema), `"enum":["upload","download","get","url","extend"]`)
 	assert.Contains(t, string(schema), `"enum":["base64Content","textContent"]`)
+
+	tool := rs.Tools[0]
+	assert.Equal(t, "Temporary files", tool.Title)
+	require.NotNil(t, tool.Annotations)
+	assert.False(t, tool.Annotations.ReadOnlyHint)
+	assert.False(t, tool.Annotations.IdempotentHint)
+	assert.Equal(t, new(true), tool.Annotations.DestructiveHint)
+	assert.Equal(t, new(true), tool.Annotations.OpenWorldHint)
+	assertIcons(t, tool.Icons)
+}
+
+func TestInitialize(t *testing.T) {
+	e := newEnv(t)
+	rs := e.session.InitializeResult()
+	assert.Equal(t, "tmphost", rs.ServerInfo.Name)
+	assert.Equal(t, "tmphost.io", rs.ServerInfo.Title)
+	assert.Equal(t, "https://tmphost.io", rs.ServerInfo.WebsiteURL)
+	assert.NotEmpty(t, rs.ServerInfo.Description)
+	assertIcons(t, rs.ServerInfo.Icons)
+	assert.Equal(t, _instructions, rs.Instructions)
+}
+
+func assertIcons(t *testing.T, icons []mcp.Icon) {
+	t.Helper()
+	require.Len(t, icons, 2)
+	assert.Equal(t, "image/svg+xml", icons[0].MIMEType)
+	assert.True(t, strings.HasPrefix(icons[0].Source, "data:image/svg+xml;base64,"))
+	assert.Equal(t, []string{"any"}, icons[0].Sizes)
+	assert.Equal(t, "image/png", icons[1].MIMEType)
+	assert.True(t, strings.HasPrefix(icons[1].Source, "data:image/png;base64,"))
+	assert.Equal(t, []string{"128x128"}, icons[1].Sizes)
 }
 
 func TestUnknownAction(t *testing.T) {

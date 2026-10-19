@@ -23,6 +23,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/mustafaturan/monoflake"
 
+	"github.com/tmphost/tmphost/backend/internal/brand"
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
 	folderctrl "github.com/tmphost/tmphost/backend/internal/controller/folder"
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
@@ -53,6 +54,15 @@ Actions:
 - extend: make a folder (id) expire ttl later, such as 1h; its remaining lifetime can't exceed the max TTL. Returns the new expiresAt. Costs, for each file in the folder, 1 credit per started MB per started 30 minutes of the added time; an empty folder is free.
 Paths are slash-separated directories inside the folder, at most 5 levels deep.
 format is base64Content (the default, for any file) or textContent (UTF-8 text such as HTML, CSS or JSON, sent as is).`
+
+// _instructions tell an agent when and how to use the server.
+const _instructions = `tmphost.io hosts files for a limited time: use it to share a file, a report or a whole static site at a public URL that expires on its own.
+- Upload the first file without id to create a folder (set ttl for how long it lives, 30m by default), then pass the returned id to add more files; keep paths relative so pages link to each other. A folder serves index.html at its root.
+- Prefer format textContent for UTF-8 text (HTML, CSS, JS, JSON, Markdown, CSV) and base64Content for anything else.
+- Uploading to a path that already holds a file replaces it in place, and its URL stays the same.
+- Uploads and extend spend the user's credits by size and lifetime, so pick the shortest ttl that fits and don't re-upload unchanged files.
+- Anything uploaded is public to whoever has the URL until the folder expires: never upload secrets or private data unless the user asks to.
+- Give the user the url from the result; use get to list a folder and url to build links without uploading.`
 
 type (
 	// Params are the transport's dependencies.
@@ -115,9 +125,15 @@ type (
 // New returns the MCP endpoint. Every request needs an OAuth access token
 // as a Bearer token; without one, the 401 points to the resource metadata.
 func New(p Params) http.Handler {
-	server := mcp.NewServer(&mcp.Implementation{Name: "tmphost", Title: "tmphost.io"}, nil)
+	server := mcp.NewServer(&mcp.Implementation{
+		Name:        "tmphost",
+		Title:       "tmphost.io",
+		Description: "Temporary file hosting: upload files and static sites to public URLs that expire.",
+		WebsiteURL:  "https://tmphost.io",
+		Icons:       icons(),
+	}, &mcp.ServerOptions{Instructions: _instructions})
 	t := &tool{folders: p.Folders}
-	mcp.AddTool(server, &mcp.Tool{Name: "file", Description: _toolDescription, InputSchema: inputSchema()}, t.handle)
+	mcp.AddTool(server, &mcp.Tool{Name: "file", Title: "Temporary files", Description: _toolDescription, InputSchema: inputSchema(), Annotations: annotations(), Icons: icons()}, t.handle)
 
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{
 		Stateless:           true,
@@ -142,6 +158,29 @@ func verifier(controller authctrl.Controller) auth.TokenVerifier {
 			return nil, auth.ErrInvalidToken
 		}
 		return &auth.TokenInfo{UserID: monoflake.ID(rs.UserID).String(), Extra: map[string]any{_extraAgent: rs.Agent}}, nil
+	}
+}
+
+// icons are the tmphost.io icon as data URIs, so they show whichever host
+// the server is reached on: the SVG for any size, and a PNG for clients that
+// don't draw SVG.
+func icons() []mcp.Icon {
+	return []mcp.Icon{
+		{Source: brand.DataURI(brand.IconSVGType, brand.IconSVG), MIMEType: brand.IconSVGType, Sizes: []string{"any"}},
+		{Source: brand.DataURI(brand.IconPNGType, brand.IconPNG), MIMEType: brand.IconPNGType, Sizes: []string{"128x128"}},
+	}
+}
+
+// annotations describe the file tool's effects to clients. It writes
+// (upload, extend), may replace a file in place, spends credits on every
+// call that writes, and publishes files to the open web.
+func annotations() *mcp.ToolAnnotations {
+	return &mcp.ToolAnnotations{
+		Title:           "Temporary files",
+		ReadOnlyHint:    false,
+		DestructiveHint: new(true),
+		IdempotentHint:  false,
+		OpenWorldHint:   new(true),
 	}
 }
 

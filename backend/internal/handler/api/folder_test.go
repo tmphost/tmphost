@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tmphost/tmphost/backend/internal/brand"
 	mockauth "github.com/tmphost/tmphost/backend/internal/controller/auth/mocks"
 	mockcredit "github.com/tmphost/tmphost/backend/internal/controller/credit/mocks"
 	folderctrl "github.com/tmphost/tmphost/backend/internal/controller/folder"
@@ -363,6 +364,17 @@ func TestPublic(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 	assert.Equal(t, "Not found. The file may have expired.", body)
 	assert.Contains(t, res.Header.Get("Content-Type"), "text/plain")
+
+	// A folder without its own favicon.ico shows ours; one with it, its own.
+	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: "favicon.ico"}).Return(nil, folderctrl.ErrNotFound)
+	res, body = get(http.MethodGet, "000000rs.tmp.host", "/favicon.ico")
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, brand.FaviconType, res.Header.Get("Content-Type"))
+	assert.Equal(t, string(brand.Favicon), body)
+	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: "favicon.ico"}).
+		Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader("own")), Size: 3, ContentType: "image/x-icon", ModTime: _at}, nil)
+	_, body = get(http.MethodGet, "000000rs.tmp.host", "/favicon.ico")
+	assert.Equal(t, "own", body)
 
 	logs := captureLog(t)
 	e.folders.EXPECT().OpenPublicFile(gomock.Any(), gomock.Any()).Return(nil, errBoom)

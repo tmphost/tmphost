@@ -46,8 +46,8 @@ const (
 )
 
 // _mcpHostPaths are the paths the MCP host answers: the endpoint, the
-// OAuth metadata that MCP clients discover on the endpoint's host, and the
-// MCP host issuer's registration and token endpoints. Its authorization
+// OAuth metadata that MCP clients discover on the endpoint's host, the
+// MCP host issuer's registration and token endpoints, and the favicon. Its authorization
 // endpoint is on the app host, where users sign in.
 var _mcpHostPaths = []string{
 	MCPPath,
@@ -56,6 +56,7 @@ var _mcpHostPaths = []string{
 	api.ServerMetadataPath,
 	oauthctrl.RegisterPath,
 	oauthctrl.TokenPath,
+	api.FaviconPath,
 }
 
 func newHosts(appURL, sitesDomain, mcpDomain string) hosts {
@@ -124,6 +125,9 @@ func hostRouter(h hosts) fiber.Handler {
 			return sendJSONError(c, fiber.StatusNotFound, "not found")
 		case hostSite:
 			c.Locals(LocalSiteID, siteID)
+			if c.Path() == api.FaviconPath {
+				return c.Next()
+			}
 			// Live folders were answered before this check, when
 			// subdomains are on and the public domain is the sites
 			// domain; anything left names no folder.
