@@ -15,15 +15,15 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
 - Files live in folders that expire after a TTL (default 30 minutes, at most
   `files.maxTtlMinutes`, 7200 hours by default). Each file written costs 1
   credit per started 30 minutes of the folder's remaining lifetime.
-- Storage is local disk (`TMPHOST_STORAGE_LOCAL_PATH`) or an S3 bucket, under
+- Storage is local disk (`TMPHOSTIO_STORAGE_LOCAL_PATH`) or an S3 bucket, under
   `u<userId>/<folderId>/<path>`. Paths are at most 5 directories deep and are
   validated server-side, so a file can never leave its folder. The database
   stores only each folder's ID, owner and expiry; a job deletes expired
   folders every minute. Folder IDs are 11 random lowercase base36
   characters, so public URLs can't be guessed.
-- Public URLs: `<TMPHOST_BASE_URL>/files/<userId>/<folderId>/<path>` by
+- Public URLs: `<TMPHOSTIO_BASE_URL>/files/<userId>/<folderId>/<path>` by
   default, or `f<folderId>.<publicDomain>/<path>` with subdomains on
-  (`TMPHOST_FILES_SUBDOMAINS`, `TMPHOST_FILES_PUBLIC_DOMAIN`, which defaults
+  (`TMPHOSTIO_FILES_SUBDOMAINS`, `TMPHOSTIO_FILES_PUBLIC_DOMAIN`, which defaults
   to the sites domain; needs wildcard DNS and a certificate, which the
   built-in TLS obtains when it is the sites domain). Both are served with `Content-Security-Policy:
   sandbox`, so hosted pages never run with the app's origin.
@@ -55,8 +55,8 @@ make dev-frontend   # app on http://localhost:5173 (proxies /api)
 OAuth callback URLs to register: `<app URL>/api/v1/auth/<provider>/callback`
 (`google`, `github`, or a custom provider's ID; the setup page shows each one).
 
-Database: SQLite by default (`TMPHOST_SQLITE_DSN`); set
-`TMPHOST_POSTGRES_ENABLED=true` and `TMPHOST_POSTGRES_DSN`
+Database: SQLite by default (`TMPHOSTIO_SQLITE_DSN`); set
+`TMPHOSTIO_POSTGRES_ENABLED=true` and `TMPHOSTIO_POSTGRES_DSN`
 (`postgres://user:password@host:5432/tmphost?sslmode=disable`) for PostgreSQL.
 
 ## Build and test
@@ -68,7 +68,7 @@ make test    # 100% coverage is enforced on both sides
 
 ## Setup page
 
-`/setup` opens only with the root access token (`TMPHOST_AUTH_ROOT_ACCESS_TOKEN`;
+`/setup` opens only with the root access token (`TMPHOSTIO_AUTH_ROOT_ACCESS_TOKEN`;
 when it is empty, a random one is generated and printed at startup). There you
 can change the monthly credit grant, the maximum TTL and the public URL mode
 (these apply immediately), and these, which apply after a restart:
@@ -93,7 +93,7 @@ can change the monthly credit grant, the maximum TTL and the public URL mode
   Connect providers (name, SVG icon, client ID, client secret, auth URL = the
   issuer; endpoints come from its `/.well-known/openid-configuration`).
 
-Settings are saved to `TMPHOST_SETTINGS_FILE` (default
+Settings are saved to `TMPHOSTIO_SETTINGS_FILE` (default
 `./_storage/settings.json`, mode 0600) and override the config file and
 environment. Secrets (including the PostgreSQL DSN) are write-only on the
 setup page.
@@ -115,8 +115,8 @@ image (`FROM scratch`, runs as `nobody`) holds just the binary and CA certs.
 ```sh
 make docker
 docker run -p 2027:2027 -v tmphost-data:/data \
-  -e TMPHOSTIO_MASTER_KEY=... -e TMPHOST_AUTH_JWT_SECRET=... -e TMPHOST_AUTH_ROOT_ACCESS_TOKEN=... \
-  -e TMPHOST_BASE_URL=https://app.tmphost.io tmphost
+  -e TMPHOSTIO_MASTER_KEY=... -e TMPHOSTIO_AUTH_JWT_SECRET=... -e TMPHOSTIO_AUTH_ROOT_ACCESS_TOKEN=... \
+  -e TMPHOSTIO_BASE_URL=https://app.tmphost.io tmphost
 ```
 
 Settings and the SQLite database live in the `/data` volume.

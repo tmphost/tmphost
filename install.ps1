@@ -7,9 +7,9 @@
 #   irm https://raw.githubusercontent.com/tmphost/tmphost/main/install.ps1 | iex
 #
 # Environment:
-#   TMPHOST_VERSION      release tag to install, such as v1.2.3 (default: latest)
-#   TMPHOST_INSTALL_DIR  where to put tmphost.exe (default: %LOCALAPPDATA%\tmphost\bin)
-#   TMPHOST_DOWNLOAD_URL base URL holding the release assets, for mirrors and testing
+#   TMPHOSTIO_VERSION      release tag to install, such as v1.2.3 (default: latest)
+#   TMPHOSTIO_INSTALL_DIR  where to put tmphost.exe (default: %LOCALAPPDATA%\tmphost\bin)
+#   TMPHOSTIO_DOWNLOAD_URL base URL holding the release assets, for mirrors and testing
 
 # Wrapped in a script block so piping into iex does not leave variables or
 # preferences behind in the caller's session.
@@ -24,16 +24,16 @@
         'ARM64' { 'arm64' }
         default { throw "unsupported architecture $env:PROCESSOR_ARCHITECTURE" }
     }
-    $version = if ($env:TMPHOST_VERSION) { $env:TMPHOST_VERSION } else { 'latest' }
+    $version = if ($env:TMPHOSTIO_VERSION) { $env:TMPHOSTIO_VERSION } else { 'latest' }
     $asset = "tmphost_windows_$arch.zip"
-    $base = if ($env:TMPHOST_DOWNLOAD_URL) {
-        $env:TMPHOST_DOWNLOAD_URL.TrimEnd('/')
+    $base = if ($env:TMPHOSTIO_DOWNLOAD_URL) {
+        $env:TMPHOSTIO_DOWNLOAD_URL.TrimEnd('/')
     } elseif ($version -eq 'latest') {
         "https://github.com/$repo/releases/latest/download"
     } else {
         "https://github.com/$repo/releases/download/$version"
     }
-    $dir = if ($env:TMPHOST_INSTALL_DIR) { $env:TMPHOST_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'tmphost\bin' }
+    $dir = if ($env:TMPHOSTIO_INSTALL_DIR) { $env:TMPHOSTIO_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'tmphost\bin' }
 
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ("tmphost-" + [Guid]::NewGuid())
     New-Item -ItemType Directory -Path $tmp | Out-Null

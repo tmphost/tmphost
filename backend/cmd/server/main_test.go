@@ -32,12 +32,12 @@ func freePort(t *testing.T) int {
 func envFor(t *testing.T, port int) map[string]string {
 	t.Helper()
 	return map[string]string{
-		"PORT":                       strconv.Itoa(port),
-		"TMPHOST_AUTH_JWT_SECRET":    "secret",
-		"TMPHOSTIO_MASTER_KEY":       "a-master-key-of-at-least-32-characters",
-		"TMPHOST_SQLITE_DSN":         filepath.Join(t.TempDir(), "tmphost.db"),
-		"TMPHOST_SETTINGS_FILE":      filepath.Join(t.TempDir(), "settings.json"),
-		"TMPHOST_STORAGE_LOCAL_PATH": filepath.Join(t.TempDir(), "files"),
+		"TMPHOSTIO_PORT":               strconv.Itoa(port),
+		"TMPHOSTIO_AUTH_JWT_SECRET":    "secret",
+		"TMPHOSTIO_MASTER_KEY":         "a-master-key-of-at-least-32-characters",
+		"TMPHOSTIO_SQLITE_DSN":         filepath.Join(t.TempDir(), "tmphost.db"),
+		"TMPHOSTIO_SETTINGS_FILE":      filepath.Join(t.TempDir(), "settings.json"),
+		"TMPHOSTIO_STORAGE_LOCAL_PATH": filepath.Join(t.TempDir(), "files"),
 	}
 }
 
@@ -76,7 +76,7 @@ func TestLoadConfig_Errors(t *testing.T) {
 
 	raw, _ := bundled.ReadFile("_config/base.yaml")
 	_, err = loadConfig(raw, func(k string) string {
-		if k == "PORT" {
+		if k == "TMPHOSTIO_PORT" {
 			return "not-a-port"
 		}
 		return ""
@@ -108,7 +108,7 @@ func TestRun_ServesUntilCancelled(t *testing.T) {
 func TestRun_Errors(t *testing.T) {
 	t.Run("bad config", func(t *testing.T) {
 		assert.Error(t, run(context.Background(), func(k string) string {
-			if k == "PORT" {
+			if k == "TMPHOSTIO_PORT" {
 				return "x"
 			}
 			return ""
@@ -154,7 +154,7 @@ func TestMain_StopsOnSignal(t *testing.T) {
 }
 
 func TestMain_Fatal(t *testing.T) {
-	t.Setenv("TMPHOST_AUTH_JWT_SECRET", "")
+	t.Setenv("TMPHOSTIO_AUTH_JWT_SECRET", "")
 	var fatalErr []any
 	fatal = func(v ...any) { fatalErr = v }
 	t.Cleanup(func() { fatal = log.Fatal })

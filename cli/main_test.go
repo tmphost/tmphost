@@ -13,7 +13,7 @@ import (
 )
 
 func TestMain_exitCode(t *testing.T) {
-	t.Setenv("TMPHOST_CONFIG", filepath.Join(t.TempDir(), "config.json"))
+	t.Setenv("TMPHOSTIO_CONFIG", filepath.Join(t.TempDir(), "config.json"))
 	origArgs, origExit := os.Args, exit
 	t.Cleanup(func() { os.Args, exit = origArgs, origExit })
 

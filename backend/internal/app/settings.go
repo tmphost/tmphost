@@ -39,7 +39,7 @@ func rootAccessToken(cfg Config) string {
 	// crypto/rand.Read never returns an error.
 	_, _ = rand.Read(b)
 	tok := hex.EncodeToString(b)
-	log.Printf("setup: generated root access token %s (set TMPHOST_AUTH_ROOT_ACCESS_TOKEN to keep one across restarts)", tok)
+	log.Printf("setup: generated root access token %s (set TMPHOSTIO_AUTH_ROOT_ACCESS_TOKEN to keep one across restarts)", tok)
 	return tok
 }
 
