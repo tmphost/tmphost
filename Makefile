@@ -2,7 +2,7 @@
 # This notice may not be modified or removed.
 # SPDX-License-Identifier: AGPL-3.0-only
 
-.PHONY: build frontend backend cli test test-backend test-frontend test-cli coverage mocks lint lint-backend lint-cli lint-frontend copyright copyright-fix docker dev-backend dev-frontend
+.PHONY: build frontend backend cli test test-backend test-frontend test-cli coverage mocks lint lint-backend lint-cli lint-frontend copyright copyright-fix docker dev dev-backend dev-frontend
 
 PUBLIC := backend/cmd/server/public
 
@@ -57,7 +57,11 @@ copyright:
 copyright-fix:
 	node frontend/scripts/copyright.mjs --fix
 
-# Run both in separate terminals; open http://localhost:5173.
+# Run the API and the Vite dev server together; open http://localhost:5173.
+# Ctrl-C stops both. Use dev-backend/dev-frontend to run them in separate terminals.
+dev:
+	$(MAKE) -j2 --no-print-directory dev-backend dev-frontend
+
 dev-backend:
 	cd backend && TMPHOST_BASE_URL=http://localhost:5173 go run ./cmd/server
 
