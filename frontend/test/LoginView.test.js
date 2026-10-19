@@ -19,7 +19,7 @@ const GOOGLE = { id: 'google', name: 'Google', icon: '' }
 const GITHUB = { id: 'github', name: 'GitHub', icon: '' }
 
 async function mountAt(path) {
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/login', component: LoginView }, { path: '/setup', component: { render: () => null } }] })
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/login', component: LoginView }, { path: '/setup', component: { render: () => null } }, { path: '/upload', component: { render: () => null } }] })
   await router.push(path)
   const wrapper = mount(LoginView, { global: { plugins: [router] } })
   return wrapper
@@ -66,6 +66,7 @@ describe('LoginView', () => {
     expect(plain.find('svg').exists()).toBe(false)
     expect(wrapper.text()).toContain('250 free operations')
     expect(wrapper.find('[data-test="login-setup"]').attributes('href')).toBe('/setup')
+    expect(wrapper.find('[data-test="login-upload"]').attributes('href')).toBe('/upload')
   })
 
   it('ignores a non-string redirect', async () => {

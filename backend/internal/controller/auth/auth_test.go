@@ -19,6 +19,7 @@ import (
 	"github.com/tmphost/tmphost/backend/internal/data/model"
 	"github.com/tmphost/tmphost/backend/internal/repository"
 	mockrepo "github.com/tmphost/tmphost/backend/internal/repository/mocks"
+	"github.com/tmphost/tmphost/backend/internal/service/idgen"
 	mockidgen "github.com/tmphost/tmphost/backend/internal/service/idgen/mocks"
 	"github.com/tmphost/tmphost/backend/internal/service/oauth"
 	mockoauth "github.com/tmphost/tmphost/backend/internal/service/oauth/mocks"
@@ -62,6 +63,7 @@ func newEnv(t *testing.T) *env {
 		IDGen:     e.idgen,
 		Grant:     func() int { return 250 },
 		BasePath:  "/app/",
+		BaseURL:   "https://tmphost.io/app/",
 		Now:       func() time.Time { return _now },
 	})
 	return e
@@ -300,6 +302,46 @@ func TestAuthenticate(t *testing.T) {
 		rs, err := e.ctrl.Authenticate(ctx, &entity.AuthenticateRequest{SessionToken: "tok"})
 		require.NoError(t, err)
 		assert.Equal(t, int64(77), rs.UserID)
+	})
+}
+
+func TestAuthenticateAnonymous(t *testing.T) {
+	ctx := context.Background()
+	want := idgen.AnonymousUserID("203.0.113.7")
+
+	for name, rq := range map[string]entity.AuthenticateAnonymousRequest{
+		"origin":          {IP: "203.0.113.7", Origin: "https://tmphost.io"},
+		"origin any case": {IP: "203.0.113.7", Origin: "https://TMPHOST.io"},
+		"referer":         {IP: "203.0.113.7", Referer: "https://tmphost.io/app/files?x=1"},
+		"origin wins":     {IP: "203.0.113.7", Origin: "https://tmphost.io", Referer: "https://evil.example/"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			rs, err := newEnv(t).ctrl.AuthenticateAnonymous(ctx, &rq)
+			require.NoError(t, err)
+			assert.Equal(t, &entity.AuthenticateResponse{UserID: want, Anonymous: true}, rs)
+		})
+	}
+
+	for name, rq := range map[string]entity.AuthenticateAnonymousRequest{
+		"no origin":       {IP: "203.0.113.7"},
+		"other origin":    {IP: "203.0.113.7", Origin: "https://evil.example"},
+		"other scheme":    {IP: "203.0.113.7", Origin: "http://tmphost.io"},
+		"subdomain":       {IP: "203.0.113.7", Origin: "https://f00000000001.tmphost.io"},
+		"origin is wrong": {IP: "203.0.113.7", Origin: "https://evil.example", Referer: "https://tmphost.io/"},
+		"other referer":   {IP: "203.0.113.7", Referer: "https://evil.example/https://tmphost.io"},
+		"bad referer":     {IP: "203.0.113.7", Referer: "::"},
+		"relative":        {IP: "203.0.113.7", Referer: "/files"},
+		"bad ip":          {IP: "nope", Origin: "https://tmphost.io"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := newEnv(t).ctrl.AuthenticateAnonymous(ctx, &rq)
+			assert.ErrorIs(t, err, ErrUnauthorized)
+		})
+	}
+
+	t.Run("no base url", func(t *testing.T) {
+		_, err := New(Params{}).AuthenticateAnonymous(ctx, &entity.AuthenticateAnonymousRequest{IP: "203.0.113.7"})
+		assert.ErrorIs(t, err, ErrUnauthorized)
 	})
 }
 

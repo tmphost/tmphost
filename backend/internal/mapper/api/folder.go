@@ -21,6 +21,11 @@ import (
 // Folder IDs are 11 base36 characters, not base62 like other IDs: they
 // are part of each folder's hostname, and hostnames are case-insensitive.
 
+// FromHTTPRequestToGetLimitsRequestEntity reads GET /limits.
+func FromHTTPRequestToGetLimitsRequestEntity(c fiber.Ctx) *entity.GetLimitsRequest {
+	return &entity.GetLimitsRequest{Anonymous: localAnonymous(c)}
+}
+
 // FromHTTPRequestToCreateFolderRequestEntity reads POST /folders. The body
 // is optional.
 func FromHTTPRequestToCreateFolderRequestEntity(c fiber.Ctx) *entity.CreateFolderRequest {
@@ -34,7 +39,7 @@ func FromHTTPRequestToCreateFolderRequestEntity(c fiber.Ctx) *entity.CreateFolde
 			return nil
 		}
 	}
-	return &entity.CreateFolderRequest{UserID: userID, TTLMinutes: rq.TTLMinutes}
+	return &entity.CreateFolderRequest{UserID: userID, Anonymous: localAnonymous(c), TTLMinutes: rq.TTLMinutes}
 }
 
 // FromHTTPRequestToListFoldersRequestEntity reads GET /folders.
@@ -72,7 +77,7 @@ func FromHTTPRequestToPutFilesRequestEntity(c fiber.Ctx) *entity.PutFilesRequest
 		return nil
 	}
 	// fasthttp reuses the body buffer once the handler returns.
-	return &entity.PutFilesRequest{UserID: rq.UserID, FolderID: rq.FolderID, Files: []entity.FileUpload{{Path: rq.Path, Data: bytes.Clone(c.Body())}}}
+	return &entity.PutFilesRequest{UserID: rq.UserID, Anonymous: localAnonymous(c), FolderID: rq.FolderID, Files: []entity.FileUpload{{Path: rq.Path, Data: bytes.Clone(c.Body())}}}
 }
 
 // FromHTTPRequestToDeleteFileRequestEntity reads DELETE /folders/:id/files/*.
@@ -133,10 +138,13 @@ func FromHTTPRequestToOpenPublicFileByPathRequestEntity(c fiber.Ctx) *entity.Ope
 // FromGetLimitsResponseEntityToHTTPResponse renders GET /limits.
 func FromGetLimitsResponseEntityToHTTPResponse(rs *entity.GetLimitsResponse) []byte {
 	return marshal(view.Limits{
-		DefaultTTLMinutes:   rs.DefaultTTLMinutes,
-		MaxTTLMinutes:       rs.MaxTTLMinutes,
-		MaxUploadBytes:      rs.MaxUploadBytes,
-		BillingBlockMinutes: rs.BillingBlockMinutes,
+		DefaultTTLMinutes:    rs.DefaultTTLMinutes,
+		MaxTTLMinutes:        rs.MaxTTLMinutes,
+		MaxUploadBytes:       rs.MaxUploadBytes,
+		BillingBlockMinutes:  rs.BillingBlockMinutes,
+		Anonymous:            rs.Anonymous,
+		FileOps:              rs.FileOps,
+		FileOpsWindowMinutes: rs.FileOpsWindowMinutes,
 	})
 }
 
@@ -207,4 +215,11 @@ func localUserID(c fiber.Ctx) int64 {
 		return 0
 	}
 	return id
+}
+
+// localAnonymous reports whether the auth middleware let the request in
+// as an anonymous visitor.
+func localAnonymous(c fiber.Ctx) bool {
+	anonymous, _ := c.Locals(LocalAnonymous).(bool)
+	return anonymous
 }

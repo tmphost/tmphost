@@ -10,9 +10,11 @@ package idgen
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"net"
 	"strconv"
 	"strings"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/mustafaturan/monoflake"
 )
 
@@ -91,4 +93,43 @@ func ParseFolderID(s string) int64 {
 		return 0
 	}
 	return ParseBase36(s)
+}
+
+// _anonymousSpace is 62^9: anonymous user IDs are "00" and 9 base62
+// digits, so they are all below it.
+const _anonymousSpace = 13537086546263552
+
+// _ipv6Prefix is the IPv6 network one anonymous user stands for: a single
+// host usually owns a whole /64.
+const _ipv6Prefix = 64
+
+// AnonymousUserID is the user ID of an anonymous web visitor: the base62
+// ID "00" followed by 9 base62 digits of xxhash64 of the visitor's IPv4
+// address, or of the /64 network of an IPv6 one. It returns 0 for an
+// unparsable IP.
+//
+// Monoflake IDs only stayed below 62^9 ("00" in base62) for their first
+// 18 days after the June 2024 epoch, so no user ID issued since can ever
+// equal an anonymous one.
+func AnonymousUserID(ip string) int64 {
+	addr := net.ParseIP(ip)
+	if addr == nil {
+		return 0
+	}
+	var key string
+	if v4 := addr.To4(); v4 != nil {
+		key = v4.String()
+	} else {
+		mask := net.CIDRMask(_ipv6Prefix, 8*net.IPv6len)
+		key = (&net.IPNet{IP: addr.Mask(mask), Mask: mask}).String()
+	}
+	digits := xxhash.Sum64String(key) % _anonymousSpace
+	// digits < 62^9, so its 11-character base62 form already starts with
+	// "00".
+	return monoflake.IDFromBase62("00" + monoflake.ID(digits).String()[2:]).Int64()
+}
+
+// IsAnonymousUserID reports whether id is one AnonymousUserID returns.
+func IsAnonymousUserID(id int64) bool {
+	return id > 0 && id < _anonymousSpace
 }

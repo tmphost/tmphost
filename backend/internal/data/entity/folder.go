@@ -35,17 +35,30 @@ type (
 		Data []byte
 	}
 
+	// GetLimitsRequest asks for the limits that apply to the caller.
+	GetLimitsRequest struct {
+		Anonymous bool
+	}
+
 	// GetLimitsResponse carries the upload limits and pricing.
 	GetLimitsResponse struct {
 		DefaultTTLMinutes   int
 		MaxTTLMinutes       int
 		MaxUploadBytes      int64
 		BillingBlockMinutes int
+		// Anonymous limits replace credits with a per-IP quota: at most
+		// FileOps file writes per FileOpsWindowMinutes.
+		Anonymous            bool
+		FileOps              int
+		FileOpsWindowMinutes int
 	}
 
 	// CreateFolderRequest creates an empty folder.
 	CreateFolderRequest struct {
 		UserID int64
+		// Anonymous marks a visitor without an account, who has the
+		// anonymous limits.
+		Anonymous bool
 		// TTLMinutes is the folder's lifetime; 0 picks the default.
 		TTLMinutes int
 	}
@@ -85,9 +98,12 @@ type (
 
 	// PutFilesRequest writes files into a folder.
 	PutFilesRequest struct {
-		UserID   int64
-		FolderID int64
-		Files    []FileUpload
+		UserID int64
+		// Anonymous marks a visitor without an account: the upload spends
+		// their per-IP quota instead of credits.
+		Anonymous bool
+		FolderID  int64
+		Files     []FileUpload
 	}
 
 	// PutFilesResponse carries the written files and their cost.

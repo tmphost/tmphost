@@ -24,6 +24,9 @@ const (
 	// LocalUserID is the fiber.Ctx local the auth middleware stores the
 	// authenticated user ID under.
 	LocalUserID = "userID"
+	// LocalAnonymous is the fiber.Ctx local set to true when LocalUserID
+	// is an anonymous visitor's.
+	LocalAnonymous = "anonymous"
 )
 
 // FromHTTPRequestToStartLoginRequestEntity reads GET /auth/:provider/login.
@@ -61,6 +64,13 @@ func FromHTTPRequestToAuthenticateRequestEntity(c fiber.Ctx) *entity.Authenticat
 		return nil
 	}
 	return &entity.AuthenticateRequest{SessionToken: tok}
+}
+
+// FromHTTPRequestToAuthenticateAnonymousRequestEntity reads what
+// identifies a request that has no session: its client IP and where the
+// browser sent it from.
+func FromHTTPRequestToAuthenticateAnonymousRequestEntity(c fiber.Ctx) *entity.AuthenticateAnonymousRequest {
+	return &entity.AuthenticateAnonymousRequest{IP: c.IP(), Origin: c.Get(fiber.HeaderOrigin), Referer: c.Get(fiber.HeaderReferer)}
 }
 
 // FromGetAuthConfigResponseEntityToHTTPResponse renders GET /auth/config.

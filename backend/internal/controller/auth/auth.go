@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -52,6 +53,9 @@ type (
 		StartLogin(ctx context.Context, rq *entity.StartLoginRequest) (*entity.StartLoginResponse, error)
 		CompleteLogin(ctx context.Context, rq *entity.CompleteLoginRequest) (*entity.CompleteLoginResponse, error)
 		Authenticate(ctx context.Context, rq *entity.AuthenticateRequest) (*entity.AuthenticateResponse, error)
+		// AuthenticateAnonymous identifies a visitor without a session by
+		// IP address, only when the request comes from the app's web origin.
+		AuthenticateAnonymous(ctx context.Context, rq *entity.AuthenticateAnonymousRequest) (*entity.AuthenticateResponse, error)
 		GetCurrentUser(ctx context.Context, rq *entity.GetCurrentUserRequest) (*entity.GetCurrentUserResponse, error)
 	}
 
@@ -65,7 +69,10 @@ type (
 		Grant func() int
 		// BasePath is the path prefix the app is served under ("" or "/x").
 		BasePath string
-		Now      func() time.Time
+		// BaseURL is the app's public URL; its origin is the only one
+		// anonymous requests are accepted from.
+		BaseURL string
+		Now     func() time.Time
 	}
 
 	controller struct {
@@ -76,6 +83,7 @@ type (
 		idgen     idgen.Service
 		grant     func() int
 		basePath  string
+		webOrigin string
 		now       func() time.Time
 	}
 )
@@ -89,6 +97,7 @@ func New(p Params) Controller {
 		idgen:     p.IDGen,
 		grant:     credit.GrantOrDefault(p.Grant),
 		basePath:  strings.TrimRight(p.BasePath, "/"),
+		webOrigin: origin(p.BaseURL),
 		now:       p.Now,
 	}
 	if c.now == nil {
@@ -190,6 +199,25 @@ func (c *controller) Authenticate(_ context.Context, rq *entity.AuthenticateRequ
 	return &entity.AuthenticateResponse{UserID: id}, nil
 }
 
+// AuthenticateAnonymous accepts a request from the app's web origin, by
+// its Origin header or, without one, its Referer, as the anonymous user of
+// its IP address. Non-browser clients could forge either header; this
+// keeps anonymous use to the web app, while the per-IP limits bound it.
+func (c *controller) AuthenticateAnonymous(_ context.Context, rq *entity.AuthenticateAnonymousRequest) (*entity.AuthenticateResponse, error) {
+	from := rq.Origin
+	if from == "" {
+		from = origin(rq.Referer)
+	}
+	if c.webOrigin == "" || !strings.EqualFold(from, c.webOrigin) {
+		return nil, ErrUnauthorized
+	}
+	id := idgen.AnonymousUserID(rq.IP)
+	if id == 0 {
+		return nil, ErrUnauthorized
+	}
+	return &entity.AuthenticateResponse{UserID: id, Anonymous: true}, nil
+}
+
 func (c *controller) GetCurrentUser(ctx context.Context, rq *entity.GetCurrentUserRequest) (*entity.GetCurrentUserResponse, error) {
 	user, err := c.users.FindUserByID(ctx, rq.UserID)
 	if errors.Is(err, repository.ErrNotFound) {
@@ -247,4 +275,13 @@ func sanitizeRedirect(path string) string {
 		return "/"
 	}
 	return path
+}
+
+// origin is the scheme://host[:port] of an absolute URL, or "".
+func origin(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host
 }

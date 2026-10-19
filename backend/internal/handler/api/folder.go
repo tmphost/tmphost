@@ -20,7 +20,8 @@ type Folder struct {
 
 // Limits returns the upload limits and pricing.
 func (h *Folder) Limits(c fiber.Ctx) error {
-	return sendJSON(c, fiber.StatusOK, mapper.FromGetLimitsResponseEntityToHTTPResponse(h.controller.GetLimits(c.Context())))
+	rs := h.controller.GetLimits(c.Context(), mapper.FromHTTPRequestToGetLimitsRequestEntity(c))
+	return sendJSON(c, fiber.StatusOK, mapper.FromGetLimitsResponseEntityToHTTPResponse(rs))
 }
 
 // Create creates an empty folder.
@@ -128,6 +129,8 @@ func sendFolderError(c fiber.Ctx, err error) error {
 		return sendError(c, fiber.StatusRequestEntityTooLarge, err.Error())
 	case errors.Is(err, folderctrl.ErrInsufficientCredits):
 		return sendError(c, fiber.StatusPaymentRequired, err.Error())
+	case errors.Is(err, folderctrl.ErrQuotaExceeded):
+		return sendError(c, fiber.StatusTooManyRequests, err.Error())
 	default:
 		return sendError(c, fiber.StatusInternalServerError, "storage failed")
 	}

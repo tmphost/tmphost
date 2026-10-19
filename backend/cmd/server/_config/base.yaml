@@ -18,6 +18,12 @@ app:
   basePath: ${TMPHOST_BASE_PATH:}
   cookieSecure: ${TMPHOST_COOKIE_SECURE:false}
   settingsFile: ${TMPHOST_SETTINGS_FILE:./_storage/settings.json}
+  # Comma-separated proxy IPs or CIDR ranges in front of the app, e.g.
+  # 10.0.0.0/8. Requests from them count as coming from the client IP in
+  # proxyHeader (the rightmost address that is not a trusted proxy):
+  # anonymous uploads are limited per client IP.
+  trustedProxies: ${TMPHOST_TRUSTED_PROXIES:}
+  proxyHeader: ${TMPHOST_PROXY_HEADER:X-Forwarded-For}
 # HTTPS terminated by the server with Let's Encrypt certificates, obtained
 # and renewed automatically over TLS-ALPN-01 (Let's Encrypt must reach the
 # HTTPS port as 443). lego also covers the dynamic subdomains: one certificate

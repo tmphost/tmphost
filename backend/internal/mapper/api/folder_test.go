@@ -65,6 +65,34 @@ func TestFromHTTPRequestToCreateFolderRequestEntity(t *testing.T) {
 	assert.Equal(t, &entity.CreateFolderRequest{UserID: 7}, read(7, "  "), "the body is optional")
 	assert.Nil(t, read(7, `{"ttlMinutes":"x"}`))
 	assert.Nil(t, read(0, `{}`))
+
+	runAs(t, 3, "/folders", httptest.NewRequest(http.MethodPost, "/folders", nil), func(c fiber.Ctx) {
+		c.Locals(LocalAnonymous, true)
+		got = FromHTTPRequestToCreateFolderRequestEntity(c)
+	})
+	assert.Equal(t, &entity.CreateFolderRequest{UserID: 3, Anonymous: true}, got)
+}
+
+func TestFromHTTPRequestToGetLimitsRequestEntity(t *testing.T) {
+	var got *entity.GetLimitsRequest
+	runAs(t, 7, "/limits", httptest.NewRequest(http.MethodGet, "/limits", nil), func(c fiber.Ctx) {
+		got = FromHTTPRequestToGetLimitsRequestEntity(c)
+	})
+	assert.Equal(t, &entity.GetLimitsRequest{}, got)
+	runAs(t, 3, "/limits", httptest.NewRequest(http.MethodGet, "/limits", nil), func(c fiber.Ctx) {
+		c.Locals(LocalAnonymous, true)
+		got = FromHTTPRequestToGetLimitsRequestEntity(c)
+	})
+	assert.Equal(t, &entity.GetLimitsRequest{Anonymous: true}, got)
+}
+
+func TestFromHTTPRequestToAuthenticateAnonymousRequestEntity(t *testing.T) {
+	var got *entity.AuthenticateAnonymousRequest
+	req := httptest.NewRequest(http.MethodPost, "/folders", nil)
+	req.Header.Set("Origin", "https://tmphost.io")
+	req.Header.Set("Referer", "https://tmphost.io/upload")
+	runAs(t, 0, "/folders", req, func(c fiber.Ctx) { got = FromHTTPRequestToAuthenticateAnonymousRequestEntity(c) })
+	assert.Equal(t, &entity.AuthenticateAnonymousRequest{IP: "0.0.0.0", Origin: "https://tmphost.io", Referer: "https://tmphost.io/upload"}, got)
 }
 
 func TestFromHTTPRequestToFolderRequestEntities(t *testing.T) {
@@ -106,6 +134,12 @@ func TestFromHTTPRequestToFileRequestEntities(t *testing.T) {
 	assert.Equal(t, &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "site/a b.txt", Data: []byte("hi")}}}, put)
 	assert.Equal(t, &entity.OpenFileRequest{UserID: 7, FolderID: 1000, Path: "site/a b.txt"}, open)
 	assert.Equal(t, &entity.DeleteFileRequest{UserID: 7, FolderID: 1000, Path: "site/a b.txt"}, del)
+
+	runAs(t, 3, "/folders/:id/files/*", httptest.NewRequest(http.MethodPut, "/folders/000000000rs/files/a", strings.NewReader("hi")), func(c fiber.Ctx) {
+		c.Locals(LocalAnonymous, true)
+		put = FromHTTPRequestToPutFilesRequestEntity(c)
+	})
+	assert.Equal(t, &entity.PutFilesRequest{UserID: 3, Anonymous: true, FolderID: 1000, Files: []entity.FileUpload{{Path: "a", Data: []byte("hi")}}}, put)
 
 	for name, tc := range map[string]struct {
 		userID int64
@@ -199,6 +233,8 @@ func TestFolderResponses(t *testing.T) {
 
 	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":60,"maxUploadBytes":5,"billingBlockMinutes":30}`,
 		string(FromGetLimitsResponseEntityToHTTPResponse(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 60, MaxUploadBytes: 5, BillingBlockMinutes: 30})))
+	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":30,"maxUploadBytes":5,"billingBlockMinutes":30,"anonymous":true,"fileOps":5,"fileOpsWindowMinutes":30}`,
+		string(FromGetLimitsResponseEntityToHTTPResponse(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 30, MaxUploadBytes: 5, BillingBlockMinutes: 30, Anonymous: true, FileOps: 5, FileOpsWindowMinutes: 30})))
 	assert.JSONEq(t, `{"folder":`+folderJSON+`}`, string(FromCreateFolderResponseEntityToHTTPResponse(&entity.CreateFolderResponse{Folder: folder})))
 	assert.JSONEq(t, `{"folders":[`+folderJSON+`]}`, string(FromListFoldersResponseEntityToHTTPResponse(&entity.ListFoldersResponse{Folders: []entity.Folder{folder}})))
 	assert.JSONEq(t, `{"folders":[]}`, string(FromListFoldersResponseEntityToHTTPResponse(&entity.ListFoldersResponse{})))

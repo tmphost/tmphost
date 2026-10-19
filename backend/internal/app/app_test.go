@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -29,6 +30,7 @@ import (
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
 	"github.com/tmphost/tmphost/backend/internal/data/model"
 	"github.com/tmphost/tmphost/backend/internal/service/encryption"
+	"github.com/tmphost/tmphost/backend/internal/service/idgen"
 	"github.com/tmphost/tmphost/backend/internal/service/token"
 )
 
@@ -544,4 +546,80 @@ func TestFileHosting_Subdomains(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, res.StatusCode, "no such folder")
 	_, body = call(http.MethodGet, "/files/7/"+id+"/index.html", "localhost:3000", "")
 	assert.NotEqual(t, "<p>x</p>", body, "no folder paths with subdomains")
+}
+
+// TestAnonymousUploads uploads from the web app without signing in, from
+// behind a trusted proxy.
+func TestAnonymousUploads(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.App.TrustedProxies = " 0.0.0.0 , 10.0.0.0/8,"
+	a, err := New(cfg, fstest.MapFS{})
+	require.NoError(t, err)
+
+	call := func(method, target, ip, origin, body string) (*http.Response, string) {
+		t.Helper()
+		req := httptest.NewRequest(method, target, strings.NewReader(body))
+		// A spoofed hop on the left is ignored: the client IP is the
+		// rightmost one that is not a trusted proxy.
+		req.Header.Set("X-Forwarded-For", "192.0.2.99, "+ip+", 10.0.0.1")
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		res, err := a.Handler().Test(req)
+		require.NoError(t, err)
+		b, _ := io.ReadAll(res.Body)
+		return res, string(b)
+	}
+	const web = "http://localhost:3000"
+
+	res, _ := call(http.MethodPost, "/api/v1/folders", "203.0.113.7", "", "")
+	assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "not from the web app, e.g. the CLI")
+	res, _ = call(http.MethodPost, "/api/v1/folders", "203.0.113.7", "https://evil.example", "")
+	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+
+	res, body := call(http.MethodGet, "/api/v1/limits", "203.0.113.7", web, "")
+	require.Equal(t, http.StatusOK, res.StatusCode, body)
+	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":30,"maxUploadBytes":4194304,"billingBlockMinutes":30,"anonymous":true,"fileOps":5,"fileOpsWindowMinutes":30}`, body)
+
+	res, body = call(http.MethodPost, "/api/v1/folders", "203.0.113.7", web, `{"ttlMinutes":60}`)
+	assert.Equal(t, http.StatusBadRequest, res.StatusCode, body)
+	res, body = call(http.MethodPost, "/api/v1/folders", "203.0.113.7", web, "")
+	require.Equal(t, http.StatusCreated, res.StatusCode, body)
+	var created struct{ Folder struct{ ID, URL string } }
+	require.NoError(t, json.Unmarshal([]byte(body), &created))
+	user := idgen.FormatBase36(idgen.AnonymousUserID("203.0.113.7"))
+	assert.Equal(t, web+"/files/"+user+"/"+created.Folder.ID+"/", created.Folder.URL)
+	files := "/api/v1/folders/" + created.Folder.ID + "/files/"
+
+	res, _ = call(http.MethodPut, files+"big.bin", "203.0.113.7", web, strings.Repeat("x", 4<<20+1))
+	assert.Equal(t, http.StatusRequestEntityTooLarge, res.StatusCode)
+	res, _ = call(http.MethodPut, files+"a.txt", "203.0.113.8", web, "hi")
+	assert.Equal(t, http.StatusNotFound, res.StatusCode, "another IP is another user")
+	for i := range 5 {
+		res, body = call(http.MethodPut, files+strconv.Itoa(i)+".txt", "203.0.113.7", web, "hi")
+		require.Equal(t, http.StatusOK, res.StatusCode, body)
+		assert.Contains(t, body, `"creditsSpent":0`)
+	}
+	res, body = call(http.MethodPut, files+"5.txt", "203.0.113.7", web, "hi")
+	assert.Equal(t, http.StatusTooManyRequests, res.StatusCode, body)
+
+	res, body = call(http.MethodGet, "/files/"+user+"/"+created.Folder.ID+"/4.txt", "198.51.100.1", "", "")
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "hi", body, "anyone can download")
+	res, _ = call(http.MethodGet, "/api/v1/folders", "203.0.113.7", web, "")
+	assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "listing needs a sign-in")
+}
+
+func TestFiberConfig(t *testing.T) {
+	cfg := fiberConfig(AppConfig{}, 10)
+	assert.False(t, cfg.TrustProxy)
+	assert.Equal(t, 10, cfg.BodyLimit)
+
+	cfg = fiberConfig(AppConfig{TrustedProxies: "10.0.0.0/8, 127.0.0.1", ProxyHeader: "CF-Connecting-IP"}, 10)
+	assert.True(t, cfg.TrustProxy)
+	assert.Equal(t, []string{"10.0.0.0/8", "127.0.0.1"}, cfg.TrustProxyConfig.Proxies)
+	assert.Equal(t, "CF-Connecting-IP", cfg.ProxyHeader)
+	assert.True(t, cfg.EnableIPValidation)
+
+	assert.Equal(t, "X-Forwarded-For", fiberConfig(AppConfig{TrustedProxies: "10.0.0.1"}, 10).ProxyHeader)
 }
