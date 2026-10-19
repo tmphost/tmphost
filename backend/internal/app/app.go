@@ -75,7 +75,7 @@ type (
 		// and OAuth callbacks are built on it.
 		BaseURL string `yaml:"baseUrl"`
 		// SitesDomain is the parent domain of the dynamic subdomains
-		// (<11 characters>.<SitesDomain>); empty disables them.
+		// (<8 characters>.<SitesDomain>); empty disables them.
 		SitesDomain string `yaml:"sitesDomain"`
 		// BasePath is the path prefix browsers reach the app under when a
 		// proxy strips it before forwarding ("" or "/x").

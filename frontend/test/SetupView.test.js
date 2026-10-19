@@ -231,7 +231,7 @@ describe('SetupView', () => {
     const help = wrapper.find('[data-test="setup-subdomains-help"]').text()
     expect(help).toContain('<folderId>.<public domain>')
     expect(help).not.toContain('f<folderId>')
-    expect(help).toContain('11 characters')
+    expect(help).toContain('8 characters')
     expect(help).toContain('blank to use the sites domain')
     expect(help).not.toContain('<userId>')
     expect(wrapper.find('[data-test="setup-subdomains"]').text()).toContain('wildcard DNS')

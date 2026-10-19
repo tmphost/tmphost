@@ -328,7 +328,7 @@ func TestAuthenticateAnonymous(t *testing.T) {
 		"no origin":       {IP: "203.0.113.7"},
 		"other origin":    {IP: "203.0.113.7", Origin: "https://evil.example"},
 		"other scheme":    {IP: "203.0.113.7", Origin: "http://tmphost.io"},
-		"subdomain":       {IP: "203.0.113.7", Origin: "https://00000000001.tmphost.io"},
+		"subdomain":       {IP: "203.0.113.7", Origin: "https://00000001.tmphost.io"},
 		"origin is wrong": {IP: "203.0.113.7", Origin: "https://evil.example", Referer: "https://tmphost.io/"},
 		"other referer":   {IP: "203.0.113.7", Referer: "https://evil.example/https://tmphost.io"},
 		"bad referer":     {IP: "203.0.113.7", Referer: "::"},

@@ -18,7 +18,7 @@ import (
 	"github.com/tmphost/tmphost/backend/internal/service/idgen"
 )
 
-// Folder IDs are 11 base36 characters, not base62 like other IDs: they
+// Folder IDs are 8 base36 characters, not base62 like other IDs: they
 // are part of each folder's hostname, and hostnames are case-insensitive.
 
 // FromHTTPRequestToGetLimitsRequestEntity reads GET /limits.
