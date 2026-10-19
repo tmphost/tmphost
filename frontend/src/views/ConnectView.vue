@@ -66,6 +66,11 @@ const CLI_SNIPPETS = [
   { id: 'cli-install-windows', label: 'Install on Windows (PowerShell)', text: `irm ${INSTALL_BASE}/install.ps1 | iex` },
   { id: 'cli-login', label: 'Sign in (opens the browser)', text: `tmphost login --server ${serverUrl}` },
   {
+    id: 'cli-login-device',
+    label: 'Sign in without a browser (SSH, containers)',
+    text: `tmphost login --device --server ${serverUrl}`,
+  },
+  {
     id: 'cli-examples',
     label: 'Examples',
     text: ['tmphost file upload ./index.html --ttl 1h', 'tmphost file get --id <id>', 'tmphost file url --id <id>'].join('\n'),
