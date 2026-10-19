@@ -6,83 +6,83 @@
 # the /setup page, the settings file overrides the app URL, sites domain, tls,
 # credits, database, storage, s3, files and auth provider values below.
 app:
-  port: ${PORT:2027}
+  port: ${TMPHOSTIO_PORT:2027}
   # Public URL of the app, e.g. https://app.tmphost.io. Its host is the only
   # one the app answers on (besides localhost); OAuth callbacks are
   # <baseUrl>/api/v1/auth/<provider>/callback. In local development point it
   # at the Vite dev server (http://localhost:5173).
-  baseUrl: ${TMPHOST_BASE_URL:http://localhost:2027}
+  baseUrl: ${TMPHOSTIO_BASE_URL:http://localhost:2027}
   # Parent domain of the dynamic subdomains f<11 characters>.<sitesDomain>,
   # e.g. tmphost.io. Empty disables them.
-  sitesDomain: ${TMPHOST_SITES_DOMAIN:}
-  basePath: ${TMPHOST_BASE_PATH:}
-  cookieSecure: ${TMPHOST_COOKIE_SECURE:false}
-  settingsFile: ${TMPHOST_SETTINGS_FILE:./_storage/settings.json}
+  sitesDomain: ${TMPHOSTIO_SITES_DOMAIN:}
+  basePath: ${TMPHOSTIO_BASE_PATH:}
+  cookieSecure: ${TMPHOSTIO_COOKIE_SECURE:false}
+  settingsFile: ${TMPHOSTIO_SETTINGS_FILE:./_storage/settings.json}
   # Comma-separated proxy IPs or CIDR ranges in front of the app, e.g.
   # 10.0.0.0/8. Requests from them count as coming from the client IP in
   # proxyHeader (the rightmost address that is not a trusted proxy):
   # anonymous uploads are limited per client IP.
-  trustedProxies: ${TMPHOST_TRUSTED_PROXIES:}
-  proxyHeader: ${TMPHOST_PROXY_HEADER:X-Forwarded-For}
+  trustedProxies: ${TMPHOSTIO_TRUSTED_PROXIES:}
+  proxyHeader: ${TMPHOSTIO_PROXY_HEADER:X-Forwarded-For}
 # HTTPS terminated by the server with Let's Encrypt certificates, obtained
 # and renewed automatically over TLS-ALPN-01 (Let's Encrypt must reach the
 # HTTPS port as 443). lego also covers the dynamic subdomains: one certificate
 # per subdomain on its first visit, or, with a Cloudflare API token, a single
 # *.<sitesDomain> wildcard over DNS-01.
 tls:
-  enabled: ${TMPHOST_TLS_ENABLED:false}
-  port: ${TMPHOST_TLS_PORT:443}
-  email: ${TMPHOST_TLS_EMAIL:}
+  enabled: ${TMPHOSTIO_TLS_ENABLED:false}
+  port: ${TMPHOSTIO_TLS_PORT:443}
+  email: ${TMPHOSTIO_TLS_EMAIL:}
   lego:
-    enabled: ${TMPHOST_TLS_LEGO_ENABLED:false}
-    cloudflareApiToken: ${TMPHOST_TLS_LEGO_CLOUDFLARE_API_TOKEN:}
+    enabled: ${TMPHOSTIO_TLS_LEGO_ENABLED:false}
+    cloudflareApiToken: ${TMPHOSTIO_TLS_LEGO_CLOUDFLARE_API_TOKEN:}
 auth:
-  jwtSecret: ${TMPHOST_AUTH_JWT_SECRET}
+  jwtSecret: ${TMPHOSTIO_AUTH_JWT_SECRET}
   # Unlocks /setup. Generated and logged at startup when empty.
-  rootAccessToken: ${TMPHOST_AUTH_ROOT_ACCESS_TOKEN:}
+  rootAccessToken: ${TMPHOSTIO_AUTH_ROOT_ACCESS_TOKEN:}
   google:
-    clientId: ${TMPHOST_AUTH_GOOGLE_CLIENT_ID}
-    clientSecret: ${TMPHOST_AUTH_GOOGLE_CLIENT_SECRET}
+    clientId: ${TMPHOSTIO_AUTH_GOOGLE_CLIENT_ID}
+    clientSecret: ${TMPHOSTIO_AUTH_GOOGLE_CLIENT_SECRET}
   github:
-    clientId: ${TMPHOST_AUTH_GITHUB_CLIENT_ID}
-    clientSecret: ${TMPHOST_AUTH_GITHUB_CLIENT_SECRET}
+    clientId: ${TMPHOSTIO_AUTH_GITHUB_CLIENT_ID}
+    clientSecret: ${TMPHOSTIO_AUTH_GITHUB_CLIENT_SECRET}
 credits:
-  monthlyGrant: ${TMPHOST_CREDITS_MONTHLY_GRANT:250}
+  monthlyGrant: ${TMPHOSTIO_CREDITS_MONTHLY_GRANT:250}
 # PostgreSQL is used when enabled; otherwise SQLite.
 sqlite:
-  enabled: ${TMPHOST_SQLITE_ENABLED:true}
-  dsn: ${TMPHOST_SQLITE_DSN:./_storage/tmphost.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)}
+  enabled: ${TMPHOSTIO_SQLITE_ENABLED:true}
+  dsn: ${TMPHOSTIO_SQLITE_DSN:./_storage/tmphost.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)}
   maxIdleConns: 10
   maxOpenConns: 100
   maxConnLifetime: 1h
 postgres:
-  enabled: ${TMPHOST_POSTGRES_ENABLED:false}
+  enabled: ${TMPHOSTIO_POSTGRES_ENABLED:false}
   # postgres://user:password@host:5432/tmphost?sslmode=disable
-  dsn: ${TMPHOST_POSTGRES_DSN:}
+  dsn: ${TMPHOSTIO_POSTGRES_DSN:}
   maxIdleConns: 10
   maxOpenConns: 100
   maxConnLifetime: 1h
 # Where uploaded files live: "local" (localPath on disk) or "s3".
 storage:
-  driver: ${TMPHOST_STORAGE_DRIVER:local}
-  localPath: ${TMPHOST_STORAGE_LOCAL_PATH:./_storage/files}
+  driver: ${TMPHOSTIO_STORAGE_DRIVER:local}
+  localPath: ${TMPHOSTIO_STORAGE_LOCAL_PATH:./_storage/files}
 s3:
-  endpoint: ${TMPHOST_S3_ENDPOINT:}
-  region: ${TMPHOST_S3_REGION:}
-  bucket: ${TMPHOST_S3_BUCKET:}
-  accessKeyId: ${TMPHOST_S3_ACCESS_KEY_ID:}
-  secretAccessKey: ${TMPHOST_S3_SECRET_ACCESS_KEY:}
-  usePathStyle: ${TMPHOST_S3_USE_PATH_STYLE:false}
+  endpoint: ${TMPHOSTIO_S3_ENDPOINT:}
+  region: ${TMPHOSTIO_S3_REGION:}
+  bucket: ${TMPHOSTIO_S3_BUCKET:}
+  accessKeyId: ${TMPHOSTIO_S3_ACCESS_KEY_ID:}
+  secretAccessKey: ${TMPHOSTIO_S3_SECRET_ACCESS_KEY:}
+  usePathStyle: ${TMPHOSTIO_S3_USE_PATH_STYLE:false}
 files:
   # Longest folder lifetime (7200 hours) and largest upload per request.
-  maxTtlMinutes: ${TMPHOST_FILES_MAX_TTL_MINUTES:432000}
-  maxUploadMb: ${TMPHOST_FILES_MAX_UPLOAD_MB:16}
+  maxTtlMinutes: ${TMPHOSTIO_FILES_MAX_TTL_MINUTES:432000}
+  maxUploadMb: ${TMPHOSTIO_FILES_MAX_UPLOAD_MB:16}
   # Folders are served at <baseUrl>/files/<userId>/<folderId>/, or with
   # subdomains on, at f<folderId>.<publicDomain> (needs a wildcard DNS record
   # and certificate). publicDomain defaults to the sites domain, else the
   # baseUrl host; *.localhost resolves to 127.0.0.1 in browsers, so it works
   # locally as is.
-  subdomains: ${TMPHOST_FILES_SUBDOMAINS:false}
-  publicDomain: ${TMPHOST_FILES_PUBLIC_DOMAIN:}
+  subdomains: ${TMPHOSTIO_FILES_SUBDOMAINS:false}
+  publicDomain: ${TMPHOSTIO_FILES_PUBLIC_DOMAIN:}
 idgen:
-  node: ${MONOFLAKE_NODE:0}
+  node: ${TMPHOSTIO_MONOFLAKE_NODE:0}

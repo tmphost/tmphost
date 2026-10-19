@@ -29,9 +29,9 @@ COPY --from=backend /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=backend /etc_passwd /etc/passwd
 COPY --from=backend /tmphost /tmphost
 COPY --from=backend --chown=65534:65534 /data /data
-ENV TMPHOST_SETTINGS_FILE=/data/settings.json \
-    TMPHOST_STORAGE_LOCAL_PATH=/data/files \
-    TMPHOST_SQLITE_DSN=/data/tmphost.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)
+ENV TMPHOSTIO_SETTINGS_FILE=/data/settings.json \
+    TMPHOSTIO_STORAGE_LOCAL_PATH=/data/files \
+    TMPHOSTIO_SQLITE_DSN=/data/tmphost.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)
 VOLUME /data
 # 2027 serves the app; with TLS enabled it redirects to 443.
 EXPOSE 2027 443

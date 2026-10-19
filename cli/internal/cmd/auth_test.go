@@ -80,14 +80,14 @@ func TestLogin_errors(t *testing.T) {
 	assert.Equal(t, 1, h.run("login"))
 	assert.Contains(t, h.stderr.String(), "error: db down\n")
 
-	h.env["TMPHOST_CONFIG"] = filepath.Join(readOnlyDir(t), "sub", "config.json")
+	h.env["TMPHOSTIO_CONFIG"] = filepath.Join(readOnlyDir(t), "sub", "config.json")
 	assert.Equal(t, 1, h.run("login", "--server", h.srv.URL))
 	assert.Contains(t, h.stderr.String(), "create config directory")
 }
 
 func TestConfigErrors(t *testing.T) {
 	h := newHarness(t)
-	require.NoError(t, os.WriteFile(h.env["TMPHOST_CONFIG"], []byte("{"), 0o600))
+	require.NoError(t, os.WriteFile(h.env["TMPHOSTIO_CONFIG"], []byte("{"), 0o600))
 	for _, args := range [][]string{{"whoami"}, {"login"}, {"logout"}} {
 		assert.Equal(t, 1, h.run(args...), args)
 		assert.Contains(t, h.stderr.String(), "parse config", args)
@@ -104,9 +104,9 @@ func TestLogout(t *testing.T) {
 	assert.Equal(t, true, h.decode()["loggedOut"])
 
 	h = newHarness(t)
-	require.NoError(t, os.Chmod(filepath.Dir(h.env["TMPHOST_CONFIG"]), 0o500))
-	t.Cleanup(func() { _ = os.Chmod(filepath.Dir(h.env["TMPHOST_CONFIG"]), 0o700) })
-	require.NoError(t, os.Chmod(h.env["TMPHOST_CONFIG"], 0o400))
+	require.NoError(t, os.Chmod(filepath.Dir(h.env["TMPHOSTIO_CONFIG"]), 0o500))
+	t.Cleanup(func() { _ = os.Chmod(filepath.Dir(h.env["TMPHOSTIO_CONFIG"]), 0o700) })
+	require.NoError(t, os.Chmod(h.env["TMPHOSTIO_CONFIG"], 0o400))
 	assert.Equal(t, 1, h.run("logout"))
 	assert.Contains(t, h.stderr.String(), "write config")
 }
@@ -136,7 +136,7 @@ func TestNotLoggedIn(t *testing.T) {
 
 func TestTokensStayWithTheirServer(t *testing.T) {
 	h := newHarness(t)
-	h.env["TMPHOST_SERVER"] = "https://elsewhere.example/"
+	h.env["TMPHOSTIO_SERVER"] = "https://elsewhere.example/"
 	assert.Equal(t, 1, h.run("whoami"))
 	assert.Equal(t, "error: not logged in to https://elsewhere.example: run \"tmphost login\"\n", h.stderr.String())
 
@@ -205,8 +205,8 @@ func TestSession_saveWarning(t *testing.T) {
 	h.saveConfig(config.Config{Server: h.srv.URL, RefreshToken: "rt"})
 	h.reply("POST /oauth2/token", 200, tokenJSON)
 	h.reply("GET /api/v1/users/me", 200, meJSON)
-	dir := filepath.Dir(h.env["TMPHOST_CONFIG"])
-	require.NoError(t, os.Chmod(h.env["TMPHOST_CONFIG"], 0o400))
+	dir := filepath.Dir(h.env["TMPHOSTIO_CONFIG"])
+	require.NoError(t, os.Chmod(h.env["TMPHOSTIO_CONFIG"], 0o400))
 	require.NoError(t, os.Chmod(dir, 0o500))
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
 

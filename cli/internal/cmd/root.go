@@ -89,7 +89,7 @@ mirror the "file" tool of the server's MCP endpoint.`,
 	return root
 }
 
-// serverURL picks the server: --server, then $TMPHOST_SERVER, then the one
+// serverURL picks the server: --server, then $TMPHOSTIO_SERVER, then the one
 // logged in to, then the default.
 func (a *app) serverURL(cfg config.Config) string {
 	for _, s := range []string{a.server, a.opts.Getenv(config.EnvServer), cfg.Server} {

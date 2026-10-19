@@ -21,7 +21,7 @@ irm https://raw.githubusercontent.com/tmphost/tmphost/main/install.ps1 | iex
 Both download the latest release, verify it against `checksums.txt` and
 install `tmphost` to `/usr/local/bin` when writable or `~/.local/bin`
 (Windows: `%LOCALAPPDATA%\tmphost\bin`, added to your user PATH). Set
-`TMPHOST_VERSION=v1.2.3` for a specific release or `TMPHOST_INSTALL_DIR` for
+`TMPHOSTIO_VERSION=v1.2.3` for a specific release or `TMPHOSTIO_INSTALL_DIR` for
 another directory.
 
 From source: `cd cli && go build -o tmphost .` (or `make cli`, which writes
@@ -36,9 +36,9 @@ tmphost login --server https://files.example.com
 
 `login` opens the browser to approve the CLI (OAuth 2.1 with PKCE; the URL is
 also printed in case the browser does not open) and waits up to 5 minutes.
-The tokens are saved to `$TMPHOST_CONFIG`, or `tmphost/config.json` under your
+The tokens are saved to `$TMPHOSTIO_CONFIG`, or `tmphost/config.json` under your
 user config directory, readable only by you, and refreshed automatically.
-`tmphost logout` forgets them. `--server` or `TMPHOST_SERVER` picks the server;
+`tmphost logout` forgets them. `--server` or `TMPHOSTIO_SERVER` picks the server;
 tokens are only ever sent to the server that issued them.
 
 ## Usage

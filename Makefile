@@ -63,7 +63,7 @@ dev:
 	$(MAKE) -j2 --no-print-directory dev-backend dev-frontend
 
 dev-backend:
-	cd backend && TMPHOST_BASE_URL=http://localhost:5173 go run ./cmd/server
+	cd backend && TMPHOSTIO_BASE_URL=http://localhost:5173 go run ./cmd/server
 
 dev-frontend:
 	cd frontend && npm run dev

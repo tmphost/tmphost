@@ -53,7 +53,7 @@ func newHarness(t *testing.T) *harness {
 		h.mux.ServeHTTP(w, r)
 	}))
 	t.Cleanup(h.srv.Close)
-	h.env = map[string]string{"TMPHOST_CONFIG": filepath.Join(t.TempDir(), "config.json")}
+	h.env = map[string]string{"TMPHOSTIO_CONFIG": filepath.Join(t.TempDir(), "config.json")}
 	h.saveConfig(config.Config{Server: h.srv.URL, AccessToken: "at", RefreshToken: "rt", Expiry: now.Add(time.Hour)})
 	return h
 }

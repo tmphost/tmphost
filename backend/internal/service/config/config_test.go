@@ -55,8 +55,8 @@ func TestNew_ExpandsPlaceholders(t *testing.T) {
 }
 
 func TestNew_DefaultsToOSGetenv(t *testing.T) {
-	t.Setenv("TMPHOST_CONFIG_TEST", "fromenv")
-	svc, err := New([]byte("app:\n  name: ${TMPHOST_CONFIG_TEST}\n"), nil)
+	t.Setenv("TMPHOSTIO_CONFIG_TEST", "fromenv")
+	svc, err := New([]byte("app:\n  name: ${TMPHOSTIO_CONFIG_TEST}\n"), nil)
 	require.NoError(t, err)
 	var cfg appCfg
 	require.NoError(t, svc.Populate("app", &cfg))

@@ -22,8 +22,8 @@ const DefaultServer = "https://tmphost.io"
 
 // Environment variables the CLI reads.
 const (
-	EnvConfig = "TMPHOST_CONFIG"
-	EnvServer = "TMPHOST_SERVER"
+	EnvConfig = "TMPHOSTIO_CONFIG"
+	EnvServer = "TMPHOSTIO_SERVER"
 )
 
 // userConfigDir is swapped in tests to exercise its failure path.
@@ -43,7 +43,7 @@ func (c Config) LoggedIn() bool {
 	return c.AccessToken != "" || c.RefreshToken != ""
 }
 
-// Path returns where the config file lives: $TMPHOST_CONFIG when set,
+// Path returns where the config file lives: $TMPHOSTIO_CONFIG when set,
 // otherwise tmphost/config.json under the user's config directory.
 func Path(getenv func(string) string) (string, error) {
 	if p := getenv(EnvConfig); p != "" {

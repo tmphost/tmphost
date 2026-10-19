@@ -8,10 +8,10 @@
 #   curl -fsSL https://raw.githubusercontent.com/tmphost/tmphost/main/install.sh | sh
 #
 # Environment:
-#   TMPHOST_VERSION      release tag to install, such as v1.2.3 (default: latest)
-#   TMPHOST_INSTALL_DIR  where to put the binary (default: /usr/local/bin when
+#   TMPHOSTIO_VERSION      release tag to install, such as v1.2.3 (default: latest)
+#   TMPHOSTIO_INSTALL_DIR  where to put the binary (default: /usr/local/bin when
 #                        writable, else $HOME/.local/bin)
-#   TMPHOST_DOWNLOAD_URL base URL holding the release assets, for mirrors and
+#   TMPHOSTIO_DOWNLOAD_URL base URL holding the release assets, for mirrors and
 #                        testing (default: the GitHub release)
 set -eu
 
@@ -57,8 +57,8 @@ sha256() { # file
 }
 
 install_dir() {
-	if [ -n "${TMPHOST_INSTALL_DIR:-}" ]; then
-		echo "$TMPHOST_INSTALL_DIR"
+	if [ -n "${TMPHOSTIO_INSTALL_DIR:-}" ]; then
+		echo "$TMPHOSTIO_INSTALL_DIR"
 	elif [ -d /usr/local/bin ] && [ -w /usr/local/bin ]; then
 		echo /usr/local/bin
 	else
@@ -69,10 +69,10 @@ install_dir() {
 main() {
 	os=$(detect_os)
 	arch=$(detect_arch)
-	version=${TMPHOST_VERSION:-latest}
+	version=${TMPHOSTIO_VERSION:-latest}
 	asset="tmphost_${os}_${arch}.tar.gz"
-	if [ -n "${TMPHOST_DOWNLOAD_URL:-}" ]; then
-		base=${TMPHOST_DOWNLOAD_URL%/}
+	if [ -n "${TMPHOSTIO_DOWNLOAD_URL:-}" ]; then
+		base=${TMPHOSTIO_DOWNLOAD_URL%/}
 	elif [ "$version" = latest ]; then
 		base="https://github.com/$REPO/releases/latest/download"
 	else
