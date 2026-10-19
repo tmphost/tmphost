@@ -1,0 +1,18 @@
+{
+  "name": "tmphost",
+  "owner": {
+    "name": "tmphost",
+    "url": "https://tmphost.io"
+  },
+  "metadata": {
+    "description": "Claude Code plugins for tmphost.io temporary file hosting."
+  },
+  "plugins": [
+    {
+      "name": "tmphost",
+      "source": "./plugin/claude",
+      "description": "Host files at temporary public URLs on tmphost.io (or your own tmphost server) from Claude Code.",
+      "category": "productivity"
+    }
+  ]
+}

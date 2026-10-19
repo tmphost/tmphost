@@ -58,6 +58,25 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   public client ID `00000000001` with a loopback redirect. Access tokens also
   work as Bearer tokens on `/api/v1`.
 
+## Claude Code plugin
+
+[plugin/claude](plugin/claude) is a Claude Code plugin that adds the `/mcp`
+server and a `tmphost` skill (when and how to share files with it). This
+repository is also its marketplace ([.claude-plugin/marketplace.json](.claude-plugin/marketplace.json)):
+
+```sh
+/plugin install tmphost --marketplace tmphost/tmphost
+# or, in two steps:
+/plugin marketplace add tmphost/tmphost
+/plugin install tmphost@tmphost
+```
+
+Claude Code signs in through the browser on the first tool call. For a
+self-hosted server, set the plugin's `server` option (default
+`https://tmphost.io`) with `/plugin configure tmphost@tmphost`, or at install
+time: `claude plugin install tmphost --marketplace tmphost/tmphost --config server=https://files.example.com`.
+CI runs `claude plugin validate --strict` on both manifests.
+
 ## Development
 
 ```sh
