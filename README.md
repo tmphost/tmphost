@@ -156,6 +156,17 @@ make build   # bin/tmphost with the frontend embedded
 make test    # 100% coverage is enforced on both sides
 ```
 
+## Installable app (PWA)
+
+The web app installs as a PWA (`frontend/public/manifest.webmanifest`,
+`frontend/src/sw.js`). The service worker precaches only the built app shell;
+`/api`, `/auth`, `/oauth2`, `/mcp` and folder files always go to the network.
+An open tab checks for a new version on load, every hour and when it comes
+back into view, downloads it in the background with a progress bar, then
+offers "Update now", which reloads every open tab into the new version. The
+service worker is registered only in production builds (`npm run build`), not
+under `npm run dev`.
+
 ## Admin page
 
 `/admin` opens only with the root access token too (one root sign-in covers

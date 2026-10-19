@@ -35,9 +35,11 @@ func fetch(t *testing.T, f *fiber.App, target string) (*http.Response, string) {
 
 func TestSPAHandler(t *testing.T) {
 	web := fstest.MapFS{
-		"index.html":          {Data: []byte(_index)},
-		"favicon.svg":         {Data: []byte("<svg/>")},
-		"assets/index-abc.js": {Data: []byte("console.log(1)")},
+		"index.html":           {Data: []byte(_index)},
+		"favicon.svg":          {Data: []byte("<svg/>")},
+		"sw.js":                {Data: []byte("self.skipWaiting")},
+		"manifest.webmanifest": {Data: []byte(`{"name":"tmphost.io"}`)},
+		"assets/index-abc.js":  {Data: []byte("console.log(1)")},
 	}
 	f := spaApp(web, "/base")
 
@@ -58,7 +60,21 @@ func TestSPAHandler(t *testing.T) {
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Equal(t, "<svg/>", body)
 		assert.Contains(t, res.Header.Get(fiber.HeaderContentType), "image/svg+xml")
-		assert.Empty(t, res.Header.Get(fiber.HeaderCacheControl))
+		assert.Equal(t, "no-cache", res.Header.Get(fiber.HeaderCacheControl))
+	})
+
+	t.Run("service worker and manifest are revalidated", func(t *testing.T) {
+		res, body := fetch(t, f, "/sw.js")
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+		assert.Equal(t, "self.skipWaiting", body)
+		assert.Contains(t, res.Header.Get(fiber.HeaderContentType), "javascript")
+		assert.Equal(t, "no-cache", res.Header.Get(fiber.HeaderCacheControl))
+
+		res, body = fetch(t, f, "/manifest.webmanifest")
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+		assert.JSONEq(t, `{"name":"tmphost.io"}`, body)
+		assert.Equal(t, "application/manifest+json", res.Header.Get(fiber.HeaderContentType))
+		assert.Equal(t, "no-cache", res.Header.Get(fiber.HeaderCacheControl))
 	})
 
 	t.Run("fingerprinted asset", func(t *testing.T) {

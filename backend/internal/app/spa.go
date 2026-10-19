@@ -24,6 +24,13 @@ var _servableExts = map[string]bool{
 	".ico": true, ".woff": true, ".woff2": true, ".txt": true, ".webmanifest": true,
 }
 
+// _contentTypes are the types Fiber cannot name on its own. It falls back to
+// the OS mime table for these, and the FROM-scratch image has none, so the
+// manifest went out as application/octet-stream.
+var _contentTypes = map[string]string{
+	".webmanifest": "application/manifest+json",
+}
+
 // servable reports whether a built-frontend file may be sent to browsers:
 // a known web asset type, with no hidden path segment.
 func servable(name string) bool {
@@ -58,8 +65,17 @@ func spaHandler(web fs.FS, basePath string) fiber.Handler {
 				if strings.HasPrefix(name, "assets/") {
 					// Vite fingerprints everything under assets/.
 					c.Set(fiber.HeaderCacheControl, "public, max-age=31536000, immutable")
+				} else {
+					// Same name in every release (sw.js, manifest.webmanifest,
+					// icons): browsers must revalidate, or the PWA never sees
+					// a new version.
+					c.Set(fiber.HeaderCacheControl, "no-cache")
 				}
-				c.Type(strings.TrimPrefix(path.Ext(name), "."))
+				if ct, ok := _contentTypes[strings.ToLower(path.Ext(name))]; ok {
+					c.Set(fiber.HeaderContentType, ct)
+				} else {
+					c.Type(strings.TrimPrefix(path.Ext(name), "."))
+				}
 				return c.Send(b)
 			}
 			if path.Ext(name) != "" {

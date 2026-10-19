@@ -7,6 +7,8 @@ import { describe, expect, it, vi } from 'vitest'
 const mount = vi.fn()
 const createtmphostApp = vi.fn(() => ({ app: { mount } }))
 vi.mock('../src/app', () => ({ createtmphostApp }))
+const registerServiceWorker = vi.fn()
+vi.mock('../src/composables/usePwaUpdate', () => ({ registerServiceWorker }))
 
 describe('main', () => {
   it('boots the web app under the injected base path', async () => {
@@ -15,13 +17,16 @@ describe('main', () => {
     expect(createtmphostApp).toHaveBeenCalledWith({ history: expect.anything(), platform: 'web' })
     expect(createtmphostApp.mock.calls[0][0].history.base).toBe('/base')
     expect(mount).toHaveBeenCalledWith('#app')
+    expect(registerServiceWorker).toHaveBeenCalledWith({ basePath: '/base' })
     delete window.__TMPHOST_BASE_PATH__
   })
 
   it('defaults the base path to /', async () => {
     vi.resetModules()
     createtmphostApp.mockClear()
+    registerServiceWorker.mockClear()
     await import('../src/main.js')
     expect(createtmphostApp.mock.calls[0][0].history.base).toBe('')
+    expect(registerServiceWorker).toHaveBeenCalledWith({ basePath: '' })
   })
 })
