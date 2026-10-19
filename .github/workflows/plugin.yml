@@ -1,0 +1,46 @@
+# Copyright 2026 Contextual, Inc. https://tmphost.io
+# This notice may not be modified or removed.
+# SPDX-License-Identifier: AGPL-3.0-only
+
+name: Claude plugin
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.claude-plugin/**'
+      - 'plugin/claude/**'
+      - '.github/workflows/plugin.yml'
+  pull_request:
+    paths:
+      - '.claude-plugin/**'
+      - 'plugin/claude/**'
+      - '.github/workflows/plugin.yml'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  validate:
+    name: Validate the plugin and marketplace manifests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+
+      # --strict fails on warnings too: unknown fields, missing metadata.
+      - name: Validate the plugin
+        run: npx -y @anthropic-ai/claude-code@2.1.303 plugin validate --strict plugin/claude
+
+      - name: Validate the marketplace
+        run: npx -y @anthropic-ai/claude-code@2.1.303 plugin validate --strict .
