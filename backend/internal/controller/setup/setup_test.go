@@ -214,6 +214,21 @@ func TestUpdateSettings_RestartRequired(t *testing.T) {
 	assert.Equal(t, entity.OAuthClientSettings{ClientID: "h", ClientSecret: "hsecret"}, cur.Auth.GitHub)
 }
 
+func TestUpdateSettings_MCPDomain(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	next := e.ctrl.GetSettings(ctx).Settings
+	next.Domain.SitesDomain = "tmphost.io"
+	next.Domain.MCPDomain = " MCP.tmphost.io. "
+	e.repo.EXPECT().SaveSettings(gomock.Any()).Return(nil)
+	rs, err := e.ctrl.UpdateSettings(ctx, &entity.UpdateSettingsRequest{Settings: next})
+	require.NoError(t, err)
+	assert.True(t, rs.RestartRequired)
+	assert.Equal(t, "mcp.tmphost.io", e.ctrl.Current().Domain.MCPDomain)
+	assert.True(t, IsSiteLabel("01234567"))
+	assert.False(t, IsSiteLabel("mcp"))
+}
+
 func TestUpdateSettings_SaveFails(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
@@ -272,6 +287,15 @@ func TestUpdateSettings_Validation(t *testing.T) {
 		"origin not http":          func(s *entity.Settings) { s.Domain.AllowedOrigins = []string{"ftp://tmphost.io"} },
 		"origin with query":        func(s *entity.Settings) { s.Domain.AllowedOrigins = []string{"https://tmphost.io?"} },
 		"origin unparsable":        func(s *entity.Settings) { s.Domain.AllowedOrigins = []string{"http://[::1"} },
+		"mcp domain without dot":   func(s *entity.Settings) { s.Domain.MCPDomain = "mcp" },
+		"mcp domain with scheme":   func(s *entity.Settings) { s.Domain.MCPDomain = "https://mcp.tmphost.io" },
+		"mcp domain with path":     func(s *entity.Settings) { s.Domain.MCPDomain = "mcp.tmphost.io/mcp" },
+		"mcp domain is the app host": func(s *entity.Settings) {
+			s.Domain.AppURL, s.Domain.MCPDomain = "https://app.tmphost.io", "App.tmphost.io"
+		},
+		"mcp domain is a folder host": func(s *entity.Settings) {
+			s.Domain.SitesDomain, s.Domain.MCPDomain = "tmphost.io", "mcpmcpmc.tmphost.io"
+		},
 		"too many origins": func(s *entity.Settings) {
 			for i := range _maxOrigins + 1 {
 				s.Domain.AllowedOrigins = append(s.Domain.AllowedOrigins, fmt.Sprintf("https://o%d.tmphost.io", i))

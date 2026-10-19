@@ -16,7 +16,7 @@ import (
 
 func TestSettingsRoundTrip(t *testing.T) {
 	e := entity.Settings{
-		Domain: entity.DomainSettings{AppURL: "https://app.tmphost.io", SitesDomain: "tmphost.io", AllowedOrigins: []string{"https://tmphost.io"}},
+		Domain: entity.DomainSettings{AppURL: "https://app.tmphost.io", SitesDomain: "tmphost.io", MCPDomain: "mcp.tmphost.io", AllowedOrigins: []string{"https://tmphost.io"}},
 		TLS: entity.TLSSettings{
 			Enabled: true, Port: 443, Email: "ops@tmphost.io",
 			Lego: entity.LegoSettings{Enabled: true, CloudflareAPIToken: "cf"},

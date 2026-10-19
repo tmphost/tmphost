@@ -6,13 +6,14 @@ package app
 
 import (
 	"net"
-	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
 
 	setupctrl "github.com/tmphost/tmphost/backend/internal/controller/setup"
+	"github.com/tmphost/tmphost/backend/internal/handler/api"
 	mapper "github.com/tmphost/tmphost/backend/internal/mapper/api"
 )
 
@@ -20,16 +21,14 @@ import (
 // stored under.
 const LocalSiteID = "siteID"
 
-// _siteLabelRE is a dynamic subdomain's label: a folder ID, 8 lowercase
-// letters or digits.
-var _siteLabelRE = regexp.MustCompile(`^[a-z0-9]{8}$`)
-
 type (
 	// hosts tells the app host and the dynamic subdomains apart from hosts
 	// the server does not answer for.
 	hosts struct {
 		app   string
 		sites string
+		// mcp serves only the MCP endpoint and its OAuth metadata.
+		mcp string
 		// open skips the host check: the app URL names this machine or an
 		// IP, as in local development.
 		open bool
@@ -42,11 +41,26 @@ const (
 	hostUnknown hostKind = iota
 	hostApp
 	hostSite
+	hostMCP
 )
 
-func newHosts(appURL, sitesDomain string) hosts {
+// _mcpHostPaths are the paths the MCP host answers: the endpoint, and the
+// OAuth metadata that MCP clients discover on the endpoint's host.
+var _mcpHostPaths = []string{
+	MCPPath,
+	api.ResourceMetadataPath,
+	api.ResourceMetadataPath + MCPPath,
+	api.ServerMetadataPath,
+}
+
+func newHosts(appURL, sitesDomain, mcpDomain string) hosts {
 	app := strings.ToLower(setupctrl.AppHost(appURL))
-	return hosts{app: app, sites: strings.ToLower(sitesDomain), open: isLocal(app) || net.ParseIP(app) != nil}
+	return hosts{
+		app:   app,
+		sites: strings.ToLower(sitesDomain),
+		mcp:   strings.ToLower(mcpDomain),
+		open:  isLocal(app) || net.ParseIP(app) != nil,
+	}
 }
 
 // classify returns what host (a Host header, port allowed) is, and the site
@@ -56,8 +70,11 @@ func (h hosts) classify(host string) (hostKind, string) {
 	if n, _, err := net.SplitHostPort(name); err == nil {
 		name = n
 	}
+	if h.mcp != "" && name == h.mcp {
+		return hostMCP, ""
+	}
 	if h.sites != "" {
-		if label, ok := strings.CutSuffix(name, "."+h.sites); ok && _siteLabelRE.MatchString(label) {
+		if label, ok := strings.CutSuffix(name, "."+h.sites); ok && setupctrl.IsSiteLabel(label) {
 			return hostSite, label
 		}
 	}
@@ -76,18 +93,30 @@ func (h hosts) isSite(host string) bool {
 	return kind == hostSite
 }
 
+// isMCP reports whether host (a Host header, port allowed) is the MCP host.
+func (h hosts) isMCP(host string) bool {
+	kind, _ := h.classify(host)
+	return kind == hostMCP
+}
+
 func isLocal(name string) bool {
 	return name == "localhost" || name == "127.0.0.1" || name == "::1"
 }
 
-// hostRouter lets app host requests through, answers dynamic subdomains no
-// folder was served on, and refuses every other host.
+// hostRouter lets app host requests through, and MCP host requests for the
+// MCP endpoint, answers dynamic subdomains no folder was served on, and
+// refuses every other host.
 func hostRouter(h hosts) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		kind, siteID := h.classify(string(c.Request().Host()))
 		switch kind {
 		case hostApp:
 			return c.Next()
+		case hostMCP:
+			if slices.Contains(_mcpHostPaths, c.Path()) {
+				return c.Next()
+			}
+			return sendJSONError(c, fiber.StatusNotFound, "not found")
 		case hostSite:
 			c.Locals(LocalSiteID, siteID)
 			// Live folders were answered before this check, when

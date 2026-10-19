@@ -97,6 +97,7 @@ func TestFromGetAuthConfigResponseEntityToHTTPResponse(t *testing.T) {
 	assert.JSONEq(t, `{"providers":[{"id":"okta","name":"Okta","icon":"<svg/>"}]}`, string(FromGetAuthConfigResponseEntityToHTTPResponse(
 		&entity.GetAuthConfigResponse{Providers: []entity.AuthProvider{{ID: "okta", Name: "Okta", Icon: "<svg/>"}}})))
 	assert.JSONEq(t, `{"providers":[]}`, string(FromGetAuthConfigResponseEntityToHTTPResponse(&entity.GetAuthConfigResponse{})))
+	assert.JSONEq(t, `{"providers":[],"mcpUrl":"https://mcp.t.io/mcp"}`, string(FromGetAuthConfigResponseEntityToHTTPResponse(&entity.GetAuthConfigResponse{MCPURL: "https://mcp.t.io/mcp"})))
 }
 
 func TestFromErrorToHTTPResponse(t *testing.T) {

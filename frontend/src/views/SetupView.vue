@@ -157,6 +157,20 @@ function callbackUrl(provider) {
   return `${form.value.domain.appUrl.replace(/\/+$/, '')}/auth/${providerSlug(provider.name)}/callback`
 }
 
+// mcpUrlHint is where MCP clients connect: the MCP domain with the app URL's
+// scheme and port, as the server builds it, or below the app URL.
+function mcpUrlHint() {
+  const appUrl = form.value.domain.appUrl.trim().replace(/\/+$/, '')
+  const domain = (form.value.domain.mcpDomain || '').trim().toLowerCase().replace(/^\.+|\.+$/g, '')
+  if (!domain) return `${appUrl}/mcp`
+  try {
+    const url = new URL(appUrl)
+    return `${url.protocol}//${domain}${url.port ? `:${url.port}` : ''}/mcp`
+  } catch {
+    return `https://${domain}/mcp`
+  }
+}
+
 function providerSecretSet(provider) {
   return Boolean(secretsSet.value.providerClientSecrets?.[providerSlug(provider.name)])
 }
@@ -285,6 +299,14 @@ onMounted(refresh)
                 <input id="sites-domain" v-model="form.domain.sitesDomain" placeholder="tmphost.io" :class="INPUT" />
                 <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500">
                   Dynamic subdomains are served as the folder ID, 8 base36 characters, under it, e.g. 1a2b3c4d.tmphost.io. Leave blank to disable.
+                </p>
+              </div>
+              <div>
+                <label for="mcp-domain" :class="LABEL">MCP domain</label>
+                <input id="mcp-domain" v-model="form.domain.mcpDomain" placeholder="mcp.tmphost.io" :class="INPUT" />
+                <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500" data-test="setup-mcp-url">
+                  MCP clients connect to {{ mcpUrlHint() }}. This host serves only the MCP endpoint and gets its own certificate
+                  when TLS is on. Leave blank to serve MCP at the app URL only.
                 </p>
               </div>
               <div>

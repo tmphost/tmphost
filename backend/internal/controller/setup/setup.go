@@ -54,8 +54,9 @@ const (
 )
 
 var (
-	_hostnameRE = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
-	_notSlugRE  = regexp.MustCompile(`[^a-z0-9]+`)
+	_hostnameRE  = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
+	_notSlugRE   = regexp.MustCompile(`[^a-z0-9]+`)
+	_siteLabelRE = regexp.MustCompile(`^[a-z0-9]{8}$`)
 	// _builtinProviders are the provider IDs custom providers cannot take.
 	_builtinProviders = map[string]bool{"google": true, "github": true}
 )
@@ -321,6 +322,7 @@ func normalize(s entity.Settings) entity.Settings {
 	s.Auth.GitHub.ClientID = t(s.Auth.GitHub.ClientID)
 	s.Domain.AppURL = normalizeAppURL(t(s.Domain.AppURL))
 	s.Domain.SitesDomain = strings.Trim(strings.TrimPrefix(strings.ToLower(t(s.Domain.SitesDomain)), "*."), ".")
+	s.Domain.MCPDomain = strings.Trim(strings.ToLower(t(s.Domain.MCPDomain)), ".")
 	s.Domain.AllowedOrigins = normalizeOrigins(s.Domain.AllowedOrigins)
 	if s.TLS.Port == 0 {
 		s.TLS.Port = DefaultTLSPort
@@ -382,6 +384,12 @@ func AppHost(appURL string) string {
 		return ""
 	}
 	return u.Hostname()
+}
+
+// IsSiteLabel reports whether label is a folder subdomain's label: a folder
+// ID, 8 lowercase letters or digits.
+func IsSiteLabel(label string) bool {
+	return _siteLabelRE.MatchString(label)
 }
 
 func validate(s entity.Settings) error {
@@ -453,6 +461,9 @@ func validateDomain(d entity.DomainSettings) error {
 	if d.SitesDomain != "" && !_hostnameRE.MatchString(d.SitesDomain) {
 		return errors.New("sites domain must be a domain name, e.g. tmphost.io")
 	}
+	if err := validateMCPDomain(d); err != nil {
+		return err
+	}
 	if len(d.AllowedOrigins) > _maxOrigins {
 		return fmt.Errorf("at most %d allowed origins", _maxOrigins)
 	}
@@ -460,6 +471,25 @@ func validateDomain(d entity.DomainSettings) error {
 		if !isOrigin(o) {
 			return fmt.Errorf("allowed origin %q must be an http(s) origin with no path, e.g. https://tmphost.io", o)
 		}
+	}
+	return nil
+}
+
+// validateMCPDomain checks the MCP domain is a host of its own: not the app
+// host, and not a host folders are served on.
+func validateMCPDomain(d entity.DomainSettings) error {
+	m := d.MCPDomain
+	if m == "" {
+		return nil
+	}
+	if !_hostnameRE.MatchString(m) || !strings.Contains(m, ".") {
+		return errors.New("MCP domain must be a domain name, e.g. mcp.tmphost.io")
+	}
+	if m == strings.ToLower(AppHost(d.AppURL)) {
+		return errors.New("MCP domain must differ from the app URL's host; leave it empty to serve MCP at the app URL")
+	}
+	if label, ok := strings.CutSuffix(m, "."+d.SitesDomain); ok && d.SitesDomain != "" && IsSiteLabel(label) {
+		return errors.New("MCP domain looks like a folder subdomain of the sites domain; pick another name, e.g. mcp." + d.SitesDomain)
 	}
 	return nil
 }

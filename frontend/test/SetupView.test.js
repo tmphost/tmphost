@@ -352,6 +352,26 @@ describe('SetupView', () => {
     })
   })
 
+  it('sets the MCP domain and shows the MCP URL clients connect to', async () => {
+    fetchSettings.mockResolvedValue(state())
+    saveSettings.mockImplementation(async (settings) => state({ settings }))
+    const wrapper = await mountView()
+    const hint = () => wrapper.find('[data-test="setup-mcp-url"]').text()
+    expect(wrapper.find('#mcp-domain').element.value).toBe('')
+    expect(hint()).toContain('https://app.tmphost.io/mcp')
+
+    await wrapper.find('#mcp-domain').setValue(' MCP.tmphost.io. ')
+    expect(hint()).toContain('https://mcp.tmphost.io/mcp')
+    await wrapper.find('#app-url').setValue('http://app.example.org:8443')
+    expect(hint()).toContain('http://mcp.tmphost.io:8443/mcp')
+    await wrapper.find('#app-url').setValue('not a url')
+    expect(hint()).toContain('https://mcp.tmphost.io/mcp')
+
+    await wrapper.find('[data-test="setup-form"]').trigger('submit')
+    await flushPromises()
+    expect(saveSettings.mock.calls[0][0].domain.mcpDomain).toBe(' MCP.tmphost.io. ')
+  })
+
   it('saves no allowed origins when none are set', async () => {
     const empty = state()
     empty.settings.domain = { appUrl: 'https://app.tmphost.io', sitesDomain: '', allowedOrigins: null }

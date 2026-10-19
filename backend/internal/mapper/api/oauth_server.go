@@ -35,6 +35,12 @@ func FromGetOAuthServerMetadataResponseEntityToHTTPResponse(rs *entity.GetOAuthS
 	})
 }
 
+// FromHTTPRequestToGetProtectedResourceMetadataRequestEntity reads the
+// host the metadata is asked on.
+func FromHTTPRequestToGetProtectedResourceMetadataRequestEntity(c fiber.Ctx) *entity.GetProtectedResourceMetadataRequest {
+	return &entity.GetProtectedResourceMetadataRequest{Host: string(c.Request().Host())}
+}
+
 // FromGetProtectedResourceMetadataResponseEntityToHTTPResponse maps the
 // protected resource metadata.
 func FromGetProtectedResourceMetadataResponseEntityToHTTPResponse(rs *entity.GetProtectedResourceMetadataResponse) []byte {

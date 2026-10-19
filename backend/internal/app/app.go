@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -77,6 +78,9 @@ type (
 		// SitesDomain is the parent domain of the dynamic subdomains
 		// (<8 characters>.<SitesDomain>); empty disables them.
 		SitesDomain string `yaml:"sitesDomain"`
+		// MCPDomain is a host that serves only the MCP endpoint, at
+		// <scheme>://<MCPDomain>/mcp; empty serves it only below BaseURL.
+		MCPDomain string `yaml:"mcpDomain"`
 		// BasePath is the path prefix browsers reach the app under when a
 		// proxy strips it before forwarding ("" or "/x").
 		BasePath     string `yaml:"basePath"`
@@ -245,6 +249,7 @@ func New(cfg Config, web fs.FS) (*App, error) {
 	ids := idgen.New(cfg.IDGen.Node)
 	basePath := strings.TrimRight(cfg.App.BasePath, "/")
 	baseURL := strings.TrimRight(cfg.App.BaseURL, "/")
+	mcpURL := mcpEndpointURL(baseURL, cfg.App.MCPDomain)
 	auth := authctrl.New(authctrl.Params{
 		Providers:      providers(cfg),
 		Token:          tokens,
@@ -255,6 +260,7 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		BasePath:       basePath,
 		BaseURL:        baseURL,
 		AllowedOrigins: setup.AllowedOrigins,
+		MCPURL:         mcpURL,
 	})
 	folders := folderctrl.New(folderctrl.Params{
 		Folders:   repository.NewFolderRepository(db),
@@ -268,7 +274,7 @@ func New(cfg Config, web fs.FS) (*App, error) {
 	// folder controller enforces the real limit on the decoded bytes.
 	bodyLimit := cfg.Files.MaxUploadMB<<20*4/3 + 1<<20
 
-	h := newHosts(cfg.App.BaseURL, cfg.App.SitesDomain)
+	h := newHosts(cfg.App.BaseURL, cfg.App.SitesDomain, cfg.App.MCPDomain)
 	f := fiber.New(fiberConfig(cfg.App, bodyLimit))
 	f.Use(recover.New())
 	credits := credit.New(credit.Params{Users: users, Grant: setup.MonthlyGrant})
@@ -278,7 +284,7 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		Auth:           auth,
 		Setup:          setup,
 		Folders:        folders,
-		OAuth:          oauthctrl.New(oauthctrl.Params{Token: tokens, Users: users, Issuer: baseURL, Resource: baseURL + MCPPath}),
+		OAuth:          oauthctrl.New(oauthctrl.Params{Token: tokens, Users: users, Issuer: baseURL, Resource: baseURL + MCPPath, MCPResource: mcpURL}),
 		Credits:        credits,
 		FileSettings:   setup.FileLimits,
 		AllowedOrigins: setup.AllowedOrigins,
@@ -287,12 +293,15 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		// http.
 		CookieSecure: cfg.App.CookieSecure || strings.HasPrefix(cfg.App.BaseURL, "https://"),
 	})
-	f.All(MCPPath, adaptor.HTTPHandler(mcphandler.New(mcphandler.Params{
-		Folders:             folders,
-		Auth:                auth,
-		MaxBodyBytes:        int64(bodyLimit),
-		ResourceMetadataURL: baseURL + api.ResourceMetadataPath + MCPPath,
-	})))
+	newMCP := func(origin string) fiber.Handler {
+		return adaptor.HTTPHandler(mcphandler.New(mcphandler.Params{
+			Folders:             folders,
+			Auth:                auth,
+			MaxBodyBytes:        int64(bodyLimit),
+			ResourceMetadataURL: origin + api.ResourceMetadataPath + MCPPath,
+		}))
+	}
+	f.All(MCPPath, mcpRouter(h, newMCP(baseURL), newMCP(strings.TrimSuffix(mcpURL, MCPPath))))
 	f.Get("/*", spaHandler(web, basePath))
 
 	a := &App{
@@ -310,6 +319,31 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		a.setupTLS(cfg, enc, h)
 	}
 	return a, nil
+}
+
+// mcpEndpointURL is the MCP endpoint on the MCP domain, with the app URL's
+// scheme and port, or "" without an MCP domain (or a usable app URL).
+func mcpEndpointURL(baseURL, mcpDomain string) string {
+	u, err := url.Parse(baseURL)
+	if mcpDomain == "" || err != nil {
+		return ""
+	}
+	host := strings.ToLower(mcpDomain)
+	if port := u.Port(); port != "" {
+		host = net.JoinHostPort(host, port)
+	}
+	return u.Scheme + "://" + host + MCPPath
+}
+
+// mcpRouter serves the MCP endpoint with the resource metadata URL of the
+// host it is asked on.
+func mcpRouter(h hosts, onApp, onMCP fiber.Handler) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		if h.isMCP(string(c.Request().Host())) {
+			return onMCP(c)
+		}
+		return onApp(c)
+	}
 }
 
 // fiberConfig is the app server's config. With trusted proxies, c.IP() is

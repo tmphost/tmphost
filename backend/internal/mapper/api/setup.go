@@ -67,7 +67,7 @@ func FromUpdateSettingsResponseEntityToHTTPResponse(rs *entity.UpdateSettingsRes
 // FromSettingsViewToSettingsEntity maps request settings to the domain.
 func FromSettingsViewToSettingsEntity(v view.Settings) entity.Settings {
 	return entity.Settings{
-		Domain: entity.DomainSettings{AppURL: v.Domain.AppURL, SitesDomain: v.Domain.SitesDomain, AllowedOrigins: v.Domain.AllowedOrigins},
+		Domain: entity.DomainSettings{AppURL: v.Domain.AppURL, SitesDomain: v.Domain.SitesDomain, MCPDomain: v.Domain.MCPDomain, AllowedOrigins: v.Domain.AllowedOrigins},
 		TLS: entity.TLSSettings{
 			Enabled: v.TLS.Enabled,
 			Port:    v.TLS.Port,
@@ -111,7 +111,7 @@ func FromSettingsViewToSettingsEntity(v view.Settings) entity.Settings {
 // FromSettingsEntityToSettingsView maps domain settings to the response.
 func FromSettingsEntityToSettingsView(e entity.Settings) view.Settings {
 	return view.Settings{
-		Domain: view.DomainSettings{AppURL: e.Domain.AppURL, SitesDomain: e.Domain.SitesDomain, AllowedOrigins: e.Domain.AllowedOrigins},
+		Domain: view.DomainSettings{AppURL: e.Domain.AppURL, SitesDomain: e.Domain.SitesDomain, MCPDomain: e.Domain.MCPDomain, AllowedOrigins: e.Domain.AllowedOrigins},
 		TLS: view.TLSSettings{
 			Enabled: e.TLS.Enabled,
 			Port:    e.TLS.Port,

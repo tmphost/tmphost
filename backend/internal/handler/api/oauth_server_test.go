@@ -53,7 +53,7 @@ func TestOAuth_Metadata(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, body, `"issuer":"https://t.io"`)
 
-	e.oauth.EXPECT().GetProtectedResourceMetadata(gomock.Any()).Return(&entity.GetProtectedResourceMetadataResponse{Resource: "https://t.io/mcp"}).Times(2)
+	e.oauth.EXPECT().GetProtectedResourceMetadata(gomock.Any(), &entity.GetProtectedResourceMetadataRequest{Host: "example.com"}).Return(&entity.GetProtectedResourceMetadataResponse{Resource: "https://t.io/mcp"}).Times(2)
 	for _, path := range []string{ResourceMetadataPath, ResourceMetadataPath + "/mcp"} {
 		res, body = e.send(t, http.MethodGet, path, "", "", "")
 		assert.Equal(t, http.StatusOK, res.StatusCode)

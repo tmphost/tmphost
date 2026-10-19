@@ -165,3 +165,8 @@ func appPort(t *testing.T, a *App) int {
 }
 
 func itoaPort(n int) string { return strconv.Itoa(n) }
+
+func TestMCPHosts(t *testing.T) {
+	assert.Nil(t, mcpHosts(newHosts("https://app.example.com", "", "")))
+	assert.Equal(t, []string{"mcp.example.com"}, mcpHosts(newHosts("https://app.example.com", "", "MCP.example.com")))
+}

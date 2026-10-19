@@ -5,6 +5,7 @@
 package app
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,7 +17,7 @@ import (
 )
 
 func TestHostsClassify(t *testing.T) {
-	h := newHosts("https://App.Example.com", "Example.com")
+	h := newHosts("https://App.Example.com", "Example.com", "MCP.example.com")
 	assert.False(t, h.open)
 	cases := map[string]hostKind{
 		"app.example.com":           hostApp,
@@ -27,6 +28,8 @@ func TestHostsClassify(t *testing.T) {
 		"01234567.example.com":      hostSite,
 		"01234567.example.com:8443": hostSite,
 		"01234567.EXAMPLE.COM":      hostSite,
+		"mcp.example.com":           hostMCP,
+		"MCP.example.com:8443":      hostMCP,
 		"0123456.example.com":       hostUnknown, // 7 characters
 		"f01234567.example.com":     hostUnknown, // 9 characters
 		"0123456789.example.com":    hostUnknown, // 10 characters
@@ -46,7 +49,7 @@ func TestHostsClassify(t *testing.T) {
 	// An app URL on this machine or an IP answers any host, as in
 	// development; dynamic subdomains still win.
 	for _, appURL := range []string{"http://localhost:2027", "http://192.168.1.2:2027"} {
-		open := newHosts(appURL, "example.com")
+		open := newHosts(appURL, "example.com", "")
 		assert.True(t, open.open)
 		kind, _ := open.classify("anything.lan")
 		assert.Equal(t, hostApp, kind)
@@ -56,9 +59,11 @@ func TestHostsClassify(t *testing.T) {
 
 	assert.True(t, h.isSite("01234567.example.com"))
 	assert.False(t, h.isSite("app.example.com"))
+	assert.True(t, h.isMCP("mcp.example.com"))
+	assert.False(t, h.isMCP("app.example.com"))
 
 	// No sites domain, no dynamic subdomains.
-	kind, _ := newHosts("https://app.example.com", "").classify("01234567.example.com")
+	kind, _ := newHosts("https://app.example.com", "", "").classify("01234567.example.com")
 	assert.Equal(t, hostUnknown, kind)
 }
 
@@ -91,6 +96,10 @@ func TestHostRouter(t *testing.T) {
 	assert.Equal(t, fiber.MIMEApplicationJSON, res.Header.Get(fiber.HeaderContentType))
 	assert.JSONEq(t, `{"error":"host not allowed"}`, body)
 
+	// Without an MCP domain, no host serves only MCP.
+	res, _ = request("mcp.example.com")
+	assert.Equal(t, http.StatusNotFound, res.StatusCode)
+
 	// An https app URL makes the cookies Secure.
 	logout := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
 	logout.Host = "app.example.com"
@@ -101,7 +110,7 @@ func TestHostRouter(t *testing.T) {
 }
 
 func TestHTTPSRedirect(t *testing.T) {
-	h := newHosts("https://app.example.com", "example.com")
+	h := newHosts("https://app.example.com", "example.com", "mcp.example.com")
 	cases := []struct {
 		host string
 		port int
@@ -110,6 +119,7 @@ func TestHTTPSRedirect(t *testing.T) {
 		{"app.example.com", 443, "https://app.example.com/x?y=1"},
 		{"app.example.com:2027", 8443, "https://app.example.com:8443/x?y=1"},
 		{"01234567.example.com", 443, "https://01234567.example.com/x?y=1"},
+		{"mcp.example.com", 443, "https://mcp.example.com/x?y=1"},
 	}
 	for _, tc := range cases {
 		req := httptest.NewRequest(http.MethodGet, "/x?y=1", nil)
@@ -125,4 +135,59 @@ func TestHTTPSRedirect(t *testing.T) {
 	res, err := httpsRedirect(h, 443).Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
+}
+
+func TestMCPHost(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.App.BaseURL = "https://app.example.com:8443"
+	cfg.App.SitesDomain = "example.com"
+	cfg.App.MCPDomain = "mcp.example.com"
+	a, err := New(cfg, fstest.MapFS{})
+	require.NoError(t, err)
+
+	request := func(method, host, path string) (*http.Response, string) {
+		req := httptest.NewRequest(method, path, nil)
+		req.Host = host
+		res, err := a.Handler().Test(req)
+		require.NoError(t, err)
+		b, _ := io.ReadAll(res.Body)
+		return res, string(b)
+	}
+
+	// The MCP host serves the endpoint and its OAuth metadata only.
+	res, body := request(http.MethodGet, "mcp.example.com:8443", "/.well-known/oauth-protected-resource/mcp")
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Contains(t, body, `"resource":"https://mcp.example.com:8443/mcp"`)
+	assert.Contains(t, body, `"authorization_servers":["https://app.example.com:8443"]`)
+	res, body = request(http.MethodGet, "mcp.example.com:8443", "/.well-known/oauth-authorization-server")
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Contains(t, body, `"issuer":"https://app.example.com:8443"`)
+	res, _ = request(http.MethodPost, "mcp.example.com:8443", "/mcp")
+	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	assert.Contains(t, res.Header.Get("WWW-Authenticate"), "https://mcp.example.com:8443/.well-known/oauth-protected-resource/mcp")
+	for _, path := range []string{"/", "/auth/config", "/api/v1/limits", "/oauth2/token", "/files/x/y/"} {
+		res, body = request(http.MethodGet, "mcp.example.com:8443", path)
+		assert.Equal(t, http.StatusNotFound, res.StatusCode, path)
+		assert.JSONEq(t, `{"error":"not found"}`, body, path)
+	}
+
+	// The app host keeps serving MCP, with its own resource.
+	res, body = request(http.MethodGet, "app.example.com:8443", "/.well-known/oauth-protected-resource/mcp")
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Contains(t, body, `"resource":"https://app.example.com:8443/mcp"`)
+	res, _ = request(http.MethodPost, "app.example.com:8443", "/mcp")
+	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	assert.Contains(t, res.Header.Get("WWW-Authenticate"), "https://app.example.com:8443/.well-known/oauth-protected-resource/mcp")
+
+	// The web app learns the MCP URL from /auth/config.
+	res, body = request(http.MethodGet, "app.example.com:8443", "/auth/config")
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Contains(t, body, `"mcpUrl":"https://mcp.example.com:8443/mcp"`)
+}
+
+func TestMCPEndpointURL(t *testing.T) {
+	assert.Empty(t, mcpEndpointURL("https://app.example.com", ""))
+	assert.Empty(t, mcpEndpointURL("://bad", "mcp.example.com"))
+	assert.Equal(t, "https://mcp.example.com/mcp", mcpEndpointURL("https://app.example.com", "MCP.example.com"))
+	assert.Equal(t, "http://mcp.example.com:2027/mcp", mcpEndpointURL("http://app.example.com:2027", "mcp.example.com"))
 }

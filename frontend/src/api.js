@@ -42,6 +42,15 @@ export async function fetchAuthConfig() {
   return body.providers
 }
 
+// fetchMcpUrl returns the MCP endpoint's URL when the server serves it on an
+// MCP domain of its own, or '' when it lives below the app URL.
+export async function fetchMcpUrl() {
+  const res = await fetch(`${BASE_PATH}/auth/config`)
+  if (!res.ok) throw new Error(`Failed to load the server config (${res.status})`)
+  const body = await res.json()
+  return body.mcpUrl || ''
+}
+
 // providerLoginUrl is the server route that starts an OAuth round trip.
 // redirect is an in-app path to land on afterwards.
 export function providerLoginUrl(provider, redirect) {

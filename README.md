@@ -47,7 +47,8 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
 ## MCP, CLI and OAuth
 
 - `/mcp` is a stateless MCP server with one tool, `file` (actions `upload`,
-  `download`, `get`, `url`). The `tmphost` CLI in [cli/](cli/) mirrors it.
+  `download`, `get`, `url`), on the app URL and, when set, on the MCP domain
+  (`https://<mcp domain>/mcp`). The `tmphost` CLI in [cli/](cli/) mirrors it.
   File content travels as `base64Content` (the default) or, when the
   `format` argument asks for it, as UTF-8 `textContent`.
 - Both sign in with tmphost's own OAuth 2.1 server: dynamic client
@@ -111,12 +112,15 @@ can change the sign-up and monthly credit grants, the maximum TTL and the public
 - **Domains**: the app URL (default `http://localhost:2027`; e.g.
   `https://app.tmphost.io`, any domain or subdomain) and the sites domain
   (e.g. `tmphost.io`) whose dynamic subdomains `<8 characters>.<sites domain>`
-  the server answers. Other hosts get a 404; localhost always reaches the app.
+  the server answers, and an optional MCP domain (e.g. `mcp.tmphost.io`,
+  `TMPHOSTIO_MCP_DOMAIN`) that serves only `/mcp` and its OAuth metadata, so
+  MCP clients connect to `https://mcp.tmphost.io/mcp`. Other hosts get a 404;
+  localhost always reaches the app.
 - **TLS**: serve HTTPS on its own port (default 443) and redirect the app port
   to it. Certificates come from Let's Encrypt automatically (lego, TLS-ALPN-01
   challenge, so Let's Encrypt must reach the server on port 443), are renewed
   when under 30 days and cached encrypted next to the settings file.
-  - App host: always gets its own certificate.
+  - App host and MCP domain: each always gets its own certificate.
   - Dynamic subdomains (switchable): each gets its own certificate on its first
     visit (Let's Encrypt allows about 50 new ones per week per registered
     domain), or, with an optional Cloudflare API token, one `*.<sites domain>`
