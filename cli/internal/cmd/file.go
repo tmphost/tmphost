@@ -20,15 +20,18 @@ import (
 // fileOutput mirrors the MCP file tool's FileOutput, so scripts read the
 // same fields whether they call the CLI with --json or the tool.
 type fileOutput struct {
-	ID           string     `json:"id,omitempty"`
-	URL          string     `json:"url,omitempty"`
-	ExpiresAt    string     `json:"expiresAt,omitempty"`
-	FileName     string     `json:"fileName,omitempty"`
-	Path         string     `json:"path,omitempty"`
-	Size         int64      `json:"size,omitempty"`
-	CreditsSpent int        `json:"creditsSpent,omitempty"`
-	Content      string     `json:"content,omitempty"`
-	Files        []fileInfo `json:"files,omitempty"`
+	ID           string `json:"id,omitempty"`
+	URL          string `json:"url,omitempty"`
+	ExpiresAt    string `json:"expiresAt,omitempty"`
+	FileName     string `json:"fileName,omitempty"`
+	Path         string `json:"path,omitempty"`
+	Size         int64  `json:"size,omitempty"`
+	CreditsSpent int    `json:"creditsSpent,omitempty"`
+	// Base64Content and TextContent are pointers so an empty file still
+	// carries its (empty) content field.
+	Base64Content *string    `json:"base64Content,omitempty"`
+	TextContent   *string    `json:"textContent,omitempty"`
+	Files         []fileInfo `json:"files,omitempty"`
 }
 
 // fileInfo mirrors the MCP FileInfo: a file split into directory and name.

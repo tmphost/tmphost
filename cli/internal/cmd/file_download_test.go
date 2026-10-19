@@ -26,6 +26,10 @@ func newDownloadHarness(t *testing.T) *harness {
 		w.Header().Set("Content-Length", "100")
 		_, _ = w.Write([]byte("hi"))
 	})
+	h.mux.HandleFunc("GET /api/v1/folders/rs/files/bin.dat", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte{0xff, 0xfe})
+	})
+	h.mux.HandleFunc("GET /api/v1/folders/rs/files/empty.txt", func(w http.ResponseWriter, r *http.Request) {})
 	h.reply("GET /api/v1/folders/rs/files/nope.txt", 404, `{"error":"file not found"}`)
 	t.Chdir(t.TempDir())
 	return h
@@ -64,8 +68,17 @@ func TestFileDownload_stdout(t *testing.T) {
 	assert.Equal(t, 0, h.run("file", "download", "--id", "rs", "--path", "site", "a.txt", "-o", "-", "--json"))
 	assert.Equal(t, map[string]any{
 		"id": "rs", "fileName": "a.txt", "path": "site", "size": float64(5),
-		"content": base64.StdEncoding.EncodeToString([]byte("hello")),
+		"base64Content": base64.StdEncoding.EncodeToString([]byte("hello")),
 	}, h.decode())
+
+	assert.Equal(t, 0, h.run("file", "download", "--id", "rs", "--path", "site", "a.txt", "-o", "-", "--json", "--format", "textContent"))
+	assert.Equal(t, map[string]any{"id": "rs", "fileName": "a.txt", "path": "site", "size": float64(5), "textContent": "hello"}, h.decode())
+
+	assert.Equal(t, 0, h.run("file", "download", "--id", "rs", "empty.txt", "-o", "-", "--json", "--format", "textContent"))
+	assert.Equal(t, map[string]any{"id": "rs", "fileName": "empty.txt", "textContent": ""}, h.decode(), "an empty file still carries its content field")
+
+	assert.Equal(t, 1, h.run("file", "download", "--id", "rs", "bin.dat", "-o", "-", "--json", "--format", "textContent"))
+	assert.Equal(t, "error: bin.dat is not UTF-8 text: use --format base64Content\n", h.stderr.String())
 
 	assert.Equal(t, 1, h.run("file", "download", "--id", "rs", "short.bin", "-o", "-", "--json"))
 	assert.Contains(t, h.stderr.String(), "unexpected EOF")
@@ -95,4 +108,7 @@ func TestFileDownload_errors(t *testing.T) {
 
 	assert.Equal(t, 1, h.run("file", "download", "--id", "rs"))
 	assert.Contains(t, h.stderr.String(), "accepts 1 arg")
+
+	assert.Equal(t, 1, h.run("file", "download", "--id", "rs", "a.txt", "--format", "hex"))
+	assert.Equal(t, "error: --format must be base64Content or textContent\n", h.stderr.String())
 }

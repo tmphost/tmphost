@@ -66,7 +66,7 @@ tmphost whoami
 | `tmphost logout` | Forget the saved tokens |
 | `tmphost whoami` | Show the user, credits and renewal time |
 | `tmphost file upload <local path>... [--id ID \| --ttl 30m] [--path DIR] [--name NAME]` | Upload files and print their URLs and the folder id |
-| `tmphost file download --id ID [--path DIR] <fileName> [-o OUT] [--force]` | Download a file (`-o -` for stdout) |
+| `tmphost file download --id ID [--path DIR] <fileName> [-o OUT] [--force] [--format FORMAT]` | Download a file (`-o -` for stdout) |
 | `tmphost file get --id ID` | List a folder's files |
 | `tmphost file url --id ID [--path DIR] [fileName]` | Print a folder, directory or file URL |
 | `tmphost file ls` | List your live folders |
@@ -75,6 +75,8 @@ tmphost whoami
 Global flags: `--json` prints JSON with the same fields as the MCP tool's
 output (`id`, `url`, `expiresAt`, `fileName`, `path`, `size`, `creditsSpent`,
 `files`), `--server` picks the server, `--version` prints the version.
+`download -o - --json` puts the file in `base64Content`, or as UTF-8 text in
+`textContent` with `--format textContent`.
 
 Uploading a directory keeps its name as a prefix (`site` uploads
 `site/index.html`), while `site/` or `.` uploads only its contents, like
@@ -104,6 +106,12 @@ and `url`) at `<server>/mcp`, for AI agents:
 
 MCP clients that support OAuth sign in through the browser the first time
 they connect.
+
+File content travels in one of two fields, picked by the tool's `format`
+argument: `base64Content` (the default, for any file) or `textContent` (UTF-8
+text sent as is, handy for HTML, CSS or JSON). `upload` reads the field that
+`format` names and `download` fills it; a download as `textContent` fails for
+a file that isn't UTF-8 text.
 
 ## Development
 

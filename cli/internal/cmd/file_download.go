@@ -12,23 +12,28 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 )
 
 func newFileDownloadCmd(a *app) *cobra.Command {
-	var id, dir, out string
+	var id, dir, out, format string
 	var force bool
 	c := &cobra.Command{
-		Use:   "download --id ID [--path DIR] <fileName> [-o OUT]",
+		Use:   "download --id ID [--path DIR] <fileName> [-o OUT] [--format FORMAT]",
 		Short: "Download a file",
 		Long: `Download a file from a folder to -o, or to ./<fileName> by default.
 
 An existing file is not overwritten unless --force is given. "-o -" writes
-the bytes to stdout; combined with --json the content is base64 in the JSON
-instead, as in the MCP download action.`,
+the bytes to stdout; combined with --json the content goes in the JSON
+instead, as in the MCP download action: in base64Content by default, or as
+UTF-8 text in textContent with --format textContent.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if format != formatBase64 && format != formatText {
+				return fmt.Errorf("--format must be %s or %s", formatBase64, formatText)
+			}
 			p, err := filePath(dir, args[0])
 			if err != nil {
 				return err
@@ -36,18 +41,25 @@ instead, as in the MCP download action.`,
 			if out == "" {
 				out = args[0]
 			}
-			return a.download(cmd.Context(), id, p, out, force)
+			return a.download(cmd.Context(), id, p, out, format, force)
 		},
 	}
 	c.Flags().StringVar(&id, "id", "", "folder id")
 	c.Flags().StringVar(&dir, "path", "", "directory of the file inside the folder")
 	c.Flags().StringVarP(&out, "output", "o", "", `where to write the file ("-" for stdout; default ./NAME)`)
 	c.Flags().BoolVar(&force, "force", false, "overwrite an existing output file")
+	c.Flags().StringVar(&format, "format", formatBase64, "JSON content field with -o - --json: base64Content or textContent")
 	_ = c.MarkFlagRequired("id")
 	return c
 }
 
-func (a *app) download(ctx context.Context, id, p, out string, force bool) error {
+// The content formats of a JSON download, as in the MCP tool.
+const (
+	formatBase64 = "base64Content"
+	formatText   = "textContent"
+)
+
+func (a *app) download(ctx context.Context, id, p, out, format string, force bool) error {
 	c, err := a.client()
 	if err != nil {
 		return err
@@ -70,7 +82,16 @@ func (a *app) download(ctx context.Context, id, p, out string, force bool) error
 			return err
 		}
 		res.Size = int64(len(data))
-		res.Content = base64.StdEncoding.EncodeToString(data)
+		if format == formatText {
+			if !utf8.Valid(data) {
+				return fmt.Errorf("%s is not UTF-8 text: use --format %s", p, formatBase64)
+			}
+			text := string(data)
+			res.TextContent = &text
+		} else {
+			encoded := base64.StdEncoding.EncodeToString(data)
+			res.Base64Content = &encoded
+		}
 		return a.output(res, nil)
 	}
 
