@@ -21,6 +21,7 @@ import (
 	"github.com/tmphost/tmphost/backend/internal/repository"
 	mockrepo "github.com/tmphost/tmphost/backend/internal/repository/mocks"
 	"github.com/tmphost/tmphost/backend/internal/service/idgen"
+	"github.com/tmphost/tmphost/backend/internal/service/quota"
 	"github.com/tmphost/tmphost/backend/internal/service/storage"
 	mockstorage "github.com/tmphost/tmphost/backend/internal/service/storage/mocks"
 )
@@ -51,13 +52,14 @@ func newEnv(t *testing.T) *env {
 		limits:  entity.FileSettings{MaxTTLMinutes: 120, MaxUploadMB: 1, Subdomains: true, PublicDomain: "tmp.host"},
 	}
 	e.ctrl = New(Params{
-		Folders: e.folders,
-		Users:   e.users,
-		Storage: e.storage,
-		NewID:   func() int64 { return e.nextID },
-		Limits:  func() entity.FileSettings { return e.limits },
-		BaseURL: "https://tmphost.io/base/",
-		Now:     func() time.Time { return _now },
+		Folders:   e.folders,
+		Users:     e.users,
+		Storage:   e.storage,
+		Anonymous: quota.New(quota.Params{Limit: AnonymousOps, Window: AnonymousWindow, Now: func() time.Time { return _now }}),
+		NewID:     func() int64 { return e.nextID },
+		Limits:    func() entity.FileSettings { return e.limits },
+		BaseURL:   "https://tmphost.io/base/",
+		Now:       func() time.Time { return _now },
 	})
 	return e
 }
@@ -100,7 +102,87 @@ func TestGetLimits(t *testing.T) {
 	e := newEnv(t)
 	assert.Equal(t, &entity.GetLimitsResponse{
 		DefaultTTLMinutes: 30, MaxTTLMinutes: 120, MaxUploadBytes: 1 << 20, BillingBlockMinutes: 30,
-	}, e.ctrl.GetLimits(context.Background()))
+	}, e.ctrl.GetLimits(context.Background(), &entity.GetLimitsRequest{}))
+	assert.Equal(t, &entity.GetLimitsResponse{
+		DefaultTTLMinutes: 30, MaxTTLMinutes: 30, MaxUploadBytes: 4 << 20, BillingBlockMinutes: 30,
+		Anonymous: true, FileOps: 5, FileOpsWindowMinutes: 30,
+	}, e.ctrl.GetLimits(context.Background(), &entity.GetLimitsRequest{Anonymous: true}))
+}
+
+func TestCreateFolder_Anonymous(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	e.nextID = 1000
+	_, err := e.ctrl.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: 7, Anonymous: true, TTLMinutes: 31})
+	assert.ErrorIs(t, err, ErrInvalidTTL, "anonymous folders live at most 30 minutes")
+
+	e.folders.EXPECT().CreateFolder(ctx, gomock.Any()).Return(model.Folder{}, errBoom)
+	_, err = e.ctrl.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: 7, Anonymous: true})
+	assert.ErrorIs(t, err, errBoom)
+
+	e.folders.EXPECT().CreateFolder(ctx, gomock.Any()).
+		DoAndReturn(func(_ context.Context, f model.Folder) (model.Folder, error) { return f, nil }).Times(AnonymousOps)
+	for range AnonymousOps {
+		_, err = e.ctrl.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: 7, Anonymous: true})
+		require.NoError(t, err, "a failed create gives its folder back")
+	}
+	_, err = e.ctrl.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: 7, Anonymous: true})
+	assert.ErrorIs(t, err, ErrQuotaExceeded)
+
+	e.folders.EXPECT().CreateFolder(ctx, gomock.Any()).
+		DoAndReturn(func(_ context.Context, f model.Folder) (model.Folder, error) { return f, nil })
+	_, err = e.ctrl.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: 8, Anonymous: true})
+	require.NoError(t, err, "each user has their own quota")
+}
+
+func TestPutFiles_Anonymous(t *testing.T) {
+	ctx := context.Background()
+	put := func(e *env, files ...entity.FileUpload) (*entity.PutFilesResponse, error) {
+		return e.ctrl.PutFiles(ctx, &entity.PutFilesRequest{UserID: 7, Anonymous: true, FolderID: 1000, Files: files})
+	}
+
+	t.Run("quota, not credits", func(t *testing.T) {
+		e := newEnv(t)
+		e.liveFolder(30 * time.Minute)
+		e.storage.EXPECT().Put(ctx, _prefix+"a", gomock.Any()).Return(nil)
+		e.storage.EXPECT().Put(ctx, _prefix+"b", gomock.Any()).Return(nil)
+		rs, err := put(e, entity.FileUpload{Path: "a", Data: make([]byte, 2<<20)}, entity.FileUpload{Path: "b", Data: make([]byte, 2<<20)})
+		require.NoError(t, err, "4 MB, over the signed-in limit of 1 MB")
+		assert.Zero(t, rs.CreditsSpent)
+		assert.Len(t, rs.Files, 2)
+
+		e.liveFolder(30 * time.Minute)
+		_, err = put(e, entity.FileUpload{Path: "c"}, entity.FileUpload{Path: "d"}, entity.FileUpload{Path: "e"}, entity.FileUpload{Path: "f"})
+		assert.ErrorIs(t, err, ErrQuotaExceeded, "2 + 4 is over 5")
+
+		e.liveFolder(30 * time.Minute)
+		e.storage.EXPECT().Put(ctx, gomock.Any(), gomock.Any()).Return(nil).Times(3)
+		_, err = put(e, entity.FileUpload{Path: "c"}, entity.FileUpload{Path: "d"}, entity.FileUpload{Path: "e"})
+		require.NoError(t, err)
+
+		e.liveFolder(30 * time.Minute)
+		_, err = put(e, entity.FileUpload{Path: "g"})
+		assert.ErrorIs(t, err, ErrQuotaExceeded)
+	})
+	t.Run("too large", func(t *testing.T) {
+		e := newEnv(t)
+		_, err := put(e, entity.FileUpload{Path: "a", Data: make([]byte, 4<<20+1)})
+		assert.ErrorIs(t, err, ErrTooLarge)
+	})
+	t.Run("write failure gives the rest back", func(t *testing.T) {
+		e := newEnv(t)
+		e.liveFolder(30 * time.Minute)
+		e.storage.EXPECT().Put(ctx, _prefix+"a", gomock.Any()).Return(nil)
+		e.storage.EXPECT().Put(ctx, _prefix+"b", gomock.Any()).Return(errBoom)
+		_, err := put(e, entity.FileUpload{Path: "a"}, entity.FileUpload{Path: "b"}, entity.FileUpload{Path: "c"})
+		assert.ErrorIs(t, err, errBoom)
+		assert.NotContains(t, err.Error(), "refund")
+
+		e.liveFolder(30 * time.Minute)
+		e.storage.EXPECT().Put(ctx, gomock.Any(), gomock.Any()).Return(nil).Times(4)
+		_, err = put(e, entity.FileUpload{Path: "b"}, entity.FileUpload{Path: "c"}, entity.FileUpload{Path: "d"}, entity.FileUpload{Path: "e"})
+		require.NoError(t, err, "only the written file counts: 1 + 4")
+	})
 }
 
 func TestCreateFolder(t *testing.T) {

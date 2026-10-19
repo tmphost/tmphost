@@ -11,6 +11,11 @@ type (
 		MaxTTLMinutes       int   `json:"maxTtlMinutes"`
 		MaxUploadBytes      int64 `json:"maxUploadBytes"`
 		BillingBlockMinutes int   `json:"billingBlockMinutes"`
+		// Anonymous visitors pay no credits; they may write at most FileOps
+		// files per FileOpsWindowMinutes instead.
+		Anonymous            bool `json:"anonymous,omitempty"`
+		FileOps              int  `json:"fileOps,omitempty"`
+		FileOpsWindowMinutes int  `json:"fileOpsWindowMinutes,omitempty"`
 	}
 
 	// Folder is a group of files that expire together.

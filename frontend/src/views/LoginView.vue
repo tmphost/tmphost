@@ -102,6 +102,13 @@ onMounted(async () => {
         </p>
       </div>
 
+      <p class="mt-6 text-center text-xs text-gray-500">
+        No account?
+        <router-link to="/upload" class="font-bold text-gray-900 hover:underline" data-test="login-upload">
+          Upload without signing in
+        </router-link>
+      </p>
+
       <div class="mt-8 pt-5 border-t border-gray-100 flex items-center justify-between text-[11px] font-bold text-gray-400">
         <span>&copy; {{ new Date().getFullYear() }} tmphost.io</span>
         <router-link to="/setup" class="hover:text-gray-900 transition-colors" data-test="login-setup">Setup</router-link>

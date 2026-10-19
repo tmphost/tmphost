@@ -94,12 +94,15 @@ func New(p Params) {
 	authn := Authenticate(p.Auth)
 	r.Get("/users/me", authn, user.Get)
 
-	r.Get("/limits", authn, folder.Limits)
-	r.Post("/folders", authn, folder.Create)
+	// Visitors of the web app may upload without signing in, with lower
+	// limits.
+	anyone := AuthenticateOrAnonymous(p.Auth)
+	r.Get("/limits", anyone, folder.Limits)
+	r.Post("/folders", anyone, folder.Create)
 	r.Get("/folders", authn, folder.List)
 	r.Get("/folders/:id", authn, folder.Get)
 	r.Delete("/folders/:id", authn, folder.Delete)
-	r.Put("/folders/:id/files/*", authn, folder.PutFile)
+	r.Put("/folders/:id/files/*", anyone, folder.PutFile)
 	r.Get("/folders/:id/files/*", authn, folder.GetFile)
 	r.Delete("/folders/:id/files/*", authn, folder.DeleteFile)
 

@@ -75,10 +75,89 @@ func (e *filesEnv) do(t *testing.T, method, target, body string) (*http.Response
 
 func TestFolder_Limits(t *testing.T) {
 	e := newFilesApp(t)
-	e.folders.EXPECT().GetLimits(gomock.Any()).Return(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 60, MaxUploadBytes: 1024, BillingBlockMinutes: 30})
+	e.folders.EXPECT().GetLimits(gomock.Any(), &entity.GetLimitsRequest{}).Return(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 60, MaxUploadBytes: 1024, BillingBlockMinutes: 30})
 	res, body := e.do(t, http.MethodGet, "/api/v1/limits", "")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":60,"maxUploadBytes":1024,"billingBlockMinutes":30}`, body)
+}
+
+// anonymous is a request without credentials from the web app at
+// https://tmphost.io, which the auth mock lets in as anonymous user 3.
+func (e *filesEnv) anonymous(t *testing.T, method, target, body string) (*http.Response, string) {
+	t.Helper()
+	e.auth.EXPECT().AuthenticateAnonymous(gomock.Any(), &entity.AuthenticateAnonymousRequest{IP: "0.0.0.0", Origin: "https://tmphost.io"}).
+		Return(&entity.AuthenticateResponse{UserID: 3, Anonymous: true}, nil)
+	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	req.Header.Set("Origin", "https://tmphost.io")
+	res, err := e.app.Test(req)
+	require.NoError(t, err)
+	b, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	return res, string(b)
+}
+
+func TestFolder_Anonymous(t *testing.T) {
+	e := newFilesApp(t)
+	e.folders.EXPECT().GetLimits(gomock.Any(), &entity.GetLimitsRequest{Anonymous: true}).
+		Return(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 30, MaxUploadBytes: 4 << 20, BillingBlockMinutes: 30, Anonymous: true, FileOps: 5, FileOpsWindowMinutes: 30})
+	res, body := e.anonymous(t, http.MethodGet, "/api/v1/limits", "")
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":30,"maxUploadBytes":4194304,"billingBlockMinutes":30,"anonymous":true,"fileOps":5,"fileOpsWindowMinutes":30}`, body)
+
+	e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 3, Anonymous: true}).
+		Return(&entity.CreateFolderResponse{Folder: entity.Folder{ID: 1000, CreatedAt: _at, ExpiresAt: _at, URL: "u"}}, nil)
+	res, _ = e.anonymous(t, http.MethodPost, "/api/v1/folders", "")
+	assert.Equal(t, http.StatusCreated, res.StatusCode)
+
+	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 3, Anonymous: true, FolderID: 1000, Files: []entity.FileUpload{{Path: "a", Data: []byte("hi")}}}).
+		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "a", Size: 2, UpdatedAt: _at, URL: "u/a"}}}, nil)
+	res, _ = e.anonymous(t, http.MethodPut, "/api/v1/folders/000000000rs/files/a", "hi")
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+
+	for _, route := range []struct{ method, target string }{
+		{http.MethodGet, "/api/v1/folders"},
+		{http.MethodGet, "/api/v1/folders/000000000rs"},
+		{http.MethodDelete, "/api/v1/folders/000000000rs"},
+		{http.MethodGet, "/api/v1/folders/000000000rs/files/a"},
+		{http.MethodDelete, "/api/v1/folders/000000000rs/files/a"},
+		{http.MethodGet, "/api/v1/users/me"},
+	} {
+		req := httptest.NewRequest(route.method, route.target, nil)
+		req.Header.Set("Origin", "https://tmphost.io")
+		res, err := e.app.Test(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "%s %s needs a sign-in", route.method, route.target)
+	}
+}
+
+func TestFolder_AnonymousRejected(t *testing.T) {
+	e := newFilesApp(t)
+	e.auth.EXPECT().AuthenticateAnonymous(gomock.Any(), &entity.AuthenticateAnonymousRequest{IP: "0.0.0.0"}).Return(nil, errBoom)
+	res, err := e.app.Test(httptest.NewRequest(http.MethodPost, "/api/v1/folders", nil))
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "not from the web app")
+
+	e.auth.EXPECT().Authenticate(gomock.Any(), &entity.AuthenticateRequest{AccessToken: "bad"}).Return(nil, errBoom)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/folders", nil)
+	req.Header.Set("Authorization", "Bearer bad")
+	req.Header.Set("Origin", "https://tmphost.io")
+	res, err = e.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "a bad access token never falls back to anonymous")
+}
+
+func TestFolder_AnonymousWithExpiredSession(t *testing.T) {
+	e := newFilesApp(t)
+	e.auth.EXPECT().Authenticate(gomock.Any(), &entity.AuthenticateRequest{SessionToken: "expired"}).Return(nil, errBoom)
+	e.auth.EXPECT().AuthenticateAnonymous(gomock.Any(), &entity.AuthenticateAnonymousRequest{IP: "0.0.0.0", Origin: "https://tmphost.io"}).
+		Return(&entity.AuthenticateResponse{UserID: 3, Anonymous: true}, nil)
+	e.folders.EXPECT().GetLimits(gomock.Any(), &entity.GetLimitsRequest{Anonymous: true}).Return(&entity.GetLimitsResponse{Anonymous: true})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/limits", nil)
+	req.AddCookie(&http.Cookie{Name: "tmphost_session", Value: "expired"})
+	req.Header.Set("Origin", "https://tmphost.io")
+	res, err := e.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, res.StatusCode, "a browser whose session expired is anonymous")
 }
 
 func TestFolder_RequiresAuth(t *testing.T) {
@@ -161,6 +240,7 @@ func TestFolder_PutFile(t *testing.T) {
 		folderctrl.ErrInvalidPath:         http.StatusBadRequest,
 		folderctrl.ErrNoFiles:             http.StatusBadRequest,
 		folderctrl.ErrDuplicatePath:       http.StatusBadRequest,
+		folderctrl.ErrQuotaExceeded:       http.StatusTooManyRequests,
 	} {
 		e.folders.EXPECT().PutFiles(gomock.Any(), gomock.Any()).Return(nil, err)
 		res, body = e.do(t, http.MethodPut, "/api/v1/folders/000000000rs/files/a", "x")

@@ -25,8 +25,8 @@ import { clickOutside, createAuthGuard, createtmphostApp, routes } from '../src/
 import { usePlatformStore } from '../src/stores/platformStore'
 
 describe('routes', () => {
-  it('only /login and /setup are public and every view is lazy', () => {
-    expect(routes.filter((r) => r.meta?.public).map((r) => r.path)).toEqual(['/login', '/setup'])
+  it('only /login, /upload and /setup are public and every view is lazy', () => {
+    expect(routes.filter((r) => r.meta?.public).map((r) => r.path)).toEqual(['/login', '/upload', '/setup'])
     for (const r of routes.filter((r) => r.component)) {
       expect(typeof r.component).toBe('function')
     }

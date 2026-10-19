@@ -19,6 +19,13 @@ export const routes = [
     meta: { public: true, guestOnly: true, title: 'Sign in' },
   },
   {
+    // Anonymous uploads, with the lower limits the server applies by IP.
+    path: '/upload',
+    name: 'upload',
+    component: () => import('./views/UploadView.vue'),
+    meta: { public: true, guestOnly: true, title: 'Upload' },
+  },
+  {
     // Root-only: the view asks for the root access token itself.
     path: '/setup',
     name: 'setup',

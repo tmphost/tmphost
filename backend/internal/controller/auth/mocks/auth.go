@@ -50,6 +50,21 @@ func (mr *MockControllerMockRecorder) Authenticate(ctx, rq interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Authenticate", reflect.TypeOf((*MockController)(nil).Authenticate), ctx, rq)
 }
 
+// AuthenticateAnonymous mocks base method.
+func (m *MockController) AuthenticateAnonymous(ctx context.Context, rq *entity.AuthenticateAnonymousRequest) (*entity.AuthenticateResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AuthenticateAnonymous", ctx, rq)
+	ret0, _ := ret[0].(*entity.AuthenticateResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AuthenticateAnonymous indicates an expected call of AuthenticateAnonymous.
+func (mr *MockControllerMockRecorder) AuthenticateAnonymous(ctx, rq interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AuthenticateAnonymous", reflect.TypeOf((*MockController)(nil).AuthenticateAnonymous), ctx, rq)
+}
+
 // CompleteLogin mocks base method.
 func (m *MockController) CompleteLogin(ctx context.Context, rq *entity.CompleteLoginRequest) (*entity.CompleteLoginResponse, error) {
 	m.ctrl.T.Helper()

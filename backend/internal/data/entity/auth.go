@@ -60,5 +60,18 @@ type (
 	// AuthenticateResponse identifies the session's user.
 	AuthenticateResponse struct {
 		UserID int64
+		// Anonymous is set for a web visitor without a session, known only
+		// by their IP address.
+		Anonymous bool
+	}
+
+	// AuthenticateAnonymousRequest describes a request without a session
+	// or access token.
+	AuthenticateAnonymousRequest struct {
+		IP string
+		// Origin and Referer are the request headers of those names; the
+		// Referer stands in when a browser sends no Origin.
+		Origin  string
+		Referer string
 	}
 )

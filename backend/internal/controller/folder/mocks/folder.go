@@ -109,17 +109,17 @@ func (mr *MockControllerMockRecorder) GetFolder(ctx, rq interface{}) *gomock.Cal
 }
 
 // GetLimits mocks base method.
-func (m *MockController) GetLimits(ctx context.Context) *entity.GetLimitsResponse {
+func (m *MockController) GetLimits(ctx context.Context, rq *entity.GetLimitsRequest) *entity.GetLimitsResponse {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetLimits", ctx)
+	ret := m.ctrl.Call(m, "GetLimits", ctx, rq)
 	ret0, _ := ret[0].(*entity.GetLimitsResponse)
 	return ret0
 }
 
 // GetLimits indicates an expected call of GetLimits.
-func (mr *MockControllerMockRecorder) GetLimits(ctx interface{}) *gomock.Call {
+func (mr *MockControllerMockRecorder) GetLimits(ctx, rq interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLimits", reflect.TypeOf((*MockController)(nil).GetLimits), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLimits", reflect.TypeOf((*MockController)(nil).GetLimits), ctx, rq)
 }
 
 // ListFolders mocks base method.

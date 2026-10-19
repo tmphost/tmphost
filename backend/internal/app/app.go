@@ -33,6 +33,7 @@ import (
 	"github.com/tmphost/tmphost/backend/internal/service/encryption"
 	"github.com/tmphost/tmphost/backend/internal/service/idgen"
 	"github.com/tmphost/tmphost/backend/internal/service/oauth"
+	"github.com/tmphost/tmphost/backend/internal/service/quota"
 	"github.com/tmphost/tmphost/backend/internal/service/scheduler"
 	"github.com/tmphost/tmphost/backend/internal/service/storage"
 	"github.com/tmphost/tmphost/backend/internal/service/tlscert"
@@ -83,6 +84,12 @@ type (
 		// SettingsFile is where the setup page saves settings. When it
 		// exists, it overrides the matching config values.
 		SettingsFile string `yaml:"settingsFile"`
+		// TrustedProxies is a comma-separated list of proxy IPs or CIDR
+		// ranges. Requests from them are attributed to the client IP in
+		// ProxyHeader, which the per-IP limits of anonymous uploads count.
+		TrustedProxies string `yaml:"trustedProxies"`
+		// ProxyHeader is the header a trusted proxy puts the client IP in.
+		ProxyHeader string `yaml:"proxyHeader"`
 	}
 
 	// TLSConfig is the "tls" section: HTTPS with Let's Encrypt
@@ -243,20 +250,22 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		IDGen:     ids,
 		Grant:     setup.MonthlyGrant,
 		BasePath:  basePath,
+		BaseURL:   baseURL,
 	})
 	folders := folderctrl.New(folderctrl.Params{
-		Folders: repository.NewFolderRepository(db),
-		Users:   users,
-		Storage: store,
-		Limits:  setup.FileLimits,
-		BaseURL: baseURL,
+		Folders:   repository.NewFolderRepository(db),
+		Users:     users,
+		Storage:   store,
+		Anonymous: quota.New(quota.Params{Limit: folderctrl.AnonymousOps, Window: folderctrl.AnonymousWindow}),
+		Limits:    setup.FileLimits,
+		BaseURL:   baseURL,
 	})
 	// Uploads reach the MCP server base64-encoded, a third bigger. The
 	// folder controller enforces the real limit on the decoded bytes.
 	bodyLimit := cfg.Files.MaxUploadMB<<20*4/3 + 1<<20
 
 	h := newHosts(cfg.App.BaseURL, cfg.App.SitesDomain)
-	f := fiber.New(fiber.Config{BodyLimit: bodyLimit})
+	f := fiber.New(fiberConfig(cfg.App, bodyLimit))
 	f.Use(recover.New())
 	api.New(api.Params{
 		Router:       f,
@@ -294,6 +303,31 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		a.setupTLS(cfg, enc, h)
 	}
 	return a, nil
+}
+
+// fiberConfig is the app server's config. With trusted proxies, c.IP() is
+// the client IP that they forward in the proxy header.
+func fiberConfig(app AppConfig, bodyLimit int) fiber.Config {
+	cfg := fiber.Config{BodyLimit: bodyLimit}
+	var proxies []string
+	for p := range strings.SplitSeq(app.TrustedProxies, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			proxies = append(proxies, p)
+		}
+	}
+	if len(proxies) == 0 {
+		return cfg
+	}
+	cfg.TrustProxy = true
+	cfg.TrustProxyConfig = fiber.TrustProxyConfig{Proxies: proxies}
+	cfg.ProxyHeader = app.ProxyHeader
+	if cfg.ProxyHeader == "" {
+		cfg.ProxyHeader = fiber.HeaderXForwardedFor
+	}
+	// The header may list several hops; c.IP() then takes the rightmost IP
+	// that is not a trusted proxy, so a client can't spoof its own.
+	cfg.EnableIPValidation = true
+	return cfg
 }
 
 // Handler exposes the HTTP handler, for tests.
