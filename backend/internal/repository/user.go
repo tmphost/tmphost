@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/tmphost/tmphost/backend/internal/data/model"
+	"github.com/tmphost/tmphost/backend/internal/service/idgen"
 )
 
 var (
@@ -50,12 +51,16 @@ type (
 
 	userRepository struct {
 		db *gorm.DB
+		// ids issues credit activity IDs.
+		ids idgen.Service
 	}
 )
 
-// NewUserRepository returns a GORM-backed user repository.
-func NewUserRepository(db *gorm.DB) UserRepository {
-	return &userRepository{db: db}
+// NewUserRepository returns a GORM-backed user repository. Credit
+// activities take their IDs from ids, so they are monoflake IDs ordered
+// by time.
+func NewUserRepository(db *gorm.DB, ids idgen.Service) UserRepository {
+	return &userRepository{db: db, ids: ids}
 }
 
 func (r *userRepository) FindUserByID(ctx context.Context, id int64) (model.User, error) {
@@ -72,7 +77,7 @@ func (r *userRepository) CreateUser(ctx context.Context, u model.User) (model.Us
 		if err := tx.Create(&u).Error; err != nil {
 			return err
 		}
-		return record(tx, u.ID, model.CreditOpGrant, u.Credits)
+		return r.record(tx, u.ID, model.CreditOpGrant, u.Credits)
 	})
 	if err != nil {
 		return model.User{}, err
@@ -117,7 +122,7 @@ func (r *userRepository) RenewUserCredits(ctx context.Context, id int64, credits
 		if err != nil {
 			return err
 		}
-		return record(tx, id, model.CreditOpRenewal, credits-old)
+		return r.record(tx, id, model.CreditOpRenewal, credits-old)
 	})
 }
 
@@ -132,7 +137,7 @@ func (r *userRepository) SpendCredits(ctx context.Context, id int64, n int) erro
 		if res.RowsAffected == 0 {
 			return ErrInsufficientCredits
 		}
-		return record(tx, id, model.CreditOpSpend, -n)
+		return r.record(tx, id, model.CreditOpSpend, -n)
 	})
 }
 
@@ -143,7 +148,7 @@ func (r *userRepository) RefundCredits(ctx context.Context, id int64, n int) err
 		if err != nil {
 			return err
 		}
-		return record(tx, id, model.CreditOpRefund, n)
+		return r.record(tx, id, model.CreditOpRefund, n)
 	})
 }
 
@@ -170,12 +175,12 @@ func balance(tx *gorm.DB, id int64) (int, error) {
 
 // record adds a credit activity for a change just made inside tx, with the
 // balance it left.
-func record(tx *gorm.DB, id int64, ops uint8, change int) error {
+func (r *userRepository) record(tx *gorm.DB, id int64, ops uint8, change int) error {
 	current, err := balance(tx, id)
 	if err != nil {
 		return err
 	}
-	return tx.Create(&model.CreditActivity{UserID: id, Ops: ops, Change: change, Current: current}).Error
+	return tx.Create(&model.CreditActivity{ID: r.ids.NextID(), UserID: id, Ops: ops, Change: change, Current: current}).Error
 }
 
 func (r *userRepository) first(ctx context.Context, query string, arg any) (model.User, error) {

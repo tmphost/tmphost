@@ -11,12 +11,15 @@ import (
 	"time"
 
 	"github.com/glebarez/sqlite"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
 	"github.com/tmphost/tmphost/backend/internal/data/model"
+	"github.com/tmphost/tmphost/backend/internal/service/idgen"
+	idgenmocks "github.com/tmphost/tmphost/backend/internal/service/idgen/mocks"
 )
 
 func newDB(t *testing.T) *gorm.DB {
@@ -29,7 +32,7 @@ func newDB(t *testing.T) *gorm.DB {
 
 func TestUserRepository_CRUD(t *testing.T) {
 	ctx := context.Background()
-	repo := NewUserRepository(newDB(t))
+	repo := NewUserRepository(newDB(t), idgen.New(1))
 
 	_, err := repo.FindUserByEmail(ctx, "a@b.c")
 	assert.ErrorIs(t, err, ErrNotFound)
@@ -66,7 +69,7 @@ func TestUserRepository_DBErrors(t *testing.T) {
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	require.NoError(t, sqlDB.Close())
-	repo := NewUserRepository(db)
+	repo := NewUserRepository(db, idgen.New(1))
 
 	_, err = repo.FindUserByID(ctx, 1)
 	assert.Error(t, err)
@@ -86,7 +89,7 @@ func TestUserRepository_DBErrors(t *testing.T) {
 
 func TestUserRepository_SpendAndRefundCredits(t *testing.T) {
 	ctx := context.Background()
-	repo := NewUserRepository(newDB(t))
+	repo := NewUserRepository(newDB(t), idgen.New(1))
 	_, err := repo.CreateUser(ctx, model.User{ID: 1, Email: "a@x", Credits: 5})
 	require.NoError(t, err)
 
@@ -103,7 +106,7 @@ func TestUserRepository_SpendAndRefundCredits(t *testing.T) {
 
 func TestUserRepository_CreditRenewal(t *testing.T) {
 	ctx := context.Background()
-	repo := NewUserRepository(newDB(t))
+	repo := NewUserRepository(newDB(t), idgen.New(1))
 	now := time.Date(2026, 10, 18, 0, 0, 0, 0, time.UTC)
 
 	for i, renewAt := range []time.Time{now.Add(time.Hour), now, now.Add(-48 * time.Hour), now.Add(-24 * time.Hour)} {
@@ -134,7 +137,7 @@ func TestUserRepository_CreditRenewal(t *testing.T) {
 
 func TestUserRepository_CreditActivities(t *testing.T) {
 	ctx := context.Background()
-	repo := NewUserRepository(newDB(t))
+	repo := NewUserRepository(newDB(t), idgen.New(1))
 	_, err := repo.CreateUser(ctx, model.User{ID: 1, Email: "a@x", Credits: 5})
 	require.NoError(t, err)
 	_, err = repo.CreateUser(ctx, model.User{ID: 2, Email: "b@x", Credits: 9})
@@ -171,6 +174,25 @@ func TestUserRepository_CreditActivities(t *testing.T) {
 	assert.Equal(t, all[3].ID, page[1].ID)
 }
 
+func TestUserRepository_CreditActivityIDsComeFromIDGen(t *testing.T) {
+	ctx := context.Background()
+	ids := idgenmocks.NewMockService(gomock.NewController(t))
+	gomock.InOrder(
+		ids.EXPECT().NextID().Return(int64(7_000_000_000_000_000_001)),
+		ids.EXPECT().NextID().Return(int64(7_000_000_000_000_000_002)),
+	)
+	repo := NewUserRepository(newDB(t), ids)
+	_, err := repo.CreateUser(ctx, model.User{ID: 1, Email: "a@x", Credits: 5})
+	require.NoError(t, err)
+	require.NoError(t, repo.SpendCredits(ctx, 1, 1))
+
+	as, err := repo.ListCreditActivities(ctx, 1, 0, 10)
+	require.NoError(t, err)
+	require.Len(t, as, 2)
+	assert.Equal(t, int64(7_000_000_000_000_000_002), as[0].ID)
+	assert.Equal(t, int64(7_000_000_000_000_000_001), as[1].ID)
+}
+
 // failUpdates makes every update of db whose values include column fail.
 func failUpdates(t *testing.T, db *gorm.DB, column string) {
 	t.Helper()
@@ -188,7 +210,7 @@ func TestUserRepository_CreditActivityErrorsRollBack(t *testing.T) {
 
 	t.Run("activity insert fails", func(t *testing.T) {
 		db := newDB(t)
-		repo := NewUserRepository(db)
+		repo := NewUserRepository(db, idgen.New(1))
 		require.NoError(t, db.Create(&model.User{ID: 1, Email: "a@x", Credits: 5}).Error)
 		require.NoError(t, db.Migrator().DropTable(&model.CreditActivity{}))
 
@@ -206,14 +228,14 @@ func TestUserRepository_CreditActivityErrorsRollBack(t *testing.T) {
 	})
 
 	t.Run("unknown user", func(t *testing.T) {
-		repo := NewUserRepository(newDB(t))
+		repo := NewUserRepository(newDB(t), idgen.New(1))
 		assert.ErrorIs(t, repo.RefundCredits(ctx, 9, 1), gorm.ErrRecordNotFound)
 		assert.ErrorIs(t, repo.RenewUserCredits(ctx, 9, 250, time.Now()), gorm.ErrRecordNotFound)
 	})
 
 	t.Run("renewal update fails", func(t *testing.T) {
 		db := newDB(t)
-		repo := NewUserRepository(db)
+		repo := NewUserRepository(db, idgen.New(1))
 		_, err := repo.CreateUser(ctx, model.User{ID: 1, Email: "a@x", Credits: 5})
 		require.NoError(t, err)
 		failUpdates(t, db, "credits_renew_at")
@@ -225,7 +247,7 @@ func TestUserRepository_CreditActivityErrorsRollBack(t *testing.T) {
 
 	t.Run("balance update fails", func(t *testing.T) {
 		db := newDB(t)
-		repo := NewUserRepository(db)
+		repo := NewUserRepository(db, idgen.New(1))
 		_, err := repo.CreateUser(ctx, model.User{ID: 1, Email: "a@x", Credits: 5})
 		require.NoError(t, err)
 		failUpdates(t, db, "credits")
@@ -240,7 +262,7 @@ func TestUserRepository_CreditActivityErrorsRollBack(t *testing.T) {
 		sqlDB, err := db.DB()
 		require.NoError(t, err)
 		require.NoError(t, sqlDB.Close())
-		_, err = NewUserRepository(db).ListCreditActivities(ctx, 1, 0, 10)
+		_, err = NewUserRepository(db, idgen.New(1)).ListCreditActivities(ctx, 1, 0, 10)
 		assert.Error(t, err)
 	})
 }
