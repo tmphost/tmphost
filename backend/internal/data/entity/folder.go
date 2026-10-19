@@ -23,6 +23,9 @@ type (
 		// DefaultTitle names a folder without a title: the name of its only
 		// file, else its ID.
 		DefaultTitle string
+		// OpenURL is what to open or share for the folder: its URL when its
+		// root has an index.html, else the URL of its only file, else empty.
+		OpenURL string
 		// Agent names what created the folder; empty if unknown.
 		Agent string
 	}

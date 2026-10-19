@@ -600,16 +600,19 @@ onUnmounted(() => clearInterval(timer))
                 <path stroke-linecap="round" stroke-linejoin="round" :d="ICONS.upload" />
               </svg>
             </button>
-            <button type="button" :class="ICON_BUTTON" title="Copy folder URL" data-test="folder-copy" @click="copy(folder.url, 'Folder URL copied')">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" :d="ICONS.copy" />
-              </svg>
-            </button>
-            <a :href="folder.url" target="_blank" rel="noopener" :class="ICON_BUTTON" title="Open folder" data-test="folder-open">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" :d="ICONS.open" />
-              </svg>
-            </a>
+            <!-- The folder's own URL is a page only with an index.html at its root. -->
+            <template v-if="folder.openUrl">
+              <button type="button" :class="ICON_BUTTON" title="Copy URL" data-test="folder-copy" @click="copy(folder.openUrl, 'URL copied')">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" :d="ICONS.copy" />
+                </svg>
+              </button>
+              <a :href="folder.openUrl" target="_blank" rel="noopener" :class="ICON_BUTTON" title="Open" data-test="folder-open">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" :d="ICONS.open" />
+                </svg>
+              </a>
+            </template>
             <button
               type="button"
               :class="[ICON_BUTTON, 'hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10']"

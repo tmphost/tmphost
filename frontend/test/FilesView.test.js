@@ -36,7 +36,7 @@ import { dataTransfer, dirEntry, fileEntry } from './dropEntries'
 const NOW = Date.parse('2026-10-18T12:00:00Z')
 const limits = { defaultTtlMinutes: 30, maxTtlMinutes: 432000, maxUploadBytes: 1000, billingBlockMinutes: 30, billingUnitBytes: 100 }
 const folders = [
-  { id: 'old', createdAt: '2026-10-18T10:00:00Z', expiresAt: '2026-10-18T12:45:00Z', url: 'https://f.test/old/' },
+  { id: 'old', createdAt: '2026-10-18T10:00:00Z', expiresAt: '2026-10-18T12:45:00Z', url: 'https://f.test/old/', openUrl: 'https://f.test/old/' },
   { id: 'new', createdAt: '2026-10-18T11:00:00Z', expiresAt: '2026-10-25T11:00:00Z', url: 'https://f.test/new/' },
 ]
 const files = [
@@ -156,6 +156,9 @@ describe('FilesView', () => {
     expect(wrapper.find('[data-test="folder-new"] [data-test="folder-expires"]').text()).toBe('6d 23h')
     expect(oldExpires()).toBe('45m')
     expect(wrapper.find('[data-test="folder-old"] [data-test="folder-open"]').attributes('href')).toBe('https://f.test/old/')
+    // Without an index.html or a single file, a folder has nothing to open.
+    expect(wrapper.find('[data-test="folder-new"] [data-test="folder-open"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="folder-new"] [data-test="folder-copy"]').exists()).toBe(false)
 
     vi.advanceTimersByTime(30 * 60 * 1000)
     await wrapper.vm.$nextTick()
@@ -622,10 +625,10 @@ describe('FilesView', () => {
   it('copies folder and file URLs', async () => {
     fetchFolder.mockResolvedValue({ folder: folders[1], files })
     const wrapper = await mountView()
-    await wrapper.find('[data-test="folder-new"] [data-test="folder-copy"]').trigger('click')
+    await wrapper.find('[data-test="folder-old"] [data-test="folder-copy"]').trigger('click')
     await flushPromises()
-    expect(writeText).toHaveBeenCalledWith('https://f.test/new/')
-    expect(lastToast()).toMatchObject({ type: 'success', message: 'Folder URL copied' })
+    expect(writeText).toHaveBeenCalledWith('https://f.test/old/')
+    expect(lastToast()).toMatchObject({ type: 'success', message: 'URL copied' })
 
     await wrapper.find('[data-test="folder-new"] [data-test="folder-toggle"]').trigger('click')
     await flushPromises()

@@ -220,6 +220,7 @@ func FromFolderEntityToFolderView(e entity.Folder) view.Folder {
 		URL:          e.URL,
 		Title:        e.Title,
 		DefaultTitle: e.DefaultTitle,
+		OpenURL:      e.OpenURL,
 		Agent:        e.Agent,
 	}
 }

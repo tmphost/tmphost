@@ -36,6 +36,13 @@ const uploading = ref(false)
 const progress = ref({ done: 0, total: 0 })
 // The last upload: { folder, files }.
 const result = ref(null)
+// What to open or share for the result folder, as the API's openUrl: its
+// URL with an index.html at its root, else its only file's URL, else none.
+const resultOpenUrl = computed(() => {
+  const { folder, files } = result.value
+  if (files.some((f) => f.path === 'index.html')) return folder.url
+  return files.length === 1 ? files[0].url : ''
+})
 // Whether the next upload goes into result's folder, replacing files with
 // the same path, rather than a new folder.
 const addToResult = ref(false)
@@ -213,25 +220,30 @@ onMounted(async () => {
 
       <div v-if="result" class="mt-6 rounded-xl border border-gray-100 dark:border-zinc-800" data-test="upload-result">
         <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100 dark:border-zinc-800">
-          <span class="grow min-w-0 truncate font-mono text-xs font-bold text-gray-900 dark:text-zinc-100" :title="result.folder.url">
-            {{ result.folder.url }}
+          <template v-if="resultOpenUrl">
+            <span class="grow min-w-0 truncate font-mono text-xs font-bold text-gray-900 dark:text-zinc-100" :title="resultOpenUrl">
+              {{ resultOpenUrl }}
+            </span>
+            <button
+              type="button"
+              :class="ICON_BUTTON"
+              title="Copy URL"
+              data-test="result-folder-copy"
+              @click="copy(resultOpenUrl, 'URL copied')"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" :d="ICONS.copy" />
+              </svg>
+            </button>
+            <a :href="resultOpenUrl" target="_blank" rel="noopener" :class="ICON_BUTTON" title="Open" data-test="result-folder-open">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" :d="ICONS.open" />
+              </svg>
+            </a>
+          </template>
+          <span v-else class="grow min-w-0 truncate font-mono text-xs font-bold text-gray-900 dark:text-zinc-100" data-test="result-folder-id">
+            Folder {{ result.folder.id }}
           </span>
-          <button
-            type="button"
-            :class="ICON_BUTTON"
-            title="Copy folder URL"
-            data-test="result-folder-copy"
-            @click="copy(result.folder.url, 'Folder URL copied')"
-          >
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" :d="ICONS.copy" />
-            </svg>
-          </button>
-          <a :href="result.folder.url" target="_blank" rel="noopener" :class="ICON_BUTTON" title="Open folder">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" :d="ICONS.open" />
-            </svg>
-          </a>
         </div>
         <ul class="divide-y divide-gray-50 dark:divide-zinc-800 px-3 py-1">
           <li v-for="file in result.files" :key="file.path" class="flex items-center gap-2 py-1" :data-test="`result-${file.path}`">

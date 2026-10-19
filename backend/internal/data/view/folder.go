@@ -31,6 +31,10 @@ type (
 		// DefaultTitle is shown while Title is empty: the name of the
 		// folder's only file, else its ID.
 		DefaultTitle string `json:"defaultTitle"`
+		// OpenURL is what to open or share for the folder: its URL when its
+		// root has an index.html (without one the URL answers 404), else
+		// the URL of its only file, else empty.
+		OpenURL string `json:"openUrl,omitempty"`
 		// Agent names what created the folder, e.g. "Claude Code",
 		// "tmphost CLI" or "Web".
 		Agent string `json:"agent,omitempty"`
