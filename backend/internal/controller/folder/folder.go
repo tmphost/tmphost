@@ -65,11 +65,14 @@ const (
 	// DefaultAnonymousMaxTTLMinutes is the longest lifetime of an
 	// anonymous folder unless root changes it.
 	DefaultAnonymousMaxTTLMinutes = 10
-	// AnonymousMaxUploadMB caps an anonymous upload request.
-	AnonymousMaxUploadMB = 4
+	// AnonymousMaxUploadMB caps each file an anonymous visitor uploads.
+	AnonymousMaxUploadMB = 1
 	// AnonymousOps is how many files an anonymous visitor may write, and
 	// how many folders they may create, per AnonymousWindow.
 	AnonymousOps = 5
+	// AnonymousBytes is how many bytes an anonymous visitor may upload
+	// per AnonymousWindow.
+	AnonymousBytes = 4 << 20
 	// AnonymousWindow is the window of the anonymous quota.
 	AnonymousWindow = 30 * time.Minute
 
@@ -142,6 +145,9 @@ type (
 		// Anonymous counts anonymous file writes and new folders, per user;
 		// AnonymousOps per AnonymousWindow.
 		Anonymous quota.Service
+		// AnonymousBytes counts the bytes anonymous users upload;
+		// AnonymousBytes per AnonymousWindow.
+		AnonymousBytes quota.Service
 		// NewID returns a new folder ID; idgen.NewFolderID when nil.
 		NewID func() int64
 		// Limits returns the current file settings; they can change at
@@ -158,6 +164,7 @@ type (
 		users     repository.UserRepository
 		storage   storage.Service
 		anonymous quota.Service
+		anonBytes quota.Service
 		newID     func() int64
 		limits    func() entity.FileSettings
 		baseURL   string
@@ -173,6 +180,7 @@ func New(p Params) Controller {
 		users:     p.Users,
 		storage:   p.Storage,
 		anonymous: p.Anonymous,
+		anonBytes: p.AnonymousBytes,
 		newID:     p.NewID,
 		limits:    p.Limits,
 		baseURL:   strings.TrimRight(p.BaseURL, "/"),
@@ -212,6 +220,7 @@ func (c *controller) GetLimits(_ context.Context, rq *entity.GetLimitsRequest) *
 	}
 	if rq.Anonymous {
 		rs.FileOps, rs.FileOpsWindowMinutes = AnonymousOps, int(AnonymousWindow/time.Minute)
+		rs.FileBytes = AnonymousBytes
 	}
 	return rs
 }
@@ -381,7 +390,7 @@ func (c *controller) DeleteFolder(ctx context.Context, rq *entity.DeleteFolderRe
 }
 
 func (c *controller) PutFiles(ctx context.Context, rq *entity.PutFilesRequest) (*entity.PutFilesResponse, error) {
-	if err := c.validateUploads(rq.Files, c.maxUploadMB(rq.Anonymous)); err != nil {
+	if err := c.validateUploads(rq.Files, rq.Anonymous); err != nil {
 		return nil, err
 	}
 	f, err := c.ownedFolder(ctx, rq.UserID, rq.FolderID)
@@ -394,6 +403,10 @@ func (c *controller) PutFiles(ctx context.Context, rq *entity.PutFilesRequest) (
 	if rq.Anonymous {
 		if !c.anonymous.Take(fileQuotaKey(rq.UserID), len(rq.Files)) {
 			return nil, fmt.Errorf("%w: at most %d files per %d minutes", ErrQuotaExceeded, AnonymousOps, int(AnonymousWindow/time.Minute))
+		}
+		if !c.anonBytes.Take(bytesQuotaKey(rq.UserID), uploadSize(rq.Files)) {
+			c.anonymous.Give(fileQuotaKey(rq.UserID), len(rq.Files))
+			return nil, fmt.Errorf("%w: at most %d MB per %d minutes", ErrQuotaExceeded, AnonymousBytes>>20, int(AnonymousWindow/time.Minute))
 		}
 	} else {
 		for i, u := range rq.Files {
@@ -413,7 +426,7 @@ func (c *controller) PutFiles(ctx context.Context, rq *entity.PutFilesRequest) (
 	for i, u := range rq.Files {
 		if err := c.storage.Put(ctx, folderPrefix(f)+u.Path, u.Data); err != nil {
 			// The files not written are not paid for.
-			if rerr := c.refund(ctx, rq, costs[i:]); rerr != nil {
+			if rerr := c.refund(ctx, rq, i, costs[i:]); rerr != nil {
 				err = errors.Join(err, fmt.Errorf("refund credits: %w", rerr))
 			}
 			return nil, fmt.Errorf("write %s: %w", u.Path, err)
@@ -423,11 +436,12 @@ func (c *controller) PutFiles(ctx context.Context, rq *entity.PutFilesRequest) (
 	return &entity.PutFilesResponse{Files: files, CreditsSpent: total}, nil
 }
 
-// refund gives back what the unwritten files of rq, costing costs, were
-// paid with.
-func (c *controller) refund(ctx context.Context, rq *entity.PutFilesRequest, costs []int) error {
+// refund gives back what the unwritten files of rq, from index from on
+// and costing costs, were paid with.
+func (c *controller) refund(ctx context.Context, rq *entity.PutFilesRequest, from int, costs []int) error {
 	if rq.Anonymous {
 		c.anonymous.Give(fileQuotaKey(rq.UserID), len(costs))
+		c.anonBytes.Give(bytesQuotaKey(rq.UserID), uploadSize(rq.Files[from:]))
 		return nil
 	}
 	sum := 0
@@ -539,11 +553,14 @@ func ValidPath(p string) bool {
 	return true
 }
 
-func (c *controller) validateUploads(files []entity.FileUpload, maxUploadMB int) error {
+// validateUploads checks the paths and sizes of an upload. Signed-in users
+// are limited per request, anonymous visitors per file; their total is
+// capped by the AnonymousBytes quota.
+func (c *controller) validateUploads(files []entity.FileUpload, anonymous bool) error {
 	if len(files) == 0 {
 		return ErrNoFiles
 	}
-	limit := int64(maxUploadMB) << 20
+	limit := int64(c.maxUploadMB(anonymous)) << 20
 	var total int64
 	seen := make(map[string]bool, len(files))
 	for _, u := range files {
@@ -554,9 +571,12 @@ func (c *controller) validateUploads(files []entity.FileUpload, maxUploadMB int)
 			return fmt.Errorf("%w: %q", ErrDuplicatePath, u.Path)
 		}
 		seen[u.Path] = true
+		if anonymous && int64(len(u.Data)) > limit {
+			return fmt.Errorf("%w: %q is over the %d MB file limit", ErrTooLarge, u.Path, limit>>20)
+		}
 		total += int64(len(u.Data))
 	}
-	if total > limit {
+	if !anonymous && total > limit {
 		return fmt.Errorf("%w: limit is %d MB", ErrTooLarge, limit>>20)
 	}
 	return nil
@@ -651,3 +671,14 @@ func folderPrefix(f model.Folder) string {
 func fileQuotaKey(userID int64) string { return "files:" + idgen.FormatBase36(userID) }
 
 func folderQuotaKey(userID int64) string { return "folders:" + idgen.FormatBase36(userID) }
+
+func bytesQuotaKey(userID int64) string { return "bytes:" + idgen.FormatBase36(userID) }
+
+// uploadSize is the total size of files.
+func uploadSize(files []entity.FileUpload) int {
+	n := 0
+	for _, u := range files {
+		n += len(u.Data)
+	}
+	return n
+}

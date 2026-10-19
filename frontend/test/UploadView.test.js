@@ -20,10 +20,11 @@ import { dataTransfer, dirEntry, fileEntry } from './dropEntries'
 const limits = {
   defaultTtlMinutes: 10,
   maxTtlMinutes: 10,
-  maxUploadBytes: 4 * 1024 * 1024,
+  maxUploadBytes: 1024 * 1024,
   billingBlockMinutes: 30,
   anonymous: true,
   fileOps: 5,
+  fileBytes: 4 * 1024 * 1024,
   fileOpsWindowMinutes: 30,
 }
 const folder = { id: 'abc', url: 'https://tmphost.io/files/1/abc/' }
@@ -77,7 +78,7 @@ describe('UploadView', () => {
   it('shows the anonymous limits and links to sign-in', async () => {
     const wrapper = await mountView()
     expect(wrapper.find('[data-test="upload-limits"]').text()).toBe(
-      'Up to 4.0 MB per file and 5 files every 30 min. Links expire after 10 min.',
+      'Up to 1.0 MB per file, 5 files and 4.0 MB every 30 min. Links expire after 10 min.',
     )
     expect(wrapper.find('[data-test="upload-sign-in"]').attributes('href')).toBe('/login')
     expect(wrapper.find('[data-test="upload-summary"]').exists()).toBe(false)
@@ -181,7 +182,7 @@ describe('UploadView', () => {
   it('blocks oversized files and too many files', async () => {
     const wrapper = await mountView()
     await pick(wrapper, '[data-test="pick-files"]', [file('big.bin', limits.maxUploadBytes + 1)])
-    expect(wrapper.find('[data-test="upload-oversized"]').text()).toContain('1 file is over the 4.0 MB limit')
+    expect(wrapper.find('[data-test="upload-oversized"]').text()).toContain('1 file is over the 1.0 MB limit')
     expect(wrapper.find('[data-test="upload-start"]').attributes('disabled')).toBeDefined()
     await pick(wrapper, '[data-test="pick-files"]', [file('big2.bin', limits.maxUploadBytes + 1)])
     expect(wrapper.find('[data-test="upload-oversized"]').text()).toContain('2 files are over')
@@ -194,6 +195,17 @@ describe('UploadView', () => {
     await wrapper.find('[data-test="selected-6.txt"] [data-test="selected-remove"]').trigger('click')
     expect(wrapper.find('[data-test="upload-too-many"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="upload-start"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('blocks more than the byte quota', async () => {
+    const wrapper = await mountView()
+    await pick(wrapper, '[data-test="pick-files"]', ['1', '2', '3', '4'].map((n) => file(`${n}.bin`, limits.maxUploadBytes)))
+    expect(wrapper.find('[data-test="upload-too-big"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="upload-start"]').attributes('disabled')).toBeUndefined()
+
+    await pick(wrapper, '[data-test="pick-files"]', [file('5.bin', 1)])
+    expect(wrapper.find('[data-test="upload-too-big"]').text()).toBe('At most 4.0 MB every 30 min without an account.')
+    expect(wrapper.find('[data-test="upload-start"]').attributes('disabled')).toBeDefined()
   })
 
   it('accepts dropped files', async () => {

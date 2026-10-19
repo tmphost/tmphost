@@ -44,9 +44,19 @@ const replaces = (path) => addToResult.value && result.value.files.some((f) => f
 const isOversized = (file) => Boolean(limits.value) && file.size > limits.value.maxUploadBytes
 const oversized = computed(() => selected.value.filter((item) => isOversized(item.file)))
 const tooMany = computed(() => Boolean(limits.value?.fileOps) && selected.value.length > limits.value.fileOps)
+const tooBig = computed(
+  () =>
+    Boolean(limits.value?.fileBytes) &&
+    selected.value.reduce((sum, item) => sum + item.file.size, 0) > limits.value.fileBytes,
+)
 const canUpload = computed(
   () =>
-    Boolean(limits.value) && selected.value.length > 0 && !oversized.value.length && !tooMany.value && !uploading.value,
+    Boolean(limits.value) &&
+    selected.value.length > 0 &&
+    !oversized.value.length &&
+    !tooMany.value &&
+    !tooBig.value &&
+    !uploading.value,
 )
 
 function addFiles(items) {
@@ -113,8 +123,8 @@ onMounted(async () => {
         <BrandLogo tile class="w-12 h-12 mx-auto mb-5" />
         <h1 class="text-2xl font-black text-gray-900 dark:text-zinc-100 tracking-tight">Upload without an account</h1>
         <p v-if="limits" class="mt-1.5 text-sm text-gray-500 dark:text-zinc-400" data-test="upload-limits">
-          Up to {{ formatBytes(limits.maxUploadBytes) }} per file and {{ limits.fileOps }} files every
-          {{ formatMinutes(limits.fileOpsWindowMinutes) }}. Links expire after
+          Up to {{ formatBytes(limits.maxUploadBytes) }} per file, {{ limits.fileOps }} files and
+          {{ formatBytes(limits.fileBytes) }} every {{ formatMinutes(limits.fileOpsWindowMinutes) }}. Links expire after
           {{ formatMinutes(limits.defaultTtlMinutes) }}.
         </p>
       </div>
@@ -181,6 +191,9 @@ onMounted(async () => {
         </p>
         <p v-if="tooMany" role="alert" class="mt-3 text-xs font-medium text-rose-600 dark:text-rose-400" data-test="upload-too-many">
           At most {{ limits.fileOps }} files every {{ formatMinutes(limits.fileOpsWindowMinutes) }} without an account.
+        </p>
+        <p v-if="tooBig" role="alert" class="mt-3 text-xs font-medium text-rose-600 dark:text-rose-400" data-test="upload-too-big">
+          At most {{ formatBytes(limits.fileBytes) }} every {{ formatMinutes(limits.fileOpsWindowMinutes) }} without an account.
         </p>
 
         <label v-if="result" class="mt-3 flex items-center gap-2 text-xs text-gray-500 dark:text-zinc-400">

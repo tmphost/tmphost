@@ -166,6 +166,7 @@ func FromGetLimitsResponseEntityToHTTPResponse(rs *entity.GetLimitsResponse) []b
 		BillingUnitBytes:     rs.BillingUnitBytes,
 		Anonymous:            rs.Anonymous,
 		FileOps:              rs.FileOps,
+		FileBytes:            rs.FileBytes,
 		FileOpsWindowMinutes: rs.FileOpsWindowMinutes,
 	})
 }
