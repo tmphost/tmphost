@@ -30,7 +30,7 @@ import (
 	"github.com/tmphost/tmphost/backend/internal/service/encryption"
 )
 
-const _site = "0123456789a.example.com"
+const _site = "01234567.example.com"
 
 func newPair(t *testing.T, validFor time.Duration, names ...string) ([]byte, []byte) {
 	t.Helper()
@@ -167,7 +167,7 @@ func TestRefresh_Wildcard(t *testing.T) {
 	restarted.s.loadCache()
 	assert.Equal(t, []string{"*.example.com"}, names(t, restarted.s, _site))
 	// With a wildcard, nothing is obtained per subdomain.
-	_, err := restarted.s.GetCertificate(&tls.ClientHelloInfo{ServerName: "zzzzzzzzzzz.other.com"})
+	_, err := restarted.s.GetCertificate(&tls.ClientHelloInfo{ServerName: "zzzzzzzz.other.com"})
 	assert.Error(t, err)
 	assert.EqualValues(t, 0, restarted.alpn.requests.Load())
 }

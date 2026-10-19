@@ -34,8 +34,8 @@ const _key = "access-token"
 var (
 	errBoom  = errors.New("boom")
 	_expires = time.Date(2026, 10, 18, 12, 30, 0, 0, time.UTC)
-	// Folder 1000 is "000000000rs" as an 11-character folder ID.
-	_folder = entity.Folder{ID: 1000, UserID: 7, ExpiresAt: _expires, URL: "https://000000000rs.tmp.host/"}
+	// Folder 1000 is "000000rs" as an 8-character folder ID.
+	_folder = entity.Folder{ID: 1000, UserID: 7, ExpiresAt: _expires, URL: "https://000000rs.tmp.host/"}
 )
 
 type env struct {
@@ -146,7 +146,7 @@ func TestUpload_NewFolder(t *testing.T) {
 		e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 7, TTLMinutes: 120}).
 			Return(&entity.CreateFolderResponse{Folder: _folder}, nil),
 		e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "site/index.html", Data: []byte("<p>")}}}).
-			Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "site/index.html", Size: 3, URL: "https://000000000rs.tmp.host/site/index.html"}}, CreditsSpent: 4}, nil),
+			Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "site/index.html", Size: 3, URL: "https://000000rs.tmp.host/site/index.html"}}, CreditsSpent: 4}, nil),
 	)
 	out, msg := e.call(t, map[string]any{
 		"action": "upload", "ttl": "2h", "path": "/site/", "fileName": "index.html",
@@ -154,7 +154,7 @@ func TestUpload_NewFolder(t *testing.T) {
 	})
 	require.Empty(t, msg)
 	assert.Equal(t, FileOutput{
-		ID: "000000000rs", URL: "https://000000000rs.tmp.host/site/index.html", ExpiresAt: "2026-10-18T12:30:00Z",
+		ID: "000000rs", URL: "https://000000rs.tmp.host/site/index.html", ExpiresAt: "2026-10-18T12:30:00Z",
 		FileName: "index.html", Path: "site", Size: 3, CreditsSpent: 4,
 	}, out)
 }
@@ -162,23 +162,23 @@ func TestUpload_NewFolder(t *testing.T) {
 func TestUpload_ExistingFolder(t *testing.T) {
 	e := newEnv(t)
 	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "a.txt", Data: []byte{}}}}).
-		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "a.txt", URL: "https://000000000rs.tmp.host/a.txt"}}, CreditsSpent: 1}, nil)
-	out, msg := e.call(t, map[string]any{"action": "upload", "id": "000000000rs", "fileName": "a.txt", "base64Content": ""})
+		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "a.txt", URL: "https://000000rs.tmp.host/a.txt"}}, CreditsSpent: 1}, nil)
+	out, msg := e.call(t, map[string]any{"action": "upload", "id": "000000rs", "fileName": "a.txt", "base64Content": ""})
 	require.Empty(t, msg)
-	assert.Equal(t, FileOutput{ID: "000000000rs", URL: "https://000000000rs.tmp.host/a.txt", FileName: "a.txt", CreditsSpent: 1}, out)
+	assert.Equal(t, FileOutput{ID: "000000rs", URL: "https://000000rs.tmp.host/a.txt", FileName: "a.txt", CreditsSpent: 1}, out)
 }
 
 func TestUpload_TextContent(t *testing.T) {
 	e := newEnv(t)
 	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "index.html", Data: []byte("<p>héllo</p>")}}}).
-		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "index.html", Size: 13, URL: "https://000000000rs.tmp.host/index.html"}}, CreditsSpent: 1}, nil)
-	out, msg := e.call(t, map[string]any{"action": "upload", "id": "000000000rs", "fileName": "index.html", "format": "textContent", "textContent": "<p>héllo</p>"})
+		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "index.html", Size: 13, URL: "https://000000rs.tmp.host/index.html"}}, CreditsSpent: 1}, nil)
+	out, msg := e.call(t, map[string]any{"action": "upload", "id": "000000rs", "fileName": "index.html", "format": "textContent", "textContent": "<p>héllo</p>"})
 	require.Empty(t, msg)
-	assert.Equal(t, FileOutput{ID: "000000000rs", URL: "https://000000000rs.tmp.host/index.html", FileName: "index.html", Size: 13, CreditsSpent: 1}, out)
+	assert.Equal(t, FileOutput{ID: "000000rs", URL: "https://000000rs.tmp.host/index.html", FileName: "index.html", Size: 13, CreditsSpent: 1}, out)
 
 	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "empty.txt", Data: []byte{}}}}).
-		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "empty.txt", URL: "https://000000000rs.tmp.host/empty.txt"}}, CreditsSpent: 1}, nil)
-	_, msg = e.call(t, map[string]any{"action": "upload", "id": "000000000rs", "fileName": "empty.txt", "format": "textContent", "textContent": ""})
+		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "empty.txt", URL: "https://000000rs.tmp.host/empty.txt"}}, CreditsSpent: 1}, nil)
+	_, msg = e.call(t, map[string]any{"action": "upload", "id": "000000rs", "fileName": "empty.txt", "format": "textContent", "textContent": ""})
 	require.Empty(t, msg, "an empty text file")
 }
 
@@ -199,7 +199,7 @@ func TestUpload_Errors(t *testing.T) {
 		"no text":        {map[string]any{"fileName": "a", "format": text}, "textContent is required with format textContent"},
 		"base64 as text": {map[string]any{"fileName": "a", "format": text, "textContent": "x", "base64Content": content}, "base64Content needs format base64Content"},
 		"bad format":     {map[string]any{"fileName": "a", "format": "hex", "base64Content": content}, "enum"},
-		"ttl with id":    {map[string]any{"fileName": "a", "base64Content": content, "id": "000000000rs", "ttl": "1h"}, "ttl only applies"},
+		"ttl with id":    {map[string]any{"fileName": "a", "base64Content": content, "id": "000000rs", "ttl": "1h"}, "ttl only applies"},
 		"bad id":         {map[string]any{"fileName": "a", "base64Content": content, "id": "RS"}, "id must be a folder id"},
 		"bad ttl":        {map[string]any{"fileName": "a", "base64Content": content, "ttl": "soon"}, "whole minutes"},
 		"fractional ttl": {map[string]any{"fileName": "a", "base64Content": content, "ttl": "90s"}, "whole minutes"},
@@ -237,7 +237,7 @@ func TestUpload_ControllerErrors(t *testing.T) {
 		e := newEnv(t)
 		e.folders.EXPECT().PutFiles(gomock.Any(), gomock.Any()).Return(nil, folderctrl.ErrNotFound)
 		a := args()
-		a["id"] = "000000000rs"
+		a["id"] = "000000rs"
 		_, msg := e.call(t, a)
 		assert.Contains(t, msg, "not found")
 	})
@@ -251,26 +251,26 @@ func TestDownload(t *testing.T) {
 	e := newEnv(t)
 	e.folders.EXPECT().OpenFile(gomock.Any(), &entity.OpenFileRequest{UserID: 7, FolderID: 1000, Path: "site/a.bin"}).
 		Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader("hi"))}, nil)
-	out, msg := e.call(t, map[string]any{"action": "download", "id": "000000000rs", "path": "site", "fileName": "a.bin"})
+	out, msg := e.call(t, map[string]any{"action": "download", "id": "000000rs", "path": "site", "fileName": "a.bin"})
 	require.Empty(t, msg)
-	assert.Equal(t, FileOutput{ID: "000000000rs", FileName: "a.bin", Path: "site", Size: 2, Base64Content: ptr(base64.StdEncoding.EncodeToString([]byte("hi")))}, out)
+	assert.Equal(t, FileOutput{ID: "000000rs", FileName: "a.bin", Path: "site", Size: 2, Base64Content: ptr(base64.StdEncoding.EncodeToString([]byte("hi")))}, out)
 }
 
 func TestDownload_TextContent(t *testing.T) {
 	e := newEnv(t)
 	e.folders.EXPECT().OpenFile(gomock.Any(), &entity.OpenFileRequest{UserID: 7, FolderID: 1000, Path: "a.txt"}).
 		Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader("héllo"))}, nil)
-	out, msg := e.call(t, map[string]any{"action": "download", "id": "000000000rs", "fileName": "a.txt", "format": "textContent"})
+	out, msg := e.call(t, map[string]any{"action": "download", "id": "000000rs", "fileName": "a.txt", "format": "textContent"})
 	require.Empty(t, msg)
-	assert.Equal(t, FileOutput{ID: "000000000rs", FileName: "a.txt", Size: 6, TextContent: ptr("héllo")}, out)
+	assert.Equal(t, FileOutput{ID: "000000rs", FileName: "a.txt", Size: 6, TextContent: ptr("héllo")}, out)
 
 	e.folders.EXPECT().OpenFile(gomock.Any(), gomock.Any()).Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader(""))}, nil)
-	out, msg = e.call(t, map[string]any{"action": "download", "id": "000000000rs", "fileName": "a.txt", "format": "textContent"})
+	out, msg = e.call(t, map[string]any{"action": "download", "id": "000000rs", "fileName": "a.txt", "format": "textContent"})
 	require.Empty(t, msg)
 	assert.Equal(t, ptr(""), out.TextContent, "an empty file still carries its content field")
 
 	e.folders.EXPECT().OpenFile(gomock.Any(), gomock.Any()).Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader("\xff\xfe"))}, nil)
-	_, msg = e.call(t, map[string]any{"action": "download", "id": "000000000rs", "fileName": "a.bin", "format": "textContent"})
+	_, msg = e.call(t, map[string]any{"action": "download", "id": "000000rs", "fileName": "a.bin", "format": "textContent"})
 	assert.Contains(t, msg, "not UTF-8 text: download it with format base64Content")
 }
 
@@ -281,18 +281,18 @@ func TestDownload_Errors(t *testing.T) {
 	_, msg := e.call(t, map[string]any{"action": "download", "fileName": "a"})
 	assert.Contains(t, msg, "id must be a folder id")
 
-	_, msg = e.call(t, map[string]any{"action": "download", "id": "000000000rs"})
+	_, msg = e.call(t, map[string]any{"action": "download", "id": "000000rs"})
 	assert.Contains(t, msg, "fileName is required")
 
-	_, msg = e.call(t, map[string]any{"action": "download", "id": "000000000rs", "fileName": "a", "format": "hex"})
+	_, msg = e.call(t, map[string]any{"action": "download", "id": "000000rs", "fileName": "a", "format": "hex"})
 	assert.Contains(t, msg, "enum", "the schema rejects an unknown format")
 
 	e.folders.EXPECT().OpenFile(gomock.Any(), gomock.Any()).Return(nil, folderctrl.ErrNotFound)
-	_, msg = e.call(t, map[string]any{"action": "download", "id": "000000000rs", "fileName": "a"})
+	_, msg = e.call(t, map[string]any{"action": "download", "id": "000000rs", "fileName": "a"})
 	assert.Contains(t, msg, "not found")
 
 	e.folders.EXPECT().OpenFile(gomock.Any(), gomock.Any()).Return(&entity.OpenFileResponse{Body: io.NopCloser(failingReader{})}, nil)
-	_, msg = e.call(t, map[string]any{"action": "download", "id": "000000000rs", "fileName": "a"})
+	_, msg = e.call(t, map[string]any{"action": "download", "id": "000000rs", "fileName": "a"})
 	assert.Contains(t, msg, "read file: boom")
 }
 
@@ -301,22 +301,22 @@ func TestGet(t *testing.T) {
 	e.folders.EXPECT().GetFolder(gomock.Any(), &entity.GetFolderRequest{UserID: 7, FolderID: 1000}).Return(&entity.GetFolderResponse{
 		Folder: _folder,
 		Files: []entity.File{
-			{Path: "index.html", Size: 1, URL: "https://000000000rs.tmp.host/index.html"},
-			{Path: "site/css/a.css", Size: 2, URL: "https://000000000rs.tmp.host/site/css/a.css"},
+			{Path: "index.html", Size: 1, URL: "https://000000rs.tmp.host/index.html"},
+			{Path: "site/css/a.css", Size: 2, URL: "https://000000rs.tmp.host/site/css/a.css"},
 		},
 	}, nil)
-	out, msg := e.call(t, map[string]any{"action": "get", "id": "000000000rs"})
+	out, msg := e.call(t, map[string]any{"action": "get", "id": "000000rs"})
 	require.Empty(t, msg)
-	assert.Equal(t, FileOutput{ID: "000000000rs", URL: "https://000000000rs.tmp.host/", ExpiresAt: "2026-10-18T12:30:00Z", Files: []FileInfo{
-		{FileName: "index.html", Path: "", Size: 1, URL: "https://000000000rs.tmp.host/index.html"},
-		{FileName: "a.css", Path: "site/css", Size: 2, URL: "https://000000000rs.tmp.host/site/css/a.css"},
+	assert.Equal(t, FileOutput{ID: "000000rs", URL: "https://000000rs.tmp.host/", ExpiresAt: "2026-10-18T12:30:00Z", Files: []FileInfo{
+		{FileName: "index.html", Path: "", Size: 1, URL: "https://000000rs.tmp.host/index.html"},
+		{FileName: "a.css", Path: "site/css", Size: 2, URL: "https://000000rs.tmp.host/site/css/a.css"},
 	}}, out)
 
 	_, msg = e.call(t, map[string]any{"action": "get", "id": ""})
 	assert.Contains(t, msg, "id must be a folder id")
 
 	e.folders.EXPECT().GetFolder(gomock.Any(), gomock.Any()).Return(nil, folderctrl.ErrNotFound)
-	_, msg = e.call(t, map[string]any{"action": "get", "id": "000000000rs"})
+	_, msg = e.call(t, map[string]any{"action": "get", "id": "000000rs"})
 	assert.Contains(t, msg, "not found")
 }
 
@@ -327,12 +327,12 @@ func TestURL(t *testing.T) {
 		args map[string]any
 		url  string
 	}{
-		{map[string]any{}, "https://000000000rs.tmp.host/"},
-		{map[string]any{"path": "site/"}, "https://000000000rs.tmp.host/site/"},
-		{map[string]any{"fileName": "a b.txt"}, "https://000000000rs.tmp.host/a%20b.txt"},
-		{map[string]any{"path": "site", "fileName": "index.html"}, "https://000000000rs.tmp.host/site/index.html"},
+		{map[string]any{}, "https://000000rs.tmp.host/"},
+		{map[string]any{"path": "site/"}, "https://000000rs.tmp.host/site/"},
+		{map[string]any{"fileName": "a b.txt"}, "https://000000rs.tmp.host/a%20b.txt"},
+		{map[string]any{"path": "site", "fileName": "index.html"}, "https://000000rs.tmp.host/site/index.html"},
 	} {
-		tc.args["action"], tc.args["id"] = "url", "000000000rs"
+		tc.args["action"], tc.args["id"] = "url", "000000rs"
 		out, msg := e.call(t, tc.args)
 		require.Empty(t, msg)
 		assert.Equal(t, tc.url, out.URL)
@@ -345,10 +345,10 @@ func TestURL_Errors(t *testing.T) {
 	_, msg := e.call(t, map[string]any{"action": "url", "id": "!"})
 	assert.Contains(t, msg, "id must be a folder id")
 
-	_, msg = e.call(t, map[string]any{"action": "url", "id": "000000000rs", "fileName": "a/b"})
+	_, msg = e.call(t, map[string]any{"action": "url", "id": "000000rs", "fileName": "a/b"})
 	assert.Contains(t, msg, "invalid file path")
-	_, msg = e.call(t, map[string]any{"action": "url", "id": "000000000rs", "path": "a//b"})
+	_, msg = e.call(t, map[string]any{"action": "url", "id": "000000rs", "path": "a//b"})
 	assert.Contains(t, msg, "invalid file path")
-	_, msg = e.call(t, map[string]any{"action": "url", "id": "000000000rs", "path": "1/2/3/4/5/6", "fileName": "f"})
+	_, msg = e.call(t, map[string]any{"action": "url", "id": "000000rs", "path": "1/2/3/4/5/6", "fileName": "f"})
 	assert.Contains(t, msg, "invalid file path", "deeper than 5 directories")
 }

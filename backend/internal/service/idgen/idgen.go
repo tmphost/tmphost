@@ -59,15 +59,15 @@ func ParseBase36(s string) int64 {
 	return id
 }
 
-// FolderIDLength is the length of a written folder ID: 11 base36
+// FolderIDLength is the length of a written folder ID: 8 base36
 // characters, which are also a dynamic subdomain's label.
-const FolderIDLength = 11
+const FolderIDLength = 8
 
-// _folderIDSpace bounds folder IDs: 56 random bits fit in 11 base36
-// characters.
-const _folderIDSpace = 1<<56 - 1
+// _folderIDSpace bounds folder IDs to 36^8 - 1, the largest that fits in 8
+// base36 characters (about 2.8 trillion).
+const _folderIDSpace = 36*36*36*36*36*36*36*36 - 1
 
-// NewFolderID returns a random folder ID in [1, 2^56). Folder IDs are
+// NewFolderID returns a random folder ID in [1, 36^8). Folder IDs are
 // random rather than time-ordered so public URLs can't be guessed.
 func NewFolderID() int64 {
 	var b [8]byte

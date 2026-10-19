@@ -110,7 +110,7 @@ can change the sign-up and monthly credit grants, the maximum TTL and the public
 
 - **Domains**: the app URL (default `http://localhost:2027`; e.g.
   `https://app.tmphost.io`, any domain or subdomain) and the sites domain
-  (e.g. `tmphost.io`) whose dynamic subdomains `<11 characters>.<sites domain>`
+  (e.g. `tmphost.io`) whose dynamic subdomains `<8 characters>.<sites domain>`
   the server answers. Other hosts get a 404; localhost always reaches the app.
 - **TLS**: serve HTTPS on its own port (default 443) and redirect the app port
   to it. Certificates come from Let's Encrypt automatically (lego, TLS-ALPN-01

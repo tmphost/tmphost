@@ -33,15 +33,15 @@ func TestFolderID(t *testing.T) {
 	for range 1000 {
 		id := NewFolderID()
 		assert.Positive(t, id)
-		assert.Less(t, id, int64(1)<<56)
+		assert.Less(t, id, int64(36*36*36*36*36*36*36*36))
 		assert.Len(t, FormatFolderID(id), FolderIDLength)
 		assert.Equal(t, id, ParseFolderID(FormatFolderID(id)))
 	}
 	assert.NotEqual(t, NewFolderID(), NewFolderID())
-	assert.Equal(t, "000000000rs", FormatFolderID(1000))
-	assert.Equal(t, int64(1000), ParseFolderID("000000000rs"))
-	assert.Equal(t, "jpia9pm8jr3", FormatFolderID(1<<56-1), "the largest ID still fits")
-	for _, s := range []string{"", "rs", "000000000RS", "00000000000", "0000000000rs", "00000000-rs"} {
+	assert.Equal(t, "000000rs", FormatFolderID(1000))
+	assert.Equal(t, int64(1000), ParseFolderID("000000rs"))
+	assert.Equal(t, "zzzzzzzz", FormatFolderID(_folderIDSpace), "the largest ID still fits")
+	for _, s := range []string{"", "rs", "000000RS", "00000000", "0000000rs", "00000-rs", "000000000rs"} {
 		assert.Zero(t, ParseFolderID(s), s)
 	}
 }
