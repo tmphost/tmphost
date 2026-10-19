@@ -108,3 +108,41 @@ func (mr *MockServiceMockRecorder) Put(ctx, key, data interface{}) *gomock.Call 
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockService)(nil).Put), ctx, key, data)
 }
+
+// MockSigner is a mock of Signer interface.
+type MockSigner struct {
+	ctrl     *gomock.Controller
+	recorder *MockSignerMockRecorder
+}
+
+// MockSignerMockRecorder is the mock recorder for MockSigner.
+type MockSignerMockRecorder struct {
+	mock *MockSigner
+}
+
+// NewMockSigner creates a new mock instance.
+func NewMockSigner(ctrl *gomock.Controller) *MockSigner {
+	mock := &MockSigner{ctrl: ctrl}
+	mock.recorder = &MockSignerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockSigner) EXPECT() *MockSignerMockRecorder {
+	return m.recorder
+}
+
+// SignGet mocks base method.
+func (m *MockSigner) SignGet(ctx context.Context, key string, opts storage.SignOptions) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SignGet", ctx, key, opts)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SignGet indicates an expected call of SignGet.
+func (mr *MockSignerMockRecorder) SignGet(ctx, key, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignGet", reflect.TypeOf((*MockSigner)(nil).SignGet), ctx, key, opts)
+}

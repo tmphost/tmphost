@@ -39,6 +39,25 @@ type (
 		DeletePrefix(ctx context.Context, prefix string) error
 	}
 
+	// Signer is a Service that can hand out URLs reading an object straight
+	// from where it is stored, so large files need not pass through tmphost.
+	Signer interface {
+		// SignGet returns a URL that reads the object under key until
+		// opts.TTL passes. It doesn't check that the object exists. An
+		// empty URL means the object is better read with Get, such as one
+		// held in memory.
+		SignGet(ctx context.Context, key string, opts SignOptions) (string, error)
+	}
+
+	// SignOptions shape a signed URL and the response it gets.
+	SignOptions struct {
+		TTL time.Duration
+		// ContentType and ContentDisposition override the response's
+		// headers when set.
+		ContentType        string
+		ContentDisposition string
+	}
+
 	// Object describes a stored object.
 	Object struct {
 		Key     string

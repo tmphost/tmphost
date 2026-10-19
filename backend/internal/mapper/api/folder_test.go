@@ -163,7 +163,7 @@ func TestFromHTTPRequestToFileRequestEntities(t *testing.T) {
 		del = FromHTTPRequestToDeleteFileRequestEntity(c)
 	})
 	assert.Equal(t, &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "site/a b.txt", Data: []byte("hi")}}}, put)
-	assert.Equal(t, &entity.OpenFileRequest{UserID: 7, FolderID: 1000, Path: "site/a b.txt"}, open)
+	assert.Equal(t, &entity.OpenFileRequest{UserID: 7, FolderID: 1000, Path: "site/a b.txt", Redirect: true}, open, "HTTP clients follow redirects")
 	assert.Equal(t, &entity.DeleteFileRequest{UserID: 7, FolderID: 1000, Path: "site/a b.txt"}, del)
 
 	runAs(t, 3, "/folders/:id/files/*", httptest.NewRequest(http.MethodPut, "/folders/000000rs/files/a", strings.NewReader("hi")), func(c fiber.Ctx) {

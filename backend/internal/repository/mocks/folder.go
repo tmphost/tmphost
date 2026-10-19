@@ -154,17 +154,17 @@ func (mr *MockFolderRepositoryMockRecorder) ListFoldersByUser(ctx, userID, now i
 }
 
 // SaveFiles mocks base method.
-func (m *MockFolderRepository) SaveFiles(ctx context.Context, files []model.File) error {
+func (m *MockFolderRepository) SaveFiles(ctx context.Context, folderID int64, agent string, files model.FolderFiles) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SaveFiles", ctx, files)
+	ret := m.ctrl.Call(m, "SaveFiles", ctx, folderID, agent, files)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SaveFiles indicates an expected call of SaveFiles.
-func (mr *MockFolderRepositoryMockRecorder) SaveFiles(ctx, files interface{}) *gomock.Call {
+func (mr *MockFolderRepositoryMockRecorder) SaveFiles(ctx, folderID, agent, files interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveFiles", reflect.TypeOf((*MockFolderRepository)(nil).SaveFiles), ctx, files)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveFiles", reflect.TypeOf((*MockFolderRepository)(nil).SaveFiles), ctx, folderID, agent, files)
 }
 
 // UpdateFolderTitle mocks base method.

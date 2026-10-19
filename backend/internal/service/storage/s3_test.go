@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/golang/mock/gomock"
@@ -31,7 +33,7 @@ var errBoom = errors.New("boom")
 func newS3(t *testing.T) (storage.Service, *mocks.MockS3API) {
 	t.Helper()
 	client := mocks.NewMockS3API(gomock.NewController(t))
-	return storage.NewS3WithClient(client, "bucket"), client
+	return storage.NewS3WithClient(client, nil, "bucket"), client
 }
 
 func TestNewS3(t *testing.T) {
@@ -91,6 +93,43 @@ func TestS3_Get(t *testing.T) {
 
 	_, _, err = s.Get(ctx, "")
 	assert.ErrorIs(t, err, storage.ErrInvalidKey)
+}
+
+func TestS3_SignGet(t *testing.T) {
+	ctx := context.Background()
+	// A real presigner: signing is local, so it needs no bucket.
+	presigner := s3.NewPresignClient(s3.New(s3.Options{
+		Region: "us-east-1", Credentials: credentials.NewStaticCredentialsProvider("AKID", "secret", ""),
+	}))
+	s := storage.NewS3WithClient(nil, presigner, "bucket").(storage.Signer)
+
+	u, err := s.SignGet(ctx, "u1/f/a b.bin", storage.SignOptions{
+		TTL: 15 * time.Minute, ContentType: "application/octet-stream", ContentDisposition: `attachment; filename="a b.bin"`,
+	})
+	require.NoError(t, err)
+	parsed, err := url.Parse(u)
+	require.NoError(t, err)
+	assert.Equal(t, "bucket.s3.us-east-1.amazonaws.com", parsed.Host)
+	assert.Equal(t, "/u1/f/a%20b.bin", parsed.EscapedPath())
+	q := parsed.Query()
+	assert.Equal(t, "900", q.Get("X-Amz-Expires"))
+	assert.Equal(t, "application/octet-stream", q.Get("response-content-type"))
+	assert.Equal(t, `attachment; filename="a b.bin"`, q.Get("response-content-disposition"))
+	assert.NotEmpty(t, q.Get("X-Amz-Signature"))
+
+	u, err = s.SignGet(ctx, "u1/f/a", storage.SignOptions{TTL: time.Minute})
+	require.NoError(t, err)
+	parsed, _ = url.Parse(u)
+	assert.Empty(t, parsed.Query().Get("response-content-type"), "no overrides asked for")
+	assert.Empty(t, parsed.Query().Get("response-content-disposition"))
+
+	_, err = s.SignGet(ctx, "../a", storage.SignOptions{})
+	assert.ErrorIs(t, err, storage.ErrInvalidKey)
+
+	failing := mocks.NewMockS3Presigner(gomock.NewController(t))
+	failing.EXPECT().PresignGetObject(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errBoom)
+	_, err = storage.NewS3WithClient(nil, failing, "bucket").(storage.Signer).SignGet(ctx, "u1/f/a", storage.SignOptions{TTL: time.Minute})
+	assert.ErrorIs(t, err, errBoom)
 }
 
 func TestS3_ListPaginates(t *testing.T) {

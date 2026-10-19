@@ -9,6 +9,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"maps"
 	"time"
 
 	"gorm.io/gorm"
@@ -35,12 +36,14 @@ type (
 		ExtendFolder(ctx context.Context, id int64, now, expiresAt time.Time) error
 		// DeleteFolder deletes a folder and its file records.
 		DeleteFolder(ctx context.Context, id int64) error
-		// SaveFiles records who wrote files, replacing the records of the
-		// same folder and path.
-		SaveFiles(ctx context.Context, files []model.File) error
+		// SaveFiles records that agent wrote files into a folder: it
+		// replaces their entries in the folder's Files and their records
+		// of who wrote them, together.
+		SaveFiles(ctx context.Context, folderID int64, agent string, files model.FolderFiles) error
 		// ListFiles returns the file records of a folder.
 		ListFiles(ctx context.Context, folderID int64) ([]model.File, error)
-		// DeleteFile deletes the record of a folder's file, if any.
+		// DeleteFile deletes the entry and the record of a folder's file,
+		// if any.
 		DeleteFile(ctx context.Context, folderID int64, path string) error
 	}
 
@@ -124,14 +127,26 @@ func (r *folderRepository) DeleteFolder(ctx context.Context, id int64) error {
 	})
 }
 
-func (r *folderRepository) SaveFiles(ctx context.Context, files []model.File) error {
+func (r *folderRepository) SaveFiles(ctx context.Context, folderID int64, agent string, files model.FolderFiles) error {
 	if len(files) == 0 {
 		return nil
 	}
-	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "folder_id"}, {Name: "path"}},
-		DoUpdates: clause.AssignmentColumns([]string{"agent", "updated_at"}),
-	}).Create(&files).Error
+	records := make([]model.File, 0, len(files))
+	for p, f := range files {
+		records = append(records, model.File{FolderID: folderID, Path: p, Agent: agent, UpdatedAt: f.UpdatedAt})
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := updateFolderFiles(tx, folderID, func(all model.FolderFiles) {
+			maps.Copy(all, files)
+		})
+		if err != nil {
+			return err
+		}
+		return tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "folder_id"}, {Name: "path"}},
+			DoUpdates: clause.AssignmentColumns([]string{"agent", "updated_at"}),
+		}).Create(&records).Error
+	})
 }
 
 func (r *folderRepository) ListFiles(ctx context.Context, folderID int64) ([]model.File, error) {
@@ -143,5 +158,32 @@ func (r *folderRepository) ListFiles(ctx context.Context, folderID int64) ([]mod
 }
 
 func (r *folderRepository) DeleteFile(ctx context.Context, folderID int64, path string) error {
-	return r.db.WithContext(ctx).Delete(&model.File{}, "folder_id = ? AND path = ?", folderID, path).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := updateFolderFiles(tx, folderID, func(all model.FolderFiles) {
+			delete(all, path)
+		})
+		if err != nil {
+			return err
+		}
+		return tx.Delete(&model.File{}, "folder_id = ? AND path = ?", folderID, path).Error
+	})
+}
+
+// updateFolderFiles changes a folder's Files in tx. It locks the row first
+// with a no-op update, portable to SQLite and Postgres, so concurrent
+// writes to one folder take turns. A folder without Files keeps none, and a
+// missing folder is no error: there is nothing left to describe.
+func updateFolderFiles(tx *gorm.DB, folderID int64, change func(model.FolderFiles)) error {
+	if err := tx.Model(&model.Folder{}).Where("id = ?", folderID).Update("files", gorm.Expr("files")).Error; err != nil {
+		return err
+	}
+	var folders []model.Folder
+	if err := tx.Select("files").Where("id = ?", folderID).Limit(1).Find(&folders).Error; err != nil {
+		return err
+	}
+	if len(folders) == 0 || folders[0].Files == nil {
+		return nil
+	}
+	change(folders[0].Files)
+	return tx.Model(&model.Folder{}).Where("id = ?", folderID).Update("files", folders[0].Files).Error
 }

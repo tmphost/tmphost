@@ -304,7 +304,7 @@ func TestFolder_PutFile(t *testing.T) {
 
 func TestFolder_GetFile(t *testing.T) {
 	e := newFilesApp(t)
-	e.folders.EXPECT().OpenFile(gomock.Any(), &entity.OpenFileRequest{UserID: 7, FolderID: 1000, Path: "site/page.html"}).
+	e.folders.EXPECT().OpenFile(gomock.Any(), &entity.OpenFileRequest{UserID: 7, FolderID: 1000, Path: "site/page.html", Redirect: true}).
 		Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader("<p>")), Size: 3, ContentType: "text/html"}, nil)
 	res, body := e.do(t, http.MethodGet, "/api/v1/folders/000000rs/files/site/page.html", "")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
@@ -319,6 +319,16 @@ func TestFolder_GetFile(t *testing.T) {
 	e.folders.EXPECT().OpenFile(gomock.Any(), gomock.Any()).Return(nil, folderctrl.ErrNotFound)
 	res, _ = e.do(t, http.MethodGet, "/api/v1/folders/000000rs/files/a", "")
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
+
+	// A large file in the bucket: the client fetches it from there.
+	signed := "https://bucket.s3.example/u7/000000rs/big.bin?X-Amz-Signature=abc&response-content-disposition=attachment"
+	e.folders.EXPECT().OpenFile(gomock.Any(), gomock.Any()).Return(&entity.OpenFileResponse{RedirectURL: signed, Size: 2 << 20}, nil)
+	res, body = e.do(t, http.MethodGet, "/api/v1/folders/000000rs/files/big.bin", "")
+	assert.Equal(t, http.StatusFound, res.StatusCode)
+	assert.Equal(t, signed, res.Header.Get("Location"))
+	assert.Equal(t, "no-store", res.Header.Get("Cache-Control"))
+	assert.Empty(t, res.Header.Get("Content-Disposition"))
+	assert.Empty(t, body)
 }
 
 func TestFolder_DeleteFile(t *testing.T) {
@@ -358,6 +368,19 @@ func TestPublic(t *testing.T) {
 
 	res, _ = get(http.MethodPost, "000000rs.tmp.host", "/")
 	assert.Equal(t, http.StatusMethodNotAllowed, res.StatusCode)
+
+	// A large file in the bucket is a redirect, for HEAD too.
+	signed := "https://bucket.s3.example/u7/000000rs/big.png?X-Amz-Signature=abc"
+	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: "big.png"}).
+		Return(&entity.OpenFileResponse{RedirectURL: signed, Size: 2 << 20, ContentType: "image/png"}, nil).Times(2)
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		res, body = get(method, "000000rs.tmp.host", "/big.png")
+		assert.Equal(t, http.StatusFound, res.StatusCode)
+		assert.Equal(t, signed, res.Header.Get("Location"))
+		assert.Equal(t, "public, max-age=60", res.Header.Get("Cache-Control"))
+		assert.NotEqual(t, "image/png", res.Header.Get("Content-Type"))
+		assert.Empty(t, body)
+	}
 
 	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: ""}).Return(nil, folderctrl.ErrNotFound)
 	res, body = get(http.MethodGet, "000000rs.tmp.host", "/")

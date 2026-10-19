@@ -323,6 +323,43 @@ func TestCached_AsyncRetries(t *testing.T) {
 	assert.Contains(t, logs.String(), "u1/f1/b")
 }
 
+// signingStore is a fakeStore that signs URLs.
+type signingStore struct{ *fakeStore }
+
+func (s signingStore) SignGet(_ context.Context, key string, opts SignOptions) (string, error) {
+	return "https://bucket/" + key + "?ttl=" + opts.TTL.String(), nil
+}
+
+func TestCached_SignGet(t *testing.T) {
+	ctx := context.Background()
+	s, _, _ := newCached(t, CacheConfig{TTL: time.Minute, MaxBytes: 1 << 20})
+	// The inner storage doesn't sign: everything is read with Get.
+	u, err := s.SignGet(ctx, "u1/f1/a", SignOptions{TTL: time.Minute})
+	require.NoError(t, err)
+	assert.Empty(t, u)
+
+	s, inner, _ := newCached(t, asyncCache)
+	s.Service = signingStore{inner}
+	u, err = s.SignGet(ctx, "u1/f1/a", SignOptions{TTL: time.Minute})
+	require.NoError(t, err)
+	assert.Equal(t, "https://bucket/u1/f1/a?ttl=1m0s", u, "not in memory: signed by the bucket")
+
+	// Still being written: only memory has it.
+	h := inner.hold("u1/f1/a")
+	require.NoError(t, s.Put(ctx, "u1/f1/a", []byte("new")))
+	<-h.started
+	u, err = s.SignGet(ctx, "u1/f1/a", SignOptions{TTL: time.Minute})
+	require.NoError(t, err)
+	assert.Empty(t, u)
+
+	// Written and fresh: served from memory.
+	close(h.release)
+	require.NoError(t, Flush(ctx, s))
+	u, err = s.SignGet(ctx, "u1/f1/a", SignOptions{TTL: time.Minute})
+	require.NoError(t, err)
+	assert.Empty(t, u)
+}
+
 func TestCached_DeleteWaitsForWrites(t *testing.T) {
 	for name, del := range map[string]func(s *cached) error{
 		"key":    func(s *cached) error { return s.Delete(context.Background(), "u1/f1/a") },

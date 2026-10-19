@@ -167,9 +167,18 @@ type (
 	// StorageConfig is the "storage" section.
 	StorageConfig struct {
 		// Driver is "local" or "s3".
-		Driver    string             `yaml:"driver"`
-		LocalPath string             `yaml:"localPath"`
-		Cache     StorageCacheConfig `yaml:"cache"`
+		Driver    string                `yaml:"driver"`
+		LocalPath string                `yaml:"localPath"`
+		Cache     StorageCacheConfig    `yaml:"cache"`
+		Redirect  StorageRedirectConfig `yaml:"redirect"`
+	}
+
+	// StorageRedirectConfig is the "storage.redirect" section: with S3,
+	// downloads of files over OverMB answer with a redirect to a URL of
+	// the bucket signed for TTL. A zero OverMB streams every file.
+	StorageRedirectConfig struct {
+		OverMB int           `yaml:"overMb"`
+		TTL    time.Duration `yaml:"ttl"`
 	}
 
 	// StorageCacheConfig is the "storage.cache" section: fresh uploads are
@@ -285,6 +294,8 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		AnonymousBytes: quota.New(quota.Params{Limit: folderctrl.AnonymousBytes, Window: folderctrl.AnonymousWindow}),
 		Limits:         setup.FileLimits,
 		BaseURL:        baseURL,
+		RedirectOver:   int64(cfg.Storage.Redirect.OverMB) << 20,
+		RedirectTTL:    cfg.Storage.Redirect.TTL,
 	})
 	// Uploads reach the MCP server base64-encoded, a third bigger. The
 	// folder controller enforces the real limit on the decoded bytes.

@@ -39,8 +39,9 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
 - Storage is local disk (`TMPHOSTIO_STORAGE_LOCAL_PATH`) or an S3 bucket, under
   `u<userId>/<folderId>/<path>`. Paths are at most 5 directories deep and are
   validated server-side, so a file can never leave its folder. The database
-  stores only each folder's ID, owner and expiry; a job deletes expired
-  folders every minute. Folder IDs are 8 random lowercase base36
+  stores each folder's ID, owner and expiry, and the size, type and update
+  time of its files (so listings and redirects need no storage call), never
+  their bytes; a job deletes expired folders every minute. Folder IDs are 8 random lowercase base36
   characters, so public URLs can't be guessed.
 - Fresh uploads are also kept in memory and served from there for their
   first 5 minutes (`TMPHOSTIO_STORAGE_CACHE_TTL`), up to 256 MB in all
@@ -51,6 +52,11 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   writes of a path land in order, are retried 3 times, are listed and
   served from memory until they land, and finish before shutdown. Past
   another 256 MB of writes in flight, uploads wait for the bucket again.
+- With S3, downloads of files over 1 MB (`TMPHOSTIO_STORAGE_REDIRECT_OVER_MB`,
+  0 turns it off) on public URLs, the API and the CLI answer `302 Found` to
+  a URL of the bucket signed for 15 minutes (`TMPHOSTIO_STORAGE_REDIRECT_TTL`),
+  so large files don't pass through tmphost. HTML pages, files still in
+  memory and MCP downloads (base64Content/textContent) are served directly.
 - Public URLs: `<TMPHOSTIO_BASE_URL>/files/<userId>/<folderId>/<path>` by
   default, or `<folderId>.<publicDomain>/<path>` with subdomains on
   (`TMPHOSTIO_FILES_SUBDOMAINS`, `TMPHOSTIO_FILES_PUBLIC_DOMAIN`, which defaults

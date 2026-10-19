@@ -82,6 +82,12 @@ func (h *Public) send(c fiber.Ctx, rq *entity.OpenPublicFileRequest, missing fib
 		logServerError(c, err)
 		return c.Status(fiber.StatusInternalServerError).SendString("Something went wrong.")
 	}
+	if rs.RedirectURL != "" {
+		// Large files come straight from the bucket; the signed URL
+		// outlives this cache time.
+		c.Set(fiber.HeaderCacheControl, "public, max-age=60")
+		return c.Redirect().Status(fiber.StatusFound).To(rs.RedirectURL)
+	}
 	c.Set(fiber.HeaderContentType, rs.ContentType)
 	c.Set(fiber.HeaderContentSecurityPolicy, _sandbox)
 	c.Set(fiber.HeaderXContentTypeOptions, "nosniff")
