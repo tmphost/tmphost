@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import BrandLogo from '../src/components/BrandLogo.vue'
 import ToastStack from '../src/components/ToastStack.vue'
+import UploadProgress from '../src/components/UploadProgress.vue'
 import { useToasts } from '../src/composables/useToasts'
 
 describe('BrandLogo', () => {
@@ -36,5 +37,20 @@ describe('ToastStack', () => {
     expect(wrapper.find('[data-test="toast-mystery"] span').classes()).toContain('bg-gray-400')
     await wrapper.find('[data-test="toast-error"] button').trigger('click')
     expect(toasts.value.map((t) => t.id)).toEqual([2])
+  })
+})
+
+describe('UploadProgress', () => {
+  it('fills the bar by the bytes sent', () => {
+    const half = mount(UploadProgress, { props: { sent: 512, total: 1024 } })
+    expect(half.find('[data-test="upload-progress-bytes"]').text()).toBe('512 B of 1.0 KB')
+    expect(half.find('[role="progressbar"]').attributes('aria-valuenow')).toBe('50')
+    expect(half.find('[data-test="upload-progress-bar"]').attributes('style')).toContain('width: 50%')
+    // A progress event can count a few header bytes past the body.
+    const over = mount(UploadProgress, { props: { sent: 2000, total: 1024 } })
+    expect(over.find('[data-test="upload-progress-percent"]').text()).toBe('100%')
+    expect(over.find('[data-test="upload-progress-bytes"]').text()).toBe('1.0 KB of 1.0 KB')
+    const empty = mount(UploadProgress)
+    expect(empty.find('[data-test="upload-progress-percent"]').text()).toBe('0%')
   })
 })

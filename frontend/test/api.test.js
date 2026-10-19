@@ -275,18 +275,36 @@ describe('files api', () => {
   it('uploads and deletes files by encoded path', async () => {
     const api = await loadApi('')
     const file = new Blob(['hi'])
-    fetch.mockResolvedValueOnce(json({ file: { path: 'a b/c.txt' }, creditsSpent: 2 }))
-    expect(await api.uploadFile('f1', 'a b/c.txt', file)).toEqual({ file: { path: 'a b/c.txt' }, creditsSpent: 2 })
-    expect(fetch).toHaveBeenLastCalledWith('/api/v1/folders/f1/files/a%20b/c.txt', {
-      method: 'PUT',
-      credentials: 'same-origin',
-      body: file,
-    })
+    const xhrs = []
+    // FakeXHR answers each upload with the next status and response text.
+    const answers = [
+      [200, JSON.stringify({ file: { path: 'a b/c.txt' }, creditsSpent: 2 })],
+      [413, JSON.stringify({ error: 'file too large' })],
+      [500, 'oops'],
+    ]
+    globalThis.XMLHttpRequest = class {
+      upload = {}
+      open(method, url) {
+        Object.assign(this, { method, url })
+      }
+      send(body) {
+        this.body = body
+        xhrs.push(this)
+        if (!answers.length) return this.onerror()
+        this.upload.onprogress({ loaded: 1 })
+        ;[this.status, this.responseText] = answers.shift()
+        this.onload()
+      }
+    }
+    const onProgress = vi.fn()
+    expect(await api.uploadFile('f1', 'a b/c.txt', file, onProgress)).toEqual({ file: { path: 'a b/c.txt' }, creditsSpent: 2 })
+    expect(xhrs[0]).toMatchObject({ method: 'PUT', url: '/api/v1/folders/f1/files/a%20b/c.txt', body: file })
+    expect(onProgress.mock.calls).toEqual([[1], [2]])
 
-    fetch.mockResolvedValueOnce(json({ error: 'file too large' }, 413))
     await expect(api.uploadFile('f1', 'big.bin', file)).rejects.toMatchObject({ message: 'file too large', status: 413 })
-    fetch.mockResolvedValueOnce(json({}, 500))
-    await expect(api.uploadFile('f1', 'x.txt', file)).rejects.toThrow('Failed to upload x.txt (500)')
+    await expect(api.uploadFile('f1', 'x.txt', file)).rejects.toMatchObject({ message: 'Failed to upload x.txt (500)', status: 500 })
+    await expect(api.uploadFile('f1', 'y.txt', file)).rejects.toThrow('Failed to upload y.txt')
+    delete globalThis.XMLHttpRequest
 
     fetch.mockResolvedValueOnce(json(null, 204))
     await api.deleteFile('f1', 'a b/c.txt')

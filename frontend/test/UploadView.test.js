@@ -149,19 +149,29 @@ describe('UploadView', () => {
   })
 
   it('says "1 file" and shows progress while uploading', async () => {
-    let release
+    let release, onProgress
     uploadFile.mockImplementation(
-      () => new Promise((r) => (release = () => r({ file: { path: 'a.txt', size: 1, url: 'u' } }))),
+      (_id, _path, _file, progress) =>
+        new Promise((r) => {
+          onProgress = progress
+          release = () => r({ file: { path: 'a.txt', size: 1, url: 'u' } })
+        }),
     )
     const wrapper = await mountView()
-    await pick(wrapper, '[data-test="pick-files"]', [file('a.txt', 1)])
+    await pick(wrapper, '[data-test="pick-files"]', [file('a.txt', 2048)])
     await wrapper.find('[data-test="upload-start"]').trigger('click')
     await flushPromises()
     expect(wrapper.find('[data-test="upload-start"]').text()).toBe('Uploading 0 / 1')
+    expect(wrapper.find('[data-test="upload-progress-percent"]').text()).toBe('0%')
+    onProgress(1024)
+    await flushPromises()
+    expect(wrapper.find('[data-test="upload-progress-bytes"]').text()).toBe('1.0 KB of 2.0 KB')
+    expect(wrapper.find('[data-test="upload-progress-bar"]').attributes('style')).toContain('width: 50%')
     expect(wrapper.find('[data-test="upload-clear"]').attributes('disabled')).toBeDefined()
     release()
     await flushPromises()
     expect(lastToast()).toMatchObject({ type: 'success', message: 'Uploaded 1 file' })
+    expect(wrapper.find('[data-test="upload-progress"]').exists()).toBe(false)
   })
 
   it('keeps what was uploaded when the quota runs out', async () => {
@@ -208,7 +218,7 @@ describe('UploadView', () => {
     await wrapper.find('[data-test="upload-start"]').trigger('click')
     await flushPromises()
     expect(createFolder).toHaveBeenCalledTimes(2)
-    expect(uploadFile).toHaveBeenLastCalledWith('xyz', 'a.txt', expect.anything())
+    expect(uploadFile).toHaveBeenLastCalledWith('xyz', 'a.txt', expect.anything(), expect.any(Function))
     expect(wrapper.find('[data-test="result-b.txt"]').exists()).toBe(false)
   })
 

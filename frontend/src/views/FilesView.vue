@@ -8,6 +8,7 @@
 import { computed, inject, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import DeleteModal from '../components/DeleteModal.vue'
 import ExtendModal from '../components/ExtendModal.vue'
+import UploadProgress from '../components/UploadProgress.vue'
 import {
   createFolder,
   deleteFile,
@@ -66,7 +67,8 @@ const dragging = ref(false)
 // the drop overlay only hides once the drag has left the page.
 let dragDepth = 0
 const uploading = ref(false)
-const progress = ref({ done: 0, total: 0 })
+// Files done of files, and bytes sent of total bytes, while uploading.
+const progress = ref({ done: 0, files: 0, sent: 0, total: 0 })
 // The ID of the existing folder uploads go into, or null for a new folder.
 // Its files keep their links: an upload to a path already there replaces
 // the file.
@@ -227,12 +229,16 @@ async function upload() {
   const items = selected.value
   let folder = target.value
   uploading.value = true
-  progress.value = { done: 0, total: items.length }
+  progress.value = { done: 0, files: items.length, sent: 0, total: items.reduce((n, item) => n + item.file.size, 0) }
+  // The bytes of the files already uploaded.
+  let sent = 0
   try {
     folder ??= await createFolder(ttl.value)
+    const onProgress = (bytes) => (progress.value.sent = sent + bytes)
     for (const item of items) {
-      await uploadFile(folder.id, item.path, item.file)
-      progress.value = { done: progress.value.done + 1, total: items.length }
+      await uploadFile(folder.id, item.path, item.file, onProgress)
+      sent += item.file.size
+      progress.value.done++
     }
     selected.value = []
     uploadToNewFolder()
@@ -482,6 +488,8 @@ onUnmounted(() => clearInterval(timer))
             This upload costs {{ cost }} credits but you have {{ credits }} left.
           </p>
 
+          <UploadProgress v-if="uploading" :sent="progress.sent" :total="progress.total" class="mt-4" />
+
           <div class="mt-4 flex flex-wrap items-center gap-3">
             <p class="grow text-xs text-gray-500 dark:text-zinc-400" data-test="upload-cost">
               {{ selected.length === 1 ? '1 file' : `${selected.length} files` }} ·
@@ -492,7 +500,7 @@ onUnmounted(() => clearInterval(timer))
               Clear
             </button>
             <button type="button" :disabled="!canUpload" :class="PRIMARY" data-test="upload-start" @click="upload">
-              {{ uploading ? `Uploading ${progress.done} / ${progress.total}` : 'Upload' }}
+              {{ uploading ? `Uploading ${progress.done} / ${progress.files}` : 'Upload' }}
             </button>
           </div>
         </div>
