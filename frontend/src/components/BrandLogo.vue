@@ -15,7 +15,7 @@ defineProps({
 
 <template>
   <span
-    :class="['inline-flex items-center justify-center shrink-0', tile ? 'bg-black text-white rounded-lg' : 'text-gray-900']"
+    :class="['inline-flex items-center justify-center shrink-0', tile ? 'bg-black dark:bg-white text-white dark:text-zinc-900 rounded-lg' : 'text-gray-900 dark:text-zinc-100']"
     data-test="brand-logo"
   >
     <svg

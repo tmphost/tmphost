@@ -44,35 +44,35 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-[100dvh] flex items-center justify-center bg-zinc-50 px-4 py-10">
-    <div class="w-full max-w-sm bg-white border border-gray-200 rounded-xl shadow-sm p-8">
+  <div class="min-h-[100dvh] flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 px-4 py-10">
+    <div class="w-full max-w-sm bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl shadow-sm p-8">
       <div class="text-center mb-8">
         <BrandLogo tile class="w-12 h-12 mx-auto mb-5" />
-        <h1 class="text-2xl font-black text-gray-900 tracking-tight">tmphost.io</h1>
-        <p class="mt-1.5 text-sm text-gray-500">Sign in to continue.</p>
+        <h1 class="text-2xl font-black text-gray-900 dark:text-zinc-100 tracking-tight">tmphost.io</h1>
+        <p class="mt-1.5 text-sm text-gray-500 dark:text-zinc-400">Sign in to continue.</p>
       </div>
 
       <p
         v-if="errorMessage"
         role="alert"
-        class="mb-4 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600"
+        class="mb-4 rounded-lg border border-rose-100 dark:border-rose-500/20 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-600 dark:text-rose-400"
         data-test="login-error"
       >
         {{ errorMessage }}
       </p>
 
       <div v-if="loading" class="flex justify-center py-6" data-test="login-loading">
-        <svg class="animate-spin h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24">
+        <svg class="animate-spin h-5 w-5 text-gray-400 dark:text-zinc-500" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
         </svg>
       </div>
 
-      <p v-else-if="configError" class="text-center text-sm text-gray-500" data-test="login-config-error">
+      <p v-else-if="configError" class="text-center text-sm text-gray-500 dark:text-zinc-400" data-test="login-config-error">
         {{ configError }}
       </p>
 
-      <p v-else-if="buttons.length === 0" class="text-center text-sm text-gray-500" data-test="login-no-providers">
+      <p v-else-if="buttons.length === 0" class="text-center text-sm text-gray-500 dark:text-zinc-400" data-test="login-no-providers">
         No sign-in providers are configured.
       </p>
 
@@ -82,7 +82,7 @@ onMounted(async () => {
           :key="button.id"
           :href="button.href"
           :data-test="`login-${button.id}`"
-          class="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg border border-gray-200 bg-white text-[11px] font-black uppercase tracking-widest text-gray-900 hover:border-gray-300 hover:bg-zinc-50 transition-colors"
+          class="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-[11px] font-black uppercase tracking-widest text-gray-900 dark:text-zinc-100 hover:border-gray-300 dark:hover:border-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-950 transition-colors"
         >
           <!-- Google and GitHub ship their icons here; custom providers send an SVG. -->
           <svg v-if="button.id === 'google'" class="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
@@ -97,21 +97,21 @@ onMounted(async () => {
           <img v-else-if="button.icon" :src="button.icon" alt="" class="w-4 h-4" data-test="login-icon" />
           {{ button.label }}
         </a>
-        <p class="pt-2 text-center text-[11px] text-gray-400">
-          New accounts get <span class="font-bold text-gray-500">250 free operations</span> every month.
+        <p class="pt-2 text-center text-[11px] text-gray-400 dark:text-zinc-500">
+          New accounts get <span class="font-bold text-gray-500 dark:text-zinc-400">250 free operations</span> every month.
         </p>
       </div>
 
-      <p class="mt-6 text-center text-xs text-gray-500">
+      <p class="mt-6 text-center text-xs text-gray-500 dark:text-zinc-400">
         No account?
-        <router-link to="/upload" class="font-bold text-gray-900 hover:underline" data-test="login-upload">
+        <router-link to="/upload" class="font-bold text-gray-900 dark:text-zinc-100 hover:underline" data-test="login-upload">
           Upload without signing in
         </router-link>
       </p>
 
-      <div class="mt-8 pt-5 border-t border-gray-100 flex items-center justify-between text-[11px] font-bold text-gray-400">
+      <div class="mt-8 pt-5 border-t border-gray-100 dark:border-zinc-800 flex items-center justify-between text-[11px] font-bold text-gray-400 dark:text-zinc-500">
         <span>&copy; {{ new Date().getFullYear() }} tmphost.io</span>
-        <router-link to="/setup" class="hover:text-gray-900 transition-colors" data-test="login-setup">Setup</router-link>
+        <router-link to="/setup" class="hover:text-gray-900 dark:hover:text-zinc-100 transition-colors" data-test="login-setup">Setup</router-link>
       </div>
     </div>
   </div>

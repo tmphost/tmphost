@@ -22,17 +22,17 @@ const ACCENT = {
       v-for="toast in toasts"
       :key="toast.id"
       role="status"
-      class="pointer-events-auto flex items-start gap-3 bg-white border border-gray-200 rounded-xl p-3 shadow-sm"
+      class="pointer-events-auto flex items-start gap-3 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl p-3 shadow-sm"
       :data-test="`toast-${toast.type}`"
     >
       <span :class="['mt-1.5 w-1.5 h-1.5 rounded-full shrink-0', ACCENT[toast.type] || ACCENT.info]"></span>
       <div class="grow min-w-0">
-        <p v-if="toast.title" class="text-xs font-bold text-gray-900">{{ toast.title }}</p>
-        <p class="text-xs text-gray-500 break-words">{{ toast.message }}</p>
+        <p v-if="toast.title" class="text-xs font-bold text-gray-900 dark:text-zinc-100">{{ toast.title }}</p>
+        <p class="text-xs text-gray-500 dark:text-zinc-400 break-words">{{ toast.message }}</p>
       </div>
       <button
         type="button"
-        class="text-gray-400 hover:text-gray-900 transition-colors"
+        class="text-gray-400 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-zinc-100 transition-colors"
         aria-label="Dismiss"
         @click="removeToast(toast.id)"
       >

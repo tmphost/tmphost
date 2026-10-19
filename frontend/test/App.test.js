@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { createPinia } from 'pinia'
 import { inject } from 'vue'
 
 vi.mock('../src/api', () => ({
@@ -43,7 +44,7 @@ async function mountApp(path) {
   await router.push(path)
   const wrapper = mount(App, {
     attachTo: document.body,
-    global: { plugins: [router], directives: { 'click-outside': clickOutside } },
+    global: { plugins: [router, createPinia()], directives: { 'click-outside': clickOutside } },
   })
   await flushPromises()
   return { wrapper, router }

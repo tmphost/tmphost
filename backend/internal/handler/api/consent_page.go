@@ -6,15 +6,31 @@ package api
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/base64"
 	"html/template"
 
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
 	mapper "github.com/tmphost/tmphost/backend/internal/mapper/api"
 )
 
+// _themeScript applies the theme picked in the web app (same origin, same
+// localStorage key) before the page paints. The CSP allows it by hash only.
+const _themeScript = `(function () {
+  var theme = null
+  try { theme = localStorage.getItem('theme') } catch (e) {}
+  if (theme === 'light' || theme === 'dark') document.documentElement.classList.add(theme)
+})()`
+
+// _themeScriptHash is the CSP source that allows _themeScript and nothing else.
+var _themeScriptHash = func() string {
+	sum := sha256.Sum256([]byte(_themeScript))
+	return "'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
+}()
+
 // _pageTemplate is the consent page and its error variant, styled like the
-// web app's sign-in card. It has no scripts; the theme follows the
-// system's.
+// web app's sign-in card. Without _themeScript's choice, the theme follows
+// the system's.
 var _pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
 <html lang="en">
 <head>
@@ -22,6 +38,7 @@ var _pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>{{if .Consent}}Allow access to tmphost.io?{{else}}tmphost.io{{end}}</title>
+<script>` + _themeScript + `</script>
 <style>
 :root {
   --page: #fafafa; --card: #ffffff; --border: #e5e7eb; --row: #fafafa; --text: #111827; --muted: #6b7280; --label: #9ca3af;
@@ -30,13 +47,22 @@ var _pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
   --ok-bg: #ecfdf5; --ok-border: #a7f3d0; --ok-text: #047857;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.light) {
     --page: #09090b; --card: #18181b; --border: #27272a; --row: #111113; --text: #fafafa; --muted: #a1a1aa; --label: #71717a;
     --tile: #ffffff; --tile-ink: #000000; --primary: #fafafa; --primary-text: #09090b; --secondary: #27272a; --secondary-text: #e4e4e7;
     --warn-bg: #2a1d08; --warn-border: #4a3410; --warn-text: #fcd34d; --error-bg: #2a0e14; --error-border: #4c1520; --error-text: #fda4af;
     --ok-bg: #062016; --ok-border: #0b3b28; --ok-text: #6ee7b7;
   }
 }
+:root.dark {
+  --page: #09090b; --card: #18181b; --border: #27272a; --row: #111113; --text: #fafafa; --muted: #a1a1aa; --label: #71717a;
+  --tile: #ffffff; --tile-ink: #000000; --primary: #fafafa; --primary-text: #09090b; --secondary: #27272a; --secondary-text: #e4e4e7;
+  --warn-bg: #2a1d08; --warn-border: #4a3410; --warn-text: #fcd34d; --error-bg: #2a0e14; --error-border: #4c1520; --error-text: #fda4af;
+  --ok-bg: #062016; --ok-border: #0b3b28; --ok-text: #6ee7b7;
+}
+:root { color-scheme: light; }
+:root.dark { color-scheme: dark; }
+@media (prefers-color-scheme: dark) { :root:not(.light) { color-scheme: dark; } }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body {

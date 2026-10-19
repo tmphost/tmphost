@@ -21,9 +21,9 @@ const (
 	ResourceMetadataPath = "/.well-known/oauth-protected-resource"
 )
 
-// _pageCSP locks the consent page down: no scripts, no frames around it,
-// inline styles only.
-const _pageCSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; frame-ancestors 'none'"
+// _pageCSP locks the consent page down: no scripts but the theme one, no
+// frames around it, inline styles only.
+var _pageCSP = "default-src 'none'; script-src " + _themeScriptHash + "; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; frame-ancestors 'none'"
 
 // OAuth is tmphost's own OAuth server, for MCP clients and the CLI.
 type OAuth struct {
