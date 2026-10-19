@@ -545,7 +545,7 @@ onMounted(refresh)
             </div>
             <div v-if="form.files.subdomains" data-test="setup-subdomains">
               <p class="text-[11px] text-gray-400 dark:text-zinc-500 mb-3" data-test="setup-subdomains-help">
-                Each folder is served at <code class="font-mono">f&lt;folderId&gt;.&lt;public domain&gt;</code>, where the
+                Each folder is served at <code class="font-mono">&lt;folderId&gt;.&lt;public domain&gt;</code>, where the
                 folder ID is 11 characters (e.g. f1a2b3c4d5e6.tmphost.io). Needs a wildcard DNS record and certificate for the
                 domain. Leave the public domain blank to use the sites domain.
               </p>

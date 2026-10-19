@@ -106,17 +106,20 @@ func FromHTTPRequestToOpenFileRequestEntity(c fiber.Ctx) *entity.OpenFileRequest
 }
 
 // FromHTTPRequestToOpenPublicFileRequestEntity reads a request to a
-// folder's host, f<folderID>.<domain>; the whole path is the file
-// path. It returns nil when the host is not a folder host.
+// folder's host, <folderID>.<domain> (or the legacy f<folderID>.<domain>);
+// the whole path is the file path. It returns nil when the host is not a
+// folder host.
 func FromHTTPRequestToOpenPublicFileRequestEntity(c fiber.Ctx, domain string) *entity.OpenPublicFileRequest {
 	host := strings.ToLower(string(c.Request().Host()))
 	label, ok := strings.CutSuffix(host, "."+strings.ToLower(domain))
 	if !ok || domain == "" {
 		return nil
 	}
-	folder, ok := strings.CutPrefix(label, "f")
-	folderID := idgen.ParseFolderID(folder)
-	if !ok || folderID == 0 {
+	if len(label) == idgen.FolderIDLength+1 {
+		label = strings.TrimPrefix(label, "f")
+	}
+	folderID := idgen.ParseFolderID(label)
+	if folderID == 0 {
 		return nil
 	}
 	p, err := url.PathUnescape(strings.TrimPrefix(c.Path(), "/"))

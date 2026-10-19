@@ -9,7 +9,7 @@
 // Files live in storage under u<userID>/<folderID>/<path>; the database
 // only records each folder's owner and expiry. A folder is served below
 // the app, at /files/<userID>/<folderID>/, or with subdomains on, on its
-// own origin, f<folderID>.<public domain>. Both IDs are base36 because
+// own origin, <folderID>.<public domain>. Both IDs are base36 because
 // hostnames are case-insensitive; folder IDs are random and always 11
 // characters (idgen.FormatFolderID). Each file write costs one
 // credit per started BillingUnit of its size per started BillingBlock of
@@ -587,10 +587,10 @@ func (c *controller) fileURL(f model.Folder, p string) string {
 	return c.baseURL + PublicPathPrefix + idgen.FormatBase36(f.UserID) + "/" + idgen.FormatFolderID(f.ID) + "/" + rel
 }
 
-// FolderHost is the leftmost hostname label a folder is served under,
-// "f" and the folder ID.
+// FolderHost is the leftmost hostname label a folder is served under: its
+// ID.
 func FolderHost(folderID int64) string {
-	return "f" + idgen.FormatFolderID(folderID)
+	return idgen.FormatFolderID(folderID)
 }
 
 // folderPrefix is where a folder's files live in storage.

@@ -86,7 +86,7 @@ file costs one credit per started MB of its size per started billing block of
 the folder's lifetime; the cost is checked against your credits before anything is uploaded.
 
 Folder URLs come from the server and may look like
-`https://f<folder>.<domain>/` or `<server>/files/<user>/<folder>/`.
+`https://<folder>.<domain>/` or `<server>/files/<user>/<folder>/`.
 
 ## MCP
 

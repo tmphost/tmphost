@@ -193,25 +193,28 @@ func TestFromHTTPRequestToOpenPublicFileRequestEntity(t *testing.T) {
 	get := func(target string) *http.Request { return httptest.NewRequest(http.MethodGet, target, nil) }
 
 	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "site/a b.html"},
-		read("Tmp.Host:3000", "F000000000RS.tmp.host:3000", get("/site/a%20b.html")))
-	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: ""}, read("tmp.host", "f000000000rs.tmp.host", get("/")))
+		read("Tmp.Host:3000", "000000000RS.tmp.host:3000", get("/site/a%20b.html")))
+	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "a.txt"},
+		read("tmp.host", "F000000000RS.tmp.host", get("/a.txt")), "legacy f prefix")
+	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: ""}, read("tmp.host", "000000000rs.tmp.host", get("/")))
 
 	for name, tc := range map[string]struct {
 		domain, host string
 		req          *http.Request
 	}{
 		"app host":     {"tmp.host", "tmp.host", get("/")},
-		"other domain": {"tmp.host", "f000000000rs.evil.test", get("/")},
-		"no domain":    {"", "f000000000rs.", get("/")},
+		"other domain": {"tmp.host", "000000000rs.evil.test", get("/")},
+		"no domain":    {"", "000000000rs.", get("/")},
 		"no dash":      {"tmp.host", "rs.tmp.host", get("/")},
 		"bad folder":   {"tmp.host", "frs.tmp.host", get("/")},
-		"no f":         {"tmp.host", "x000000000rs.tmp.host", get("/")},
+		"not f":        {"tmp.host", "x000000000rs.tmp.host", get("/")},
+		"too long":     {"tmp.host", "ff000000000rs.tmp.host", get("/")},
 	} {
 		assert.Nil(t, read(tc.domain, tc.host, tc.req), name)
 	}
 
 	got := &entity.OpenPublicFileRequest{}
-	runRaw(t, 0, "/*", "f000000000rs.tmp.host", "/a%zz", func(c fiber.Ctx) {
+	runRaw(t, 0, "/*", "000000000rs.tmp.host", "/a%zz", func(c fiber.Ctx) {
 		got = FromHTTPRequestToOpenPublicFileRequestEntity(c, "tmp.host")
 	})
 	assert.Nil(t, got, "bad escape")

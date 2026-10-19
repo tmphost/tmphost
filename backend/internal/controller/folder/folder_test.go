@@ -29,7 +29,7 @@ import (
 var (
 	_now    = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
 	errBoom = errors.New("boom")
-	_host   = "https://f000000000rs.tmp.host/"
+	_host   = "https://000000000rs.tmp.host/"
 	_prefix = "u7/000000000rs/"
 )
 
@@ -641,7 +641,7 @@ func TestOpenFile(t *testing.T) {
 }
 
 func TestFolderHost(t *testing.T) {
-	assert.Equal(t, "f000000000rs", FolderHost(1000))
+	assert.Equal(t, "000000000rs", FolderHost(1000))
 }
 
 func TestDeleteExpiredFolders(t *testing.T) {

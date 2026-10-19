@@ -35,7 +35,7 @@ var (
 	errBoom  = errors.New("boom")
 	_expires = time.Date(2026, 10, 18, 12, 30, 0, 0, time.UTC)
 	// Folder 1000 is "000000000rs" as an 11-character folder ID.
-	_folder = entity.Folder{ID: 1000, UserID: 7, ExpiresAt: _expires, URL: "https://f000000000rs.tmp.host/"}
+	_folder = entity.Folder{ID: 1000, UserID: 7, ExpiresAt: _expires, URL: "https://000000000rs.tmp.host/"}
 )
 
 type env struct {
@@ -146,7 +146,7 @@ func TestUpload_NewFolder(t *testing.T) {
 		e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 7, TTLMinutes: 120}).
 			Return(&entity.CreateFolderResponse{Folder: _folder}, nil),
 		e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "site/index.html", Data: []byte("<p>")}}}).
-			Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "site/index.html", Size: 3, URL: "https://f000000000rs.tmp.host/site/index.html"}}, CreditsSpent: 4}, nil),
+			Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "site/index.html", Size: 3, URL: "https://000000000rs.tmp.host/site/index.html"}}, CreditsSpent: 4}, nil),
 	)
 	out, msg := e.call(t, map[string]any{
 		"action": "upload", "ttl": "2h", "path": "/site/", "fileName": "index.html",
@@ -154,7 +154,7 @@ func TestUpload_NewFolder(t *testing.T) {
 	})
 	require.Empty(t, msg)
 	assert.Equal(t, FileOutput{
-		ID: "000000000rs", URL: "https://f000000000rs.tmp.host/site/index.html", ExpiresAt: "2026-10-18T12:30:00Z",
+		ID: "000000000rs", URL: "https://000000000rs.tmp.host/site/index.html", ExpiresAt: "2026-10-18T12:30:00Z",
 		FileName: "index.html", Path: "site", Size: 3, CreditsSpent: 4,
 	}, out)
 }
@@ -162,22 +162,22 @@ func TestUpload_NewFolder(t *testing.T) {
 func TestUpload_ExistingFolder(t *testing.T) {
 	e := newEnv(t)
 	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "a.txt", Data: []byte{}}}}).
-		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "a.txt", URL: "https://f000000000rs.tmp.host/a.txt"}}, CreditsSpent: 1}, nil)
+		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "a.txt", URL: "https://000000000rs.tmp.host/a.txt"}}, CreditsSpent: 1}, nil)
 	out, msg := e.call(t, map[string]any{"action": "upload", "id": "000000000rs", "fileName": "a.txt", "base64Content": ""})
 	require.Empty(t, msg)
-	assert.Equal(t, FileOutput{ID: "000000000rs", URL: "https://f000000000rs.tmp.host/a.txt", FileName: "a.txt", CreditsSpent: 1}, out)
+	assert.Equal(t, FileOutput{ID: "000000000rs", URL: "https://000000000rs.tmp.host/a.txt", FileName: "a.txt", CreditsSpent: 1}, out)
 }
 
 func TestUpload_TextContent(t *testing.T) {
 	e := newEnv(t)
 	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "index.html", Data: []byte("<p>héllo</p>")}}}).
-		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "index.html", Size: 13, URL: "https://f000000000rs.tmp.host/index.html"}}, CreditsSpent: 1}, nil)
+		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "index.html", Size: 13, URL: "https://000000000rs.tmp.host/index.html"}}, CreditsSpent: 1}, nil)
 	out, msg := e.call(t, map[string]any{"action": "upload", "id": "000000000rs", "fileName": "index.html", "format": "textContent", "textContent": "<p>héllo</p>"})
 	require.Empty(t, msg)
-	assert.Equal(t, FileOutput{ID: "000000000rs", URL: "https://f000000000rs.tmp.host/index.html", FileName: "index.html", Size: 13, CreditsSpent: 1}, out)
+	assert.Equal(t, FileOutput{ID: "000000000rs", URL: "https://000000000rs.tmp.host/index.html", FileName: "index.html", Size: 13, CreditsSpent: 1}, out)
 
 	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "empty.txt", Data: []byte{}}}}).
-		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "empty.txt", URL: "https://f000000000rs.tmp.host/empty.txt"}}, CreditsSpent: 1}, nil)
+		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "empty.txt", URL: "https://000000000rs.tmp.host/empty.txt"}}, CreditsSpent: 1}, nil)
 	_, msg = e.call(t, map[string]any{"action": "upload", "id": "000000000rs", "fileName": "empty.txt", "format": "textContent", "textContent": ""})
 	require.Empty(t, msg, "an empty text file")
 }
@@ -301,15 +301,15 @@ func TestGet(t *testing.T) {
 	e.folders.EXPECT().GetFolder(gomock.Any(), &entity.GetFolderRequest{UserID: 7, FolderID: 1000}).Return(&entity.GetFolderResponse{
 		Folder: _folder,
 		Files: []entity.File{
-			{Path: "index.html", Size: 1, URL: "https://f000000000rs.tmp.host/index.html"},
-			{Path: "site/css/a.css", Size: 2, URL: "https://f000000000rs.tmp.host/site/css/a.css"},
+			{Path: "index.html", Size: 1, URL: "https://000000000rs.tmp.host/index.html"},
+			{Path: "site/css/a.css", Size: 2, URL: "https://000000000rs.tmp.host/site/css/a.css"},
 		},
 	}, nil)
 	out, msg := e.call(t, map[string]any{"action": "get", "id": "000000000rs"})
 	require.Empty(t, msg)
-	assert.Equal(t, FileOutput{ID: "000000000rs", URL: "https://f000000000rs.tmp.host/", ExpiresAt: "2026-10-18T12:30:00Z", Files: []FileInfo{
-		{FileName: "index.html", Path: "", Size: 1, URL: "https://f000000000rs.tmp.host/index.html"},
-		{FileName: "a.css", Path: "site/css", Size: 2, URL: "https://f000000000rs.tmp.host/site/css/a.css"},
+	assert.Equal(t, FileOutput{ID: "000000000rs", URL: "https://000000000rs.tmp.host/", ExpiresAt: "2026-10-18T12:30:00Z", Files: []FileInfo{
+		{FileName: "index.html", Path: "", Size: 1, URL: "https://000000000rs.tmp.host/index.html"},
+		{FileName: "a.css", Path: "site/css", Size: 2, URL: "https://000000000rs.tmp.host/site/css/a.css"},
 	}}, out)
 
 	_, msg = e.call(t, map[string]any{"action": "get", "id": ""})
@@ -327,10 +327,10 @@ func TestURL(t *testing.T) {
 		args map[string]any
 		url  string
 	}{
-		{map[string]any{}, "https://f000000000rs.tmp.host/"},
-		{map[string]any{"path": "site/"}, "https://f000000000rs.tmp.host/site/"},
-		{map[string]any{"fileName": "a b.txt"}, "https://f000000000rs.tmp.host/a%20b.txt"},
-		{map[string]any{"path": "site", "fileName": "index.html"}, "https://f000000000rs.tmp.host/site/index.html"},
+		{map[string]any{}, "https://000000000rs.tmp.host/"},
+		{map[string]any{"path": "site/"}, "https://000000000rs.tmp.host/site/"},
+		{map[string]any{"fileName": "a b.txt"}, "https://000000000rs.tmp.host/a%20b.txt"},
+		{map[string]any{"path": "site", "fileName": "index.html"}, "https://000000000rs.tmp.host/site/index.html"},
 	} {
 		tc.args["action"], tc.args["id"] = "url", "000000000rs"
 		out, msg := e.call(t, tc.args)

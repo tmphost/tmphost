@@ -80,7 +80,7 @@ files:
   maxUploadMb: ${TMPHOSTIO_FILES_MAX_UPLOAD_MB:16}
   anonymousMaxTtlMinutes: ${TMPHOSTIO_FILES_ANONYMOUS_MAX_TTL_MINUTES:10}
   # Folders are served at <baseUrl>/files/<userId>/<folderId>/, or with
-  # subdomains on, at f<folderId>.<publicDomain> (needs a wildcard DNS record
+  # subdomains on, at <folderId>.<publicDomain> (needs a wildcard DNS record
   # and certificate). publicDomain defaults to the sites domain, else the
   # baseUrl host; *.localhost resolves to 127.0.0.1 in browsers, so it works
   # locally as is.

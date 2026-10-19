@@ -327,17 +327,17 @@ func TestPublic(t *testing.T) {
 	assert.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"))
 	assert.Equal(t, "Sun, 18 Oct 2026 12:00:00 GMT", res.Header.Get("Last-Modified"))
 
-	res, _ = get(http.MethodPost, "f000000000rs.tmp.host", "/")
+	res, _ = get(http.MethodPost, "000000000rs.tmp.host", "/")
 	assert.Equal(t, http.StatusMethodNotAllowed, res.StatusCode)
 
 	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: ""}).Return(nil, folderctrl.ErrNotFound)
-	res, body = get(http.MethodGet, "f000000000rs.tmp.host", "/")
+	res, body = get(http.MethodGet, "000000000rs.tmp.host", "/")
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 	assert.Equal(t, "Not found. The file may have expired.", body)
 	assert.Contains(t, res.Header.Get("Content-Type"), "text/plain")
 
 	e.folders.EXPECT().OpenPublicFile(gomock.Any(), gomock.Any()).Return(nil, errBoom)
-	res, _ = get(http.MethodGet, "f000000000rs.tmp.host", "/")
+	res, _ = get(http.MethodGet, "000000000rs.tmp.host", "/")
 	assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
 
 	// Any other host falls through to the app routes.
@@ -355,7 +355,7 @@ func TestPublic(t *testing.T) {
 
 	// Without subdomains, folder hosts are not served at all.
 	e.settings.Subdomains = false
-	res, _ = get(http.MethodGet, "f000000000rs.tmp.host", "/api/v1/folders")
+	res, _ = get(http.MethodGet, "000000000rs.tmp.host", "/api/v1/folders")
 	assert.Equal(t, http.StatusMisdirectedRequest, res.StatusCode)
 }
 

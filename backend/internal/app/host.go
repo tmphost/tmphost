@@ -14,15 +14,17 @@ import (
 
 	setupctrl "github.com/tmphost/tmphost/backend/internal/controller/setup"
 	mapper "github.com/tmphost/tmphost/backend/internal/mapper/api"
+	"github.com/tmphost/tmphost/backend/internal/service/idgen"
 )
 
 // LocalSiteID is the fiber.Ctx local a dynamic subdomain's site ID is
 // stored under.
 const LocalSiteID = "siteID"
 
-// _siteLabelRE is a dynamic subdomain's label: "f" and 11 more lowercase
-// letters or digits.
-var _siteLabelRE = regexp.MustCompile(`^f[a-z0-9]{11}$`)
+// _siteLabelRE is a dynamic subdomain's label: a folder ID, 11 lowercase
+// letters or digits, or the legacy "f" and folder ID, so links made before
+// the prefix was dropped keep working.
+var _siteLabelRE = regexp.MustCompile(`^f?[a-z0-9]{11}$`)
 
 type (
 	// hosts tells the app host and the dynamic subdomains apart from hosts
@@ -58,7 +60,8 @@ func (h hosts) classify(host string) (hostKind, string) {
 	}
 	if h.sites != "" {
 		if label, ok := strings.CutSuffix(name, "."+h.sites); ok && _siteLabelRE.MatchString(label) {
-			return hostSite, label
+			// A legacy label's "f" is not part of the folder ID.
+			return hostSite, label[len(label)-idgen.FolderIDLength:]
 		}
 	}
 	// This machine always reaches the app, e.g. for health checks.

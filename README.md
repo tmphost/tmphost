@@ -38,7 +38,7 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   folders every minute. Folder IDs are 11 random lowercase base36
   characters, so public URLs can't be guessed.
 - Public URLs: `<TMPHOSTIO_BASE_URL>/files/<userId>/<folderId>/<path>` by
-  default, or `f<folderId>.<publicDomain>/<path>` with subdomains on
+  default, or `<folderId>.<publicDomain>/<path>` with subdomains on
   (`TMPHOSTIO_FILES_SUBDOMAINS`, `TMPHOSTIO_FILES_PUBLIC_DOMAIN`, which defaults
   to the sites domain; needs wildcard DNS and a certificate, which the
   built-in TLS obtains when it is the sites domain). Both are served with `Content-Security-Policy:
@@ -104,7 +104,7 @@ can change the sign-up and monthly credit grants, the maximum TTL and the public
     wildcard over DNS-01 with no such limit.
 - **Database** (SQLite or PostgreSQL) and **file storage** (local disk or S3).
 - **Files**: the maximum TTL and upload size, and whether folders are served
-  at paths or on `f<folder ID>.<public domain>` subdomains.
+  at paths or on `<folder ID>.<public domain>` subdomains.
 - **Sign-in providers**: Google, GitHub, and any number of custom OpenID
   Connect providers (name, SVG icon, client ID, client secret, auth URL = the
   issuer; endpoints come from its `/.well-known/openid-configuration`).
