@@ -263,12 +263,13 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		MCPURL:         mcpURL,
 	})
 	folders := folderctrl.New(folderctrl.Params{
-		Folders:   repository.NewFolderRepository(db),
-		Users:     users,
-		Storage:   store,
-		Anonymous: quota.New(quota.Params{Limit: folderctrl.AnonymousOps, Window: folderctrl.AnonymousWindow}),
-		Limits:    setup.FileLimits,
-		BaseURL:   baseURL,
+		Folders:        repository.NewFolderRepository(db),
+		Users:          users,
+		Storage:        store,
+		Anonymous:      quota.New(quota.Params{Limit: folderctrl.AnonymousOps, Window: folderctrl.AnonymousWindow}),
+		AnonymousBytes: quota.New(quota.Params{Limit: folderctrl.AnonymousBytes, Window: folderctrl.AnonymousWindow}),
+		Limits:         setup.FileLimits,
+		BaseURL:        baseURL,
 	})
 	// Uploads reach the MCP server base64-encoded, a third bigger. The
 	// folder controller enforces the real limit on the decoded bytes.

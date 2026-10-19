@@ -264,8 +264,8 @@ func TestFolderResponses(t *testing.T) {
 
 	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":60,"maxUploadBytes":5,"billingBlockMinutes":30,"billingUnitBytes":1048576}`,
 		string(FromGetLimitsResponseEntityToHTTPResponse(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 60, MaxUploadBytes: 5, BillingBlockMinutes: 30, BillingUnitBytes: 1 << 20})))
-	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":30,"maxUploadBytes":5,"billingBlockMinutes":30,"billingUnitBytes":1048576,"anonymous":true,"fileOps":5,"fileOpsWindowMinutes":30}`,
-		string(FromGetLimitsResponseEntityToHTTPResponse(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 30, MaxUploadBytes: 5, BillingBlockMinutes: 30, BillingUnitBytes: 1 << 20, Anonymous: true, FileOps: 5, FileOpsWindowMinutes: 30})))
+	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":30,"maxUploadBytes":5,"billingBlockMinutes":30,"billingUnitBytes":1048576,"anonymous":true,"fileOps":5,"fileBytes":4194304,"fileOpsWindowMinutes":30}`,
+		string(FromGetLimitsResponseEntityToHTTPResponse(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 30, MaxUploadBytes: 5, BillingBlockMinutes: 30, BillingUnitBytes: 1 << 20, Anonymous: true, FileOps: 5, FileBytes: 4 << 20, FileOpsWindowMinutes: 30})))
 	assert.JSONEq(t, `{"folder":`+folderJSON+`}`, string(FromCreateFolderResponseEntityToHTTPResponse(&entity.CreateFolderResponse{Folder: folder})))
 	assert.JSONEq(t, `{"folder":`+folderJSON+`}`, string(FromUpdateFolderResponseEntityToHTTPResponse(&entity.UpdateFolderResponse{Folder: folder})))
 	assert.JSONEq(t, `{"folder":`+folderJSON+`,"creditsSpent":6}`,

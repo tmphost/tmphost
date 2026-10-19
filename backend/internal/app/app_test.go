@@ -583,7 +583,7 @@ func TestAnonymousUploads(t *testing.T) {
 
 	res, body := call(http.MethodGet, "/api/v1/limits", "203.0.113.7", web, "")
 	require.Equal(t, http.StatusOK, res.StatusCode, body)
-	assert.JSONEq(t, `{"defaultTtlMinutes":10,"maxTtlMinutes":10,"maxUploadBytes":4194304,"billingBlockMinutes":30,"billingUnitBytes":1048576,"anonymous":true,"fileOps":5,"fileOpsWindowMinutes":30}`, body)
+	assert.JSONEq(t, `{"defaultTtlMinutes":10,"maxTtlMinutes":10,"maxUploadBytes":1048576,"billingBlockMinutes":30,"billingUnitBytes":1048576,"anonymous":true,"fileOps":5,"fileBytes":4194304,"fileOpsWindowMinutes":30}`, body)
 
 	res, body = call(http.MethodPost, "/api/v1/folders", "203.0.113.7", web, `{"ttlMinutes":11}`)
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode, body)
@@ -595,7 +595,7 @@ func TestAnonymousUploads(t *testing.T) {
 	assert.Equal(t, web+"/files/"+user+"/"+created.Folder.ID+"/", created.Folder.URL)
 	files := "/api/v1/folders/" + created.Folder.ID + "/files/"
 
-	res, _ = call(http.MethodPut, files+"big.bin", "203.0.113.7", web, strings.Repeat("x", 4<<20+1))
+	res, _ = call(http.MethodPut, files+"big.bin", "203.0.113.7", web, strings.Repeat("x", 1<<20+1))
 	assert.Equal(t, http.StatusRequestEntityTooLarge, res.StatusCode)
 	res, _ = call(http.MethodPut, files+"a.txt", "203.0.113.8", web, "hi")
 	assert.Equal(t, http.StatusNotFound, res.StatusCode, "another IP is another user")
