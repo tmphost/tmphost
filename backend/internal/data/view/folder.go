@@ -11,6 +11,7 @@ type (
 		MaxTTLMinutes       int   `json:"maxTtlMinutes"`
 		MaxUploadBytes      int64 `json:"maxUploadBytes"`
 		BillingBlockMinutes int   `json:"billingBlockMinutes"`
+		BillingUnitBytes    int64 `json:"billingUnitBytes"`
 		// Anonymous visitors pay no credits; they may write at most FileOps
 		// files per FileOpsWindowMinutes instead.
 		Anonymous            bool `json:"anonymous,omitempty"`

@@ -231,10 +231,10 @@ func TestFolderResponses(t *testing.T) {
 	const folderJSON = `{"id":"000000000rs","createdAt":"2026-10-18T11:00:00Z","expiresAt":"2026-10-18T11:00:00Z","url":"u"}`
 	const fileJSON = `{"path":"a","size":1,"updatedAt":"2026-10-18T11:00:00Z","url":"u/a"}`
 
-	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":60,"maxUploadBytes":5,"billingBlockMinutes":30}`,
-		string(FromGetLimitsResponseEntityToHTTPResponse(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 60, MaxUploadBytes: 5, BillingBlockMinutes: 30})))
-	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":30,"maxUploadBytes":5,"billingBlockMinutes":30,"anonymous":true,"fileOps":5,"fileOpsWindowMinutes":30}`,
-		string(FromGetLimitsResponseEntityToHTTPResponse(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 30, MaxUploadBytes: 5, BillingBlockMinutes: 30, Anonymous: true, FileOps: 5, FileOpsWindowMinutes: 30})))
+	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":60,"maxUploadBytes":5,"billingBlockMinutes":30,"billingUnitBytes":1048576}`,
+		string(FromGetLimitsResponseEntityToHTTPResponse(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 60, MaxUploadBytes: 5, BillingBlockMinutes: 30, BillingUnitBytes: 1 << 20})))
+	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":30,"maxUploadBytes":5,"billingBlockMinutes":30,"billingUnitBytes":1048576,"anonymous":true,"fileOps":5,"fileOpsWindowMinutes":30}`,
+		string(FromGetLimitsResponseEntityToHTTPResponse(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 30, MaxUploadBytes: 5, BillingBlockMinutes: 30, BillingUnitBytes: 1 << 20, Anonymous: true, FileOps: 5, FileOpsWindowMinutes: 30})))
 	assert.JSONEq(t, `{"folder":`+folderJSON+`}`, string(FromCreateFolderResponseEntityToHTTPResponse(&entity.CreateFolderResponse{Folder: folder})))
 	assert.JSONEq(t, `{"folders":[`+folderJSON+`]}`, string(FromListFoldersResponseEntityToHTTPResponse(&entity.ListFoldersResponse{Folders: []entity.Folder{folder}})))
 	assert.JSONEq(t, `{"folders":[]}`, string(FromListFoldersResponseEntityToHTTPResponse(&entity.ListFoldersResponse{})))

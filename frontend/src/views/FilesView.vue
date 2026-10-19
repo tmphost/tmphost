@@ -72,7 +72,14 @@ const sortedFolders = computed(() =>
 const isOversized = (file) => Boolean(limits.value) && file.size > limits.value.maxUploadBytes
 const oversized = computed(() => selected.value.filter((item) => isOversized(item.file)))
 const cost = computed(() =>
-  limits.value ? uploadCost(selected.value.length, ttl.value, limits.value.billingBlockMinutes) : 0,
+  limits.value
+    ? uploadCost(
+        selected.value.map((item) => item.file.size),
+        ttl.value,
+        limits.value.billingBlockMinutes,
+        limits.value.billingUnitBytes,
+      )
+    : 0,
 )
 const credits = computed(() => currentUser.user.value?.credits)
 const notEnoughCredits = computed(() => credits.value !== undefined && cost.value > credits.value)

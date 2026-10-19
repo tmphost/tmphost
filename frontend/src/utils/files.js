@@ -24,9 +24,12 @@ export function formatMinutes(minutes) {
   return `${minutes} min`
 }
 
-// uploadCost is the credits charged: one per file per started billing block.
-export function uploadCost(fileCount, ttlMinutes, billingBlockMinutes) {
-  return fileCount * Math.ceil(ttlMinutes / billingBlockMinutes)
+// uploadCost is the credits charged for files of the given sizes: one per
+// started billing unit of each file's size per started billing block, and
+// at least one of each.
+export function uploadCost(sizes, ttlMinutes, billingBlockMinutes, billingUnitBytes) {
+  const blocks = Math.max(1, Math.ceil(ttlMinutes / billingBlockMinutes))
+  return sizes.reduce((sum, size) => sum + Math.max(1, Math.ceil(size / billingUnitBytes)) * blocks, 0)
 }
 
 export function formatBytes(bytes) {
