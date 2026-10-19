@@ -77,7 +77,7 @@ describe('api', () => {
 
     fetch.mockResolvedValueOnce(json(null, 204))
     await api.logout()
-    expect(fetch).toHaveBeenLastCalledWith('/api/v1/auth/logout', { method: 'POST', credentials: 'same-origin' })
+    expect(fetch).toHaveBeenLastCalledWith('/auth/logout', { method: 'POST', credentials: 'same-origin' })
 
     fetch.mockResolvedValueOnce(json({ user: { id: 'u1' } }))
     await api.fetchUser()

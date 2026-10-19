@@ -51,7 +51,7 @@ export function providerLoginUrl(provider, redirect) {
 
 export async function logout() {
   try {
-    await fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', credentials: 'same-origin' })
+    await fetch(`${BASE_PATH}/auth/logout`, { method: 'POST', credentials: 'same-origin' })
   } finally {
     clearUserCache()
   }

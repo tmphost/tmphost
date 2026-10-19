@@ -177,7 +177,7 @@ func TestCallback_Errors(t *testing.T) {
 
 func TestLogout(t *testing.T) {
 	app, _ := newApp(t)
-	res, _ := do(t, app, http.MethodPost, "/api/v1/auth/logout")
+	res, _ := do(t, app, http.MethodPost, "/auth/logout")
 	assert.Equal(t, http.StatusNoContent, res.StatusCode)
 	ck := cookieNamed(res, mapper.SessionCookie)
 	require.NotNil(t, ck)

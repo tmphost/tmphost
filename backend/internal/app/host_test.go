@@ -90,7 +90,7 @@ func TestHostRouter(t *testing.T) {
 	assert.JSONEq(t, `{"error":"host not allowed"}`, body)
 
 	// An https app URL makes the cookies Secure.
-	logout := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
+	logout := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
 	logout.Host = "app.example.com"
 	res, err = a.Handler().Test(logout)
 	require.NoError(t, err)
