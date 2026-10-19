@@ -100,6 +100,12 @@ onMounted(async () => {
         <p class="pt-2 text-center text-[11px] text-gray-400 dark:text-zinc-500">
           New accounts get <span class="font-bold text-gray-500 dark:text-zinc-400">250 free operations</span> every month.
         </p>
+        <p class="text-center text-[11px] text-gray-400 dark:text-zinc-500" data-test="login-legal">
+          By continuing, you agree to the
+          <a href="https://tmphost.io/tos" target="_blank" rel="noopener" class="font-bold text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-100 underline" data-test="login-tos">Terms of Service</a>
+          and
+          <a href="https://tmphost.io/privacy" target="_blank" rel="noopener" class="font-bold text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-100 underline" data-test="login-privacy">Privacy Policy</a>.
+        </p>
       </div>
 
       <p class="mt-6 text-center text-xs text-gray-500 dark:text-zinc-400">

@@ -252,7 +252,14 @@ onMounted(async () => {
         </ul>
       </div>
 
-      <div class="mt-8 pt-5 border-t border-gray-100 dark:border-zinc-800 flex items-center justify-between text-[11px] font-bold text-gray-400 dark:text-zinc-500">
+      <p class="mt-6 text-center text-[11px] text-gray-400 dark:text-zinc-500" data-test="upload-legal">
+        By uploading, you agree to the
+        <a href="https://tmphost.io/tos" target="_blank" rel="noopener" class="font-bold text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-100 underline" data-test="upload-tos">Terms of Service</a>
+        and
+        <a href="https://tmphost.io/privacy" target="_blank" rel="noopener" class="font-bold text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-100 underline" data-test="upload-privacy">Privacy Policy</a>.
+      </p>
+
+      <div class="mt-6 pt-5 border-t border-gray-100 dark:border-zinc-800 flex items-center justify-between text-[11px] font-bold text-gray-400 dark:text-zinc-500">
         <span>&copy; {{ new Date().getFullYear() }} tmphost.io</span>
         <router-link to="/login" class="hover:text-gray-900 dark:hover:text-zinc-100 transition-colors" data-test="upload-sign-in">
           Sign in for more
