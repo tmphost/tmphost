@@ -8,6 +8,7 @@ import { createRouter } from 'vue-router'
 import App from './App.vue'
 import { fetchUser } from './api'
 import { usePlatformStore } from './stores/platformStore'
+import { useThemeStore } from './stores/themeStore'
 import './style.css'
 
 // The one route table. Never add a route anywhere else (see AGENTS.md).
@@ -95,5 +96,6 @@ export function createtmphostApp({ history, platform = 'web' } = {}) {
   app.use(pinia)
   app.use(router)
   usePlatformStore(pinia).setPlatform(platform)
+  useThemeStore(pinia).init()
   return { app, router, pinia }
 }

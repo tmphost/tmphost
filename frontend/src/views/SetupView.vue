@@ -15,13 +15,13 @@ import { providerSlug, svgDataUri } from '../utils/providers'
 const PG_DSN_EXAMPLE = 'postgres://user:password@host:5432/tmphost?sslmode=disable'
 
 const INPUT =
-  'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none'
-const LABEL = 'block text-[11px] font-bold text-gray-500 mb-1'
+  'w-full rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 focus:border-gray-400 dark:focus:border-zinc-500 focus:outline-none'
+const LABEL = 'block text-[11px] font-bold text-gray-500 dark:text-zinc-400 mb-1'
 const TEXTAREA = `${INPUT} font-mono text-xs`
 const PRIMARY =
-  'rounded-lg bg-black px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-white hover:bg-gray-800 disabled:opacity-50 transition-colors'
+  'rounded-lg bg-black dark:bg-white px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-white dark:text-zinc-900 hover:bg-gray-800 dark:hover:bg-zinc-200 disabled:opacity-50 transition-colors'
 const SECONDARY =
-  'rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-gray-900 hover:border-gray-300 transition-colors'
+  'rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-gray-900 dark:text-zinc-100 hover:border-gray-300 dark:hover:border-zinc-600 transition-colors'
 
 const { notifyError, notifySuccess } = useToasts()
 
@@ -135,9 +135,9 @@ onMounted(refresh)
 </script>
 
 <template>
-  <div class="min-h-[100dvh] bg-zinc-50 px-4 py-10">
+  <div class="min-h-[100dvh] bg-zinc-50 dark:bg-zinc-950 px-4 py-10">
     <div v-if="phase === 'loading'" class="flex justify-center py-24" data-test="setup-loading">
-      <svg class="animate-spin h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24">
+      <svg class="animate-spin h-5 w-5 text-gray-400 dark:text-zinc-500" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
       </svg>
@@ -146,14 +146,14 @@ onMounted(refresh)
     <!-- Root sign-in -->
     <div v-else-if="phase === 'login'" class="min-h-[80dvh] flex items-center justify-center">
       <form
-        class="w-full max-w-sm bg-white border border-gray-200 rounded-xl shadow-sm p-8"
+        class="w-full max-w-sm bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl shadow-sm p-8"
         data-test="setup-login"
         @submit.prevent="login"
       >
         <div class="text-center mb-8">
           <BrandLogo tile class="w-12 h-12 mx-auto mb-5" />
-          <h1 class="text-2xl font-black text-gray-900 tracking-tight">Setup</h1>
-          <p class="mt-1.5 text-sm text-gray-500">Enter the root access token to configure tmphost.io.</p>
+          <h1 class="text-2xl font-black text-gray-900 dark:text-zinc-100 tracking-tight">Setup</h1>
+          <p class="mt-1.5 text-sm text-gray-500 dark:text-zinc-400">Enter the root access token to configure tmphost.io.</p>
         </div>
         <label for="root-token" :class="LABEL">Root access token</label>
         <input
@@ -165,7 +165,7 @@ onMounted(refresh)
           :class="INPUT"
           data-test="setup-token"
         />
-        <p v-if="loginError" role="alert" class="mt-3 text-xs font-medium text-rose-600" data-test="setup-login-error">
+        <p v-if="loginError" role="alert" class="mt-3 text-xs font-medium text-rose-600 dark:text-rose-400" data-test="setup-login-error">
           {{ loginError }}
         </p>
         <button type="submit" :disabled="busy || !token" :class="[PRIMARY, 'mt-5 w-full']" data-test="setup-unlock">
@@ -179,8 +179,8 @@ onMounted(refresh)
       <header class="flex flex-wrap items-center gap-3 mb-6">
         <BrandLogo tile class="w-9 h-9" />
         <div class="grow min-w-0">
-          <h1 class="text-lg font-bold text-gray-900 tracking-tight">Setup</h1>
-          <p class="text-xs text-gray-500">Server settings for tmphost.io. Only root can see this page.</p>
+          <h1 class="text-lg font-bold text-gray-900 dark:text-zinc-100 tracking-tight">Setup</h1>
+          <p class="text-xs text-gray-500 dark:text-zinc-400">Server settings for tmphost.io. Only root can see this page.</p>
         </div>
         <button type="button" :class="SECONDARY" data-test="setup-logout" @click="logout">Sign out</button>
         <button type="submit" :disabled="busy" :class="PRIMARY" data-test="setup-save">Save</button>
@@ -188,7 +188,7 @@ onMounted(refresh)
 
       <p
         v-if="restartRequired"
-        class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800"
+        class="mb-4 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-800 dark:text-amber-300"
         data-test="setup-restart"
       >
         Saved. Domain, TLS, database, storage and sign-in changes take effect after the server restarts.
@@ -196,7 +196,7 @@ onMounted(refresh)
       <p
         v-if="saveError"
         role="alert"
-        class="mb-4 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600"
+        class="mb-4 rounded-lg border border-rose-100 dark:border-rose-500/20 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-600 dark:text-rose-400"
         data-test="setup-save-error"
       >
         {{ saveError }}
@@ -204,21 +204,21 @@ onMounted(refresh)
 
       <div class="space-y-4">
         <!-- Domains -->
-        <section class="rounded-xl border border-gray-200 bg-white p-5" data-test="setup-domain">
-          <h2 class="text-sm font-bold text-gray-900">Domains</h2>
-          <p class="text-xs text-gray-500 mb-4">Requires a restart.</p>
+        <section class="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5" data-test="setup-domain">
+          <h2 class="text-sm font-bold text-gray-900 dark:text-zinc-100">Domains</h2>
+          <p class="text-xs text-gray-500 dark:text-zinc-400 mb-4">Requires a restart.</p>
           <div class="space-y-3">
             <div>
               <label for="app-url" :class="LABEL">App URL</label>
               <input id="app-url" v-model="form.domain.appUrl" placeholder="https://app.tmphost.io" :class="INPUT" />
-              <p class="mt-1 text-[11px] text-gray-400">
+              <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500">
                 Default http://localhost:2027. Its host (any domain or subdomain) is where the app is served; OAuth callbacks use it.
               </p>
             </div>
             <div>
               <label for="sites-domain" :class="LABEL">Sites domain</label>
               <input id="sites-domain" v-model="form.domain.sitesDomain" placeholder="tmphost.io" :class="INPUT" />
-              <p class="mt-1 text-[11px] text-gray-400">
+              <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500">
                 Dynamic subdomains are served as f + 11 characters under it, e.g. f1a2b3c4d5e6.tmphost.io. Leave blank to disable.
               </p>
             </div>
@@ -226,17 +226,17 @@ onMounted(refresh)
         </section>
 
         <!-- TLS -->
-        <section class="rounded-xl border border-gray-200 bg-white p-5" data-test="setup-tls">
+        <section class="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5" data-test="setup-tls">
           <div class="flex items-start justify-between gap-4">
             <div>
-              <h2 class="text-sm font-bold text-gray-900">TLS</h2>
-              <p class="text-xs text-gray-500 mb-4">
+              <h2 class="text-sm font-bold text-gray-900 dark:text-zinc-100">TLS</h2>
+              <p class="text-xs text-gray-500 dark:text-zinc-400 mb-4">
                 Serve HTTPS directly with Let's Encrypt certificates, obtained and renewed automatically. Let's Encrypt must
                 reach this server on port 443 for the app host (and each subdomain). Requires a restart.
               </p>
             </div>
-            <label class="flex items-center gap-2 text-xs font-bold text-gray-700">
-              <input v-model="form.tls.enabled" type="checkbox" class="accent-black" data-test="setup-tls-enabled" />
+            <label class="flex items-center gap-2 text-xs font-bold text-gray-700 dark:text-zinc-300">
+              <input v-model="form.tls.enabled" type="checkbox" class="accent-black dark:accent-white" data-test="setup-tls-enabled" />
               Enabled
             </label>
           </div>
@@ -249,22 +249,22 @@ onMounted(refresh)
               <div>
                 <label for="tls-email" :class="LABEL">Let's Encrypt email</label>
                 <input id="tls-email" v-model="form.tls.email" type="email" placeholder="ops@tmphost.io" :class="INPUT" />
-                <p class="mt-1 text-[11px] text-gray-400">Optional. Let's Encrypt sends expiry notices here.</p>
+                <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500">Optional. Let's Encrypt sends expiry notices here.</p>
               </div>
             </div>
 
-            <div class="rounded-lg border border-gray-100 p-4">
+            <div class="rounded-lg border border-gray-100 dark:border-zinc-800 p-4">
               <div class="flex items-start justify-between gap-4">
                 <div>
-                  <h3 class="text-xs font-bold text-gray-900">Dynamic subdomains (lego)</h3>
-                  <p class="text-[11px] text-gray-400 mb-3">
+                  <h3 class="text-xs font-bold text-gray-900 dark:text-zinc-100">Dynamic subdomains (lego)</h3>
+                  <p class="text-[11px] text-gray-400 dark:text-zinc-500 mb-3">
                     Blank: each subdomain gets its own certificate on its first visit (Let's Encrypt allows about 50 new ones per
                     week per domain). With a Cloudflare API token (Zone DNS edit): one wildcard
                     *.{{ form.domain.sitesDomain || 'sites domain' }} certificate via DNS-01, no weekly limit.
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-xs font-bold text-gray-700">
-                  <input v-model="form.tls.lego.enabled" type="checkbox" class="accent-black" data-test="setup-lego-enabled" />
+                <label class="flex items-center gap-2 text-xs font-bold text-gray-700 dark:text-zinc-300">
+                  <input v-model="form.tls.lego.enabled" type="checkbox" class="accent-black dark:accent-white" data-test="setup-lego-enabled" />
                   Enabled
                 </label>
               </div>
@@ -286,9 +286,9 @@ onMounted(refresh)
         </section>
 
         <!-- Credits -->
-        <section class="rounded-xl border border-gray-200 bg-white p-5">
-          <h2 class="text-sm font-bold text-gray-900">Credits</h2>
-          <p class="text-xs text-gray-500 mb-4">Applies immediately: new accounts and the daily 00:00 UTC renewal use it.</p>
+        <section class="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+          <h2 class="text-sm font-bold text-gray-900 dark:text-zinc-100">Credits</h2>
+          <p class="text-xs text-gray-500 dark:text-zinc-400 mb-4">Applies immediately: new accounts and the daily 00:00 UTC renewal use it.</p>
           <label for="monthly-grant" :class="LABEL">Operations per account, every 30 days</label>
           <input
             id="monthly-grant"
@@ -301,10 +301,10 @@ onMounted(refresh)
         </section>
 
         <!-- Database -->
-        <section class="rounded-xl border border-gray-200 bg-white p-5">
-          <h2 class="text-sm font-bold text-gray-900">Database</h2>
-          <p class="text-xs text-gray-500 mb-4">Requires a restart. Data is not copied between databases.</p>
-          <div class="inline-flex rounded-lg border border-gray-200 p-0.5 mb-4" role="radiogroup">
+        <section class="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+          <h2 class="text-sm font-bold text-gray-900 dark:text-zinc-100">Database</h2>
+          <p class="text-xs text-gray-500 dark:text-zinc-400 mb-4">Requires a restart. Data is not copied between databases.</p>
+          <div class="inline-flex rounded-lg border border-gray-200 dark:border-zinc-800 p-0.5 mb-4" role="radiogroup">
             <button
               v-for="option in [{ value: 'sqlite', label: 'SQLite' }, { value: 'postgres', label: 'PostgreSQL' }]"
               :key="option.value"
@@ -313,7 +313,7 @@ onMounted(refresh)
               :aria-checked="form.database.driver === option.value"
               :class="[
                 'rounded-md px-3 py-1.5 text-xs font-bold transition-colors',
-                form.database.driver === option.value ? 'bg-black text-white' : 'text-gray-500 hover:text-gray-900',
+                form.database.driver === option.value ? 'bg-black dark:bg-white text-white dark:text-zinc-900' : 'text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-100',
               ]"
               :data-test="`setup-driver-${option.value}`"
               @click="form.database.driver = option.value"
@@ -337,15 +337,15 @@ onMounted(refresh)
               :placeholder="secretsSet.postgresDsn ? secretPlaceholder(true) : PG_DSN_EXAMPLE"
               :class="INPUT"
             />
-            <p class="mt-1 text-[11px] text-gray-400">A postgres:// URL or key=value string. It holds the password, so it is never shown again.</p>
+            <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500">A postgres:// URL or key=value string. It holds the password, so it is never shown again.</p>
           </div>
         </section>
 
         <!-- Storage -->
-        <section class="rounded-xl border border-gray-200 bg-white p-5">
-          <h2 class="text-sm font-bold text-gray-900">Storage</h2>
-          <p class="text-xs text-gray-500 mb-4">Where uploaded files live. Requires a restart. Files are not copied between drivers.</p>
-          <div class="inline-flex rounded-lg border border-gray-200 p-0.5 mb-4" role="radiogroup">
+        <section class="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+          <h2 class="text-sm font-bold text-gray-900 dark:text-zinc-100">Storage</h2>
+          <p class="text-xs text-gray-500 dark:text-zinc-400 mb-4">Where uploaded files live. Requires a restart. Files are not copied between drivers.</p>
+          <div class="inline-flex rounded-lg border border-gray-200 dark:border-zinc-800 p-0.5 mb-4" role="radiogroup">
             <button
               v-for="option in [{ value: 'local', label: 'Local disk' }, { value: 's3', label: 'S3' }]"
               :key="option.value"
@@ -354,7 +354,7 @@ onMounted(refresh)
               :aria-checked="form.storage.driver === option.value"
               :class="[
                 'rounded-md px-3 py-1.5 text-xs font-bold transition-colors',
-                form.storage.driver === option.value ? 'bg-black text-white' : 'text-gray-500 hover:text-gray-900',
+                form.storage.driver === option.value ? 'bg-black dark:bg-white text-white dark:text-zinc-900' : 'text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-100',
               ]"
               :data-test="`setup-storage-${option.value}`"
               @click="form.storage.driver = option.value"
@@ -368,7 +368,7 @@ onMounted(refresh)
             <input id="local-path" v-model="form.storage.local.path" :class="INPUT" />
           </div>
           <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3" data-test="setup-s3">
-            <p class="sm:col-span-2 text-[11px] text-gray-400">Any S3-compatible bucket.</p>
+            <p class="sm:col-span-2 text-[11px] text-gray-400 dark:text-zinc-500">Any S3-compatible bucket.</p>
             <div class="sm:col-span-2">
               <label for="s3-endpoint" :class="LABEL">Endpoint (blank for AWS)</label>
               <input id="s3-endpoint" v-model="form.storage.s3.endpoint" placeholder="https://" :class="INPUT" />
@@ -396,17 +396,17 @@ onMounted(refresh)
                 :class="INPUT"
               />
             </div>
-            <label class="sm:col-span-2 flex items-center gap-2 text-xs text-gray-700">
-              <input v-model="form.storage.s3.usePathStyle" type="checkbox" class="accent-black" data-test="setup-s3-path-style" />
+            <label class="sm:col-span-2 flex items-center gap-2 text-xs text-gray-700 dark:text-zinc-300">
+              <input v-model="form.storage.s3.usePathStyle" type="checkbox" class="accent-black dark:accent-white" data-test="setup-s3-path-style" />
               Use path-style URLs (MinIO and some providers)
             </label>
           </div>
         </section>
 
         <!-- Files -->
-        <section class="rounded-xl border border-gray-200 bg-white p-5">
-          <h2 class="text-sm font-bold text-gray-900">Files</h2>
-          <p class="text-xs text-gray-500 mb-4" data-test="setup-files-help">
+        <section class="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+          <h2 class="text-sm font-bold text-gray-900 dark:text-zinc-100">Files</h2>
+          <p class="text-xs text-gray-500 dark:text-zinc-400 mb-4" data-test="setup-files-help">
             Limits for every upload and the form of public URLs. Max TTL and public URLs apply immediately; max upload
             size needs a restart.
           </p>
@@ -421,7 +421,7 @@ onMounted(refresh)
                 :class="INPUT"
                 data-test="setup-max-ttl"
               />
-              <p class="mt-1 text-[11px] text-gray-400" data-test="setup-max-ttl-hint">{{ ttlHint(form.files.maxTtlMinutes) }}</p>
+              <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500" data-test="setup-max-ttl-hint">{{ ttlHint(form.files.maxTtlMinutes) }}</p>
             </div>
             <div>
               <label for="max-upload" :class="LABEL">Max upload size (MB)</label>
@@ -433,12 +433,12 @@ onMounted(refresh)
                 :class="INPUT"
                 data-test="setup-max-upload"
               />
-              <p class="mt-1 text-[11px] text-gray-400">Per file upload.</p>
+              <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500">Per file upload.</p>
             </div>
           </div>
 
-          <p id="public-urls-label" class="mt-5 text-[11px] font-bold text-gray-500 mb-1">Public URLs</p>
-          <div class="inline-flex rounded-lg border border-gray-200 p-0.5 mb-2" role="radiogroup" aria-labelledby="public-urls-label">
+          <p id="public-urls-label" class="mt-5 text-[11px] font-bold text-gray-500 dark:text-zinc-400 mb-1">Public URLs</p>
+          <div class="inline-flex rounded-lg border border-gray-200 dark:border-zinc-800 p-0.5 mb-2" role="radiogroup" aria-labelledby="public-urls-label">
             <button
               v-for="option in [{ value: false, label: 'Path' }, { value: true, label: 'Subdomains' }]"
               :key="option.label"
@@ -447,7 +447,7 @@ onMounted(refresh)
               :aria-checked="Boolean(form.files.subdomains) === option.value"
               :class="[
                 'rounded-md px-3 py-1.5 text-xs font-bold transition-colors',
-                Boolean(form.files.subdomains) === option.value ? 'bg-black text-white' : 'text-gray-500 hover:text-gray-900',
+                Boolean(form.files.subdomains) === option.value ? 'bg-black dark:bg-white text-white dark:text-zinc-900' : 'text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-100',
               ]"
               :data-test="`setup-urls-${option.value ? 'subdomains' : 'path'}`"
               @click="form.files.subdomains = option.value"
@@ -456,7 +456,7 @@ onMounted(refresh)
             </button>
           </div>
           <div v-if="form.files.subdomains" data-test="setup-subdomains">
-            <p class="text-[11px] text-gray-400 mb-3" data-test="setup-subdomains-help">
+            <p class="text-[11px] text-gray-400 dark:text-zinc-500 mb-3" data-test="setup-subdomains-help">
               Each folder is served at <code class="font-mono">f&lt;folderId&gt;.&lt;public domain&gt;</code>, where the
               folder ID is 11 characters (e.g. f1a2b3c4d5e6.tmphost.io). Needs a wildcard DNS record and certificate for the
               domain. Leave the public domain blank to use the sites domain.
@@ -472,15 +472,15 @@ onMounted(refresh)
               data-test="setup-public-domain"
             />
           </div>
-          <p v-else class="text-[11px] text-gray-400" data-test="setup-path">
+          <p v-else class="text-[11px] text-gray-400 dark:text-zinc-500" data-test="setup-path">
             Files are served at <code class="font-mono">&lt;base URL&gt;/files/&lt;userId&gt;/&lt;folderId&gt;/…</code>.
           </p>
         </section>
 
         <!-- Sign-in providers -->
-        <section class="rounded-xl border border-gray-200 bg-white p-5">
-          <h2 class="text-sm font-bold text-gray-900">Sign-in providers</h2>
-          <p class="text-xs text-gray-500 mb-4">Clear a client ID to disable that provider. Requires a restart.</p>
+        <section class="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+          <h2 class="text-sm font-bold text-gray-900 dark:text-zinc-100">Sign-in providers</h2>
+          <p class="text-xs text-gray-500 dark:text-zinc-400 mb-4">Clear a client ID to disable that provider. Requires a restart.</p>
           <div class="space-y-4">
             <div
               v-for="provider in [
@@ -509,11 +509,11 @@ onMounted(refresh)
             </div>
           </div>
 
-          <div class="mt-6 border-t border-gray-100 pt-5">
+          <div class="mt-6 border-t border-gray-100 dark:border-zinc-800 pt-5">
             <div class="flex items-center justify-between gap-4 mb-3">
               <div>
-                <h3 class="text-xs font-bold text-gray-900">Custom providers</h3>
-                <p class="text-[11px] text-gray-400">Any OpenID Connect provider (Okta, Auth0, Keycloak, ...).</p>
+                <h3 class="text-xs font-bold text-gray-900 dark:text-zinc-100">Custom providers</h3>
+                <p class="text-[11px] text-gray-400 dark:text-zinc-500">Any OpenID Connect provider (Okta, Auth0, Keycloak, ...).</p>
               </div>
               <button type="button" :class="SECONDARY" data-test="setup-add-provider" @click="addProvider">Add provider</button>
             </div>
@@ -521,7 +521,7 @@ onMounted(refresh)
               <div
                 v-for="(provider, index) in form.auth.providers"
                 :key="index"
-                class="rounded-lg border border-gray-100 p-4"
+                class="rounded-lg border border-gray-100 dark:border-zinc-800 p-4"
                 :data-test="`setup-custom-provider-${index}`"
               >
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -537,7 +537,7 @@ onMounted(refresh)
                       placeholder="https://accounts.example.com"
                       :class="INPUT"
                     />
-                    <p class="mt-1 text-[11px] text-gray-400">OpenID Connect issuer; endpoints come from /.well-known/openid-configuration</p>
+                    <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500">OpenID Connect issuer; endpoints come from /.well-known/openid-configuration</p>
                   </div>
                   <div>
                     <label :for="`cp-${index}-id`" :class="LABEL">Client ID</label>
@@ -557,7 +557,7 @@ onMounted(refresh)
                   <div class="sm:col-span-2">
                     <div class="flex items-center justify-between gap-3 mb-1">
                       <label :for="`cp-${index}-icon`" class="block text-[11px] font-bold text-gray-500">SVG icon</label>
-                      <label class="cursor-pointer text-[11px] font-bold text-gray-500 hover:text-gray-900">
+                      <label class="cursor-pointer text-[11px] font-bold text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-100">
                         Upload .svg
                         <input
                           type="file"
@@ -577,7 +577,7 @@ onMounted(refresh)
                         placeholder="<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; ...>"
                         :class="TEXTAREA"
                       />
-                      <div class="shrink-0 w-10 h-10 rounded-lg border border-gray-100 flex items-center justify-center">
+                      <div class="shrink-0 w-10 h-10 rounded-lg border border-gray-100 dark:border-zinc-800 flex items-center justify-center">
                         <img
                           v-if="provider.icon"
                           :src="svgDataUri(provider.icon)"
@@ -590,8 +590,8 @@ onMounted(refresh)
                   </div>
                 </div>
                 <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
-                  <p class="min-w-0 text-[11px] text-gray-400 break-all" :data-test="`cp-${index}-callback`">
-                    Callback URL: <span class="font-mono text-gray-600">{{ callbackUrl(provider) }}</span>
+                  <p class="min-w-0 text-[11px] text-gray-400 dark:text-zinc-500 break-all" :data-test="`cp-${index}-callback`">
+                    Callback URL: <span class="font-mono text-gray-600 dark:text-zinc-400">{{ callbackUrl(provider) }}</span>
                   </p>
                   <button type="button" :class="SECONDARY" :data-test="`cp-${index}-remove`" @click="removeProvider(index)">
                     Remove

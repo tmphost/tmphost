@@ -16,11 +16,11 @@ import { formatBytes, formatMinutes, relativePath } from '../utils/files'
 // and applies the anonymous limits it reports from /limits.
 
 const PRIMARY =
-  'rounded-lg bg-black px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-white hover:bg-gray-800 disabled:opacity-50 transition-colors'
+  'rounded-lg bg-black dark:bg-white px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-white dark:text-zinc-900 hover:bg-gray-800 dark:hover:bg-zinc-200 disabled:opacity-50 transition-colors'
 const SECONDARY =
-  'rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-gray-900 hover:border-gray-300 disabled:opacity-50 transition-colors'
+  'rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-gray-900 dark:text-zinc-100 hover:border-gray-300 dark:hover:border-zinc-600 disabled:opacity-50 transition-colors'
 const ICON_BUTTON =
-  'inline-flex items-center justify-center size-7 shrink-0 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors'
+  'inline-flex items-center justify-center size-7 shrink-0 rounded-lg text-gray-400 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-zinc-100 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors'
 const ICONS = {
   copy: 'M8 8V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-3M5 8h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z',
   open: 'M14 4h6v6m0-6L10 14M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5',
@@ -99,12 +99,12 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-[100dvh] flex items-center justify-center bg-zinc-50 px-4 py-10">
-    <div class="w-full max-w-md bg-white border border-gray-200 rounded-xl shadow-sm p-8">
+  <div class="min-h-[100dvh] flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 px-4 py-10">
+    <div class="w-full max-w-md bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl shadow-sm p-8">
       <div class="text-center mb-6">
         <BrandLogo tile class="w-12 h-12 mx-auto mb-5" />
-        <h1 class="text-2xl font-black text-gray-900 tracking-tight">Upload without an account</h1>
-        <p v-if="limits" class="mt-1.5 text-sm text-gray-500" data-test="upload-limits">
+        <h1 class="text-2xl font-black text-gray-900 dark:text-zinc-100 tracking-tight">Upload without an account</h1>
+        <p v-if="limits" class="mt-1.5 text-sm text-gray-500 dark:text-zinc-400" data-test="upload-limits">
           Up to {{ formatBytes(limits.maxUploadBytes) }} per file and {{ limits.fileOps }} files every
           {{ formatMinutes(limits.fileOpsWindowMinutes) }}. Links expire after
           {{ formatMinutes(limits.defaultTtlMinutes) }}.
@@ -114,14 +114,14 @@ onMounted(async () => {
       <div
         :class="[
           'rounded-xl border border-dashed p-5 text-center transition-colors',
-          dragging ? 'border-gray-400 bg-zinc-50' : 'border-gray-200 hover:border-gray-300',
+          dragging ? 'border-gray-400 dark:border-zinc-500 bg-zinc-50 dark:bg-zinc-950' : 'border-gray-200 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-600',
         ]"
         data-test="upload-card"
         @dragover.prevent="dragging = true"
         @dragleave="dragging = false"
         @drop.prevent="onDrop"
       >
-        <p class="text-xs text-gray-500">Drop files here, or</p>
+        <p class="text-xs text-gray-500 dark:text-zinc-400">Drop files here, or</p>
         <div class="mt-3 flex flex-wrap justify-center gap-2">
           <label :class="[SECONDARY, 'cursor-pointer']">
             Choose files
@@ -135,15 +135,15 @@ onMounted(async () => {
       </div>
 
       <div v-if="selected.length" class="mt-4" data-test="upload-summary">
-        <ul class="max-h-48 overflow-y-auto no-scrollbar divide-y divide-gray-50">
+        <ul class="max-h-48 overflow-y-auto no-scrollbar divide-y divide-gray-50 dark:divide-zinc-800">
           <li
             v-for="item in selected"
             :key="item.path"
             class="flex items-center gap-3 py-1.5 text-xs"
             :data-test="`selected-${item.path}`"
           >
-            <span class="grow min-w-0 truncate font-mono text-gray-900">{{ item.path }}</span>
-            <span :class="['tabular-nums', isOversized(item.file) ? 'font-bold text-rose-600' : 'text-gray-400']">
+            <span class="grow min-w-0 truncate font-mono text-gray-900 dark:text-zinc-100">{{ item.path }}</span>
+            <span :class="['tabular-nums', isOversized(item.file) ? 'font-bold text-rose-600 dark:text-rose-400' : 'text-gray-400 dark:text-zinc-500']">
               {{ formatBytes(item.file.size) }}
             </span>
             <button
@@ -160,11 +160,11 @@ onMounted(async () => {
           </li>
         </ul>
 
-        <p v-if="oversized.length" role="alert" class="mt-3 text-xs font-medium text-rose-600" data-test="upload-oversized">
+        <p v-if="oversized.length" role="alert" class="mt-3 text-xs font-medium text-rose-600 dark:text-rose-400" data-test="upload-oversized">
           {{ oversized.length === 1 ? '1 file is' : `${oversized.length} files are` }} over the
           {{ formatBytes(limits.maxUploadBytes) }} limit. Sign in to upload larger files.
         </p>
-        <p v-if="tooMany" role="alert" class="mt-3 text-xs font-medium text-rose-600" data-test="upload-too-many">
+        <p v-if="tooMany" role="alert" class="mt-3 text-xs font-medium text-rose-600 dark:text-rose-400" data-test="upload-too-many">
           At most {{ limits.fileOps }} files every {{ formatMinutes(limits.fileOpsWindowMinutes) }} without an account.
         </p>
 
@@ -178,9 +178,9 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div v-if="result" class="mt-6 rounded-xl border border-gray-100" data-test="upload-result">
-        <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
-          <span class="grow min-w-0 truncate font-mono text-xs font-bold text-gray-900" :title="result.folder.url">
+      <div v-if="result" class="mt-6 rounded-xl border border-gray-100 dark:border-zinc-800" data-test="upload-result">
+        <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100 dark:border-zinc-800">
+          <span class="grow min-w-0 truncate font-mono text-xs font-bold text-gray-900 dark:text-zinc-100" :title="result.folder.url">
             {{ result.folder.url }}
           </span>
           <button
@@ -200,10 +200,10 @@ onMounted(async () => {
             </svg>
           </a>
         </div>
-        <ul class="divide-y divide-gray-50 px-3 py-1">
+        <ul class="divide-y divide-gray-50 dark:divide-zinc-800 px-3 py-1">
           <li v-for="file in result.files" :key="file.path" class="flex items-center gap-2 py-1" :data-test="`result-${file.path}`">
-            <span class="grow min-w-0 truncate font-mono text-xs text-gray-900">{{ file.path }}</span>
-            <span class="shrink-0 text-[11px] tabular-nums text-gray-400">{{ formatBytes(file.size) }}</span>
+            <span class="grow min-w-0 truncate font-mono text-xs text-gray-900 dark:text-zinc-100">{{ file.path }}</span>
+            <span class="shrink-0 text-[11px] tabular-nums text-gray-400 dark:text-zinc-500">{{ formatBytes(file.size) }}</span>
             <button
               type="button"
               :class="ICON_BUTTON"
@@ -219,9 +219,9 @@ onMounted(async () => {
         </ul>
       </div>
 
-      <div class="mt-8 pt-5 border-t border-gray-100 flex items-center justify-between text-[11px] font-bold text-gray-400">
+      <div class="mt-8 pt-5 border-t border-gray-100 dark:border-zinc-800 flex items-center justify-between text-[11px] font-bold text-gray-400 dark:text-zinc-500">
         <span>&copy; {{ new Date().getFullYear() }} tmphost.io</span>
-        <router-link to="/login" class="hover:text-gray-900 transition-colors" data-test="upload-sign-in">
+        <router-link to="/login" class="hover:text-gray-900 dark:hover:text-zinc-100 transition-colors" data-test="upload-sign-in">
           Sign in for more
         </router-link>
       </div>

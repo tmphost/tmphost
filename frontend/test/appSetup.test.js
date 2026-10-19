@@ -115,6 +115,14 @@ describe('createtmphostApp', () => {
     expect(usePlatformStore(pinia).isWeb).toBe(true)
   })
 
+  it('applies the saved theme', () => {
+    localStorage.setItem('theme', 'dark')
+    createtmphostApp({ history: createMemoryHistory() })
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    localStorage.clear()
+    document.documentElement.classList.remove('dark')
+  })
+
   it('requires a history', () => {
     expect(() => createtmphostApp()).toThrow()
   })

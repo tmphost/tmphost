@@ -14,6 +14,12 @@ This document outlines the core design principles and UI patterns to ensure cons
 - **Text Primary**: `text-gray-900` or `text-black` for headers.
 - **Text Secondary**: `text-gray-500` or `text-gray-400` for meta-info and descriptions.
 - **Borders**: `border-gray-100` or `border-gray-200` for architectural separation.
+- **Dark mode**: every light colour class gets a `dark:` partner on the zinc scale. The `dark` class on `<html>` comes from `stores/themeStore.js`.
+  - Surfaces: `bg-white` → `dark:bg-zinc-900`, `bg-zinc-50` → `dark:bg-zinc-950`, `bg-gray-100` → `dark:bg-zinc-800`.
+  - Text: `text-gray-900` → `dark:text-zinc-100`, `text-gray-500` → `dark:text-zinc-400`, `text-gray-400` → `dark:text-zinc-500`.
+  - Borders: `border-gray-100/200` → `dark:border-zinc-800`. Hover borders sit one step lighter (`dark:hover:border-zinc-700`).
+  - Tints: `bg-rose-50` → `dark:bg-rose-500/10`, `text-rose-600` → `dark:text-rose-400` (amber and emerald work the same way).
+  - Primary buttons invert: `bg-black text-white` → `dark:bg-white dark:text-zinc-900`.
 
 ## 3. Topography & Components
 

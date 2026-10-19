@@ -33,15 +33,15 @@ function cancel() {
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="delete-modal-title"
-      class="w-full max-w-sm bg-white border border-gray-200 rounded-xl shadow-sm p-5"
+      class="w-full max-w-sm bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl shadow-sm p-5"
     >
-      <h2 id="delete-modal-title" class="text-sm font-bold text-gray-900">{{ title }}</h2>
-      <p v-if="message" class="mt-1.5 text-xs text-gray-500 break-words" data-test="delete-modal-message">{{ message }}</p>
+      <h2 id="delete-modal-title" class="text-sm font-bold text-gray-900 dark:text-zinc-100">{{ title }}</h2>
+      <p v-if="message" class="mt-1.5 text-xs text-gray-500 dark:text-zinc-400 break-words" data-test="delete-modal-message">{{ message }}</p>
       <div class="mt-5 flex justify-end gap-2">
         <button
           type="button"
           :disabled="busy"
-          class="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-gray-900 hover:border-gray-300 disabled:opacity-50 transition-colors"
+          class="rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-gray-900 dark:text-zinc-100 hover:border-gray-300 dark:hover:border-zinc-600 disabled:opacity-50 transition-colors"
           data-test="delete-modal-cancel"
           @click="cancel"
         >
