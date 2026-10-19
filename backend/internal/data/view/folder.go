@@ -31,6 +31,9 @@ type (
 		// DefaultTitle is shown while Title is empty: the name of the
 		// folder's only file, else its ID.
 		DefaultTitle string `json:"defaultTitle"`
+		// Agent names what created the folder, e.g. "Claude Code",
+		// "tmphost CLI" or "Web".
+		Agent string `json:"agent,omitempty"`
 	}
 
 	// File is an uploaded file.
@@ -39,6 +42,8 @@ type (
 		Size      int64  `json:"size"`
 		UpdatedAt string `json:"updatedAt"`
 		URL       string `json:"url"`
+		// Agent names what last wrote the file.
+		Agent string `json:"agent,omitempty"`
 	}
 
 	// CreateFolderRequest is the POST /folders body.

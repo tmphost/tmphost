@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/tmphost/tmphost/backend/internal/data/model"
 )
@@ -32,7 +33,15 @@ type (
 		// ExtendFolder moves a folder's expiry to expiresAt, if it is still
 		// live at now and expires before expiresAt; else ErrNotFound.
 		ExtendFolder(ctx context.Context, id int64, now, expiresAt time.Time) error
+		// DeleteFolder deletes a folder and its file records.
 		DeleteFolder(ctx context.Context, id int64) error
+		// SaveFiles records who wrote files, replacing the records of the
+		// same folder and path.
+		SaveFiles(ctx context.Context, files []model.File) error
+		// ListFiles returns the file records of a folder.
+		ListFiles(ctx context.Context, folderID int64) ([]model.File, error)
+		// DeleteFile deletes the record of a folder's file, if any.
+		DeleteFile(ctx context.Context, folderID int64, path string) error
 	}
 
 	folderRepository struct {
@@ -107,5 +116,32 @@ func (r *folderRepository) ExtendFolder(ctx context.Context, id int64, now, expi
 }
 
 func (r *folderRepository) DeleteFolder(ctx context.Context, id int64) error {
-	return r.db.WithContext(ctx).Delete(&model.Folder{}, "id = ?", id).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&model.File{}, "folder_id = ?", id).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&model.Folder{}, "id = ?", id).Error
+	})
+}
+
+func (r *folderRepository) SaveFiles(ctx context.Context, files []model.File) error {
+	if len(files) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "folder_id"}, {Name: "path"}},
+		DoUpdates: clause.AssignmentColumns([]string{"agent", "updated_at"}),
+	}).Create(&files).Error
+}
+
+func (r *folderRepository) ListFiles(ctx context.Context, folderID int64) ([]model.File, error) {
+	var files []model.File
+	if err := r.db.WithContext(ctx).Where("folder_id = ?", folderID).Find(&files).Error; err != nil {
+		return nil, err
+	}
+	return files, nil
+}
+
+func (r *folderRepository) DeleteFile(ctx context.Context, folderID int64, path string) error {
+	return r.db.WithContext(ctx).Delete(&model.File{}, "folder_id = ? AND path = ?", folderID, path).Error
 }

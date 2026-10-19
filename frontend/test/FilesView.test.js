@@ -40,7 +40,7 @@ const folders = [
   { id: 'new', createdAt: '2026-10-18T11:00:00Z', expiresAt: '2026-10-25T11:00:00Z', url: 'https://f.test/new/' },
 ]
 const files = [
-  { path: 'site/index.html', size: 2048, updatedAt: '2026-10-18T11:00:00Z', url: 'https://f.test/new/site/index.html' },
+  { path: 'site/index.html', size: 2048, updatedAt: '2026-10-18T11:00:00Z', url: 'https://f.test/new/site/index.html', agent: 'Claude Code' },
   { path: 'a.txt', size: 12, updatedAt: '2026-10-18T11:00:00Z', url: 'https://f.test/new/a.txt' },
 ]
 
@@ -508,6 +508,10 @@ describe('FilesView', () => {
     expect(link.text()).toBe('site/index.html')
     expect(link.attributes()).toMatchObject({ href: files[0].url, target: '_blank', rel: 'noopener' })
     expect(wrapper.find('[data-test="file-a.txt"]').text()).toContain('12 B')
+    // Each file names the agent that uploaded it, when known.
+    expect(row.find('[data-test="file-agent"]').text()).toBe('Claude Code')
+    expect(row.find('[data-test="file-agent"]').attributes('title')).toBe('Uploaded by Claude Code')
+    expect(wrapper.find('[data-test="file-a.txt"] [data-test="file-agent"]').exists()).toBe(false)
 
     await toggle.trigger('click')
     expect(wrapper.find('[data-test="folder-files"]').exists()).toBe(false)
@@ -524,6 +528,16 @@ describe('FilesView', () => {
     expect(wrapper.findAll('[data-test="folder-title"]').map((b) => b.text())).toEqual(['report.pdf', 'Holiday'])
     expect(wrapper.find('[data-test="folder-new"] [data-test="folder-id"]').text()).toBe('new')
     expect(wrapper.find('[data-test="folder-old"] [data-test="folder-id"]').text()).toBe('old')
+  })
+
+  it('names the agent that created a folder in its file list', async () => {
+    listFolders.mockResolvedValue([folders[0], { ...folders[1], agent: 'Claude Code' }])
+    fetchFolder.mockResolvedValue({ folder: folders[1], files: [] })
+    const wrapper = await mountView()
+    for (const id of ['new', 'old']) await wrapper.find(`[data-test="folder-${id}"] [data-test="folder-toggle"]`).trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="folder-new"] [data-test="folder-agent"]').text()).toBe('Created by Claude Code')
+    expect(wrapper.find('[data-test="folder-old"] [data-test="folder-agent"]').exists()).toBe(false)
   })
 
   it('renames a folder inline', async () => {

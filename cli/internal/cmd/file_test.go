@@ -15,7 +15,7 @@ import (
 
 // folderJSON uses the subdomain URL style; the CLI must use it as given.
 const folderJSON = `{"folder":{"id":"rs","expiresAt":"2026-10-18T12:30:00Z","url":"https://rs-u1.tmphost.test/"},` +
-	`"files":[{"path":"site/css/app.css","size":2048,"url":"https://rs-u1.tmphost.test/site/css/app.css"},{"path":"a.txt","size":3,"url":"https://rs-u1.tmphost.test/a.txt"}]}`
+	`"files":[{"path":"site/css/app.css","size":2048,"url":"https://rs-u1.tmphost.test/site/css/app.css","agent":"Claude Code"},{"path":"a.txt","size":3,"url":"https://rs-u1.tmphost.test/a.txt"}]}`
 
 func TestValidPath(t *testing.T) {
 	for _, p := range []string{"a.txt", "site/index.html", "a/b/c/d/e/f.txt", "ünï cödé.txt", strings.Repeat("x", 255)} {
@@ -58,16 +58,16 @@ func TestFileGet(t *testing.T) {
 	h.reply("GET /api/v1/folders/zz", 404, `{"error":"folder not found"}`)
 
 	assert.Equal(t, 0, h.run("file", "get", "--id", "rs"))
-	assert.Equal(t, "FILE NAME  PATH      SIZE     URL\n"+
-		"app.css    site/css  2.0 KiB  https://rs-u1.tmphost.test/site/css/app.css\n"+
-		"a.txt                3 B      https://rs-u1.tmphost.test/a.txt\n\n"+
+	assert.Equal(t, "FILE NAME  PATH      SIZE     AGENT        URL\n"+
+		"app.css    site/css  2.0 KiB  Claude Code  https://rs-u1.tmphost.test/site/css/app.css\n"+
+		"a.txt                3 B                   https://rs-u1.tmphost.test/a.txt\n\n"+
 		"id:      rs\nurl:     https://rs-u1.tmphost.test/\nexpires: "+formatTime(now.Add(30*60e9))+" (in 30m)\n", h.stdout.String())
 
 	assert.Equal(t, 0, h.run("file", "get", "--id", "rs", "--json"))
 	assert.Equal(t, map[string]any{
 		"id": "rs", "url": "https://rs-u1.tmphost.test/", "expiresAt": "2026-10-18T12:30:00Z",
 		"files": []any{
-			map[string]any{"fileName": "app.css", "path": "site/css", "size": float64(2048), "url": "https://rs-u1.tmphost.test/site/css/app.css"},
+			map[string]any{"fileName": "app.css", "path": "site/css", "size": float64(2048), "url": "https://rs-u1.tmphost.test/site/css/app.css", "agent": "Claude Code"},
 			map[string]any{"fileName": "a.txt", "path": "", "size": float64(3), "url": "https://rs-u1.tmphost.test/a.txt"},
 		},
 	}, h.decode())

@@ -51,6 +51,20 @@ func (mr *MockFolderRepositoryMockRecorder) CreateFolder(ctx, f interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateFolder", reflect.TypeOf((*MockFolderRepository)(nil).CreateFolder), ctx, f)
 }
 
+// DeleteFile mocks base method.
+func (m *MockFolderRepository) DeleteFile(ctx context.Context, folderID int64, path string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteFile", ctx, folderID, path)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteFile indicates an expected call of DeleteFile.
+func (mr *MockFolderRepositoryMockRecorder) DeleteFile(ctx, folderID, path interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFile", reflect.TypeOf((*MockFolderRepository)(nil).DeleteFile), ctx, folderID, path)
+}
+
 // DeleteFolder mocks base method.
 func (m *MockFolderRepository) DeleteFolder(ctx context.Context, id int64) error {
 	m.ctrl.T.Helper()
@@ -109,6 +123,21 @@ func (mr *MockFolderRepositoryMockRecorder) ListExpiredFolders(ctx, now, limit i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListExpiredFolders", reflect.TypeOf((*MockFolderRepository)(nil).ListExpiredFolders), ctx, now, limit)
 }
 
+// ListFiles mocks base method.
+func (m *MockFolderRepository) ListFiles(ctx context.Context, folderID int64) ([]model.File, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListFiles", ctx, folderID)
+	ret0, _ := ret[0].([]model.File)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListFiles indicates an expected call of ListFiles.
+func (mr *MockFolderRepositoryMockRecorder) ListFiles(ctx, folderID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListFiles", reflect.TypeOf((*MockFolderRepository)(nil).ListFiles), ctx, folderID)
+}
+
 // ListFoldersByUser mocks base method.
 func (m *MockFolderRepository) ListFoldersByUser(ctx context.Context, userID int64, now time.Time) ([]model.Folder, error) {
 	m.ctrl.T.Helper()
@@ -122,6 +151,20 @@ func (m *MockFolderRepository) ListFoldersByUser(ctx context.Context, userID int
 func (mr *MockFolderRepositoryMockRecorder) ListFoldersByUser(ctx, userID, now interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListFoldersByUser", reflect.TypeOf((*MockFolderRepository)(nil).ListFoldersByUser), ctx, userID, now)
+}
+
+// SaveFiles mocks base method.
+func (m *MockFolderRepository) SaveFiles(ctx context.Context, files []model.File) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SaveFiles", ctx, files)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SaveFiles indicates an expected call of SaveFiles.
+func (mr *MockFolderRepositoryMockRecorder) SaveFiles(ctx, files interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveFiles", reflect.TypeOf((*MockFolderRepository)(nil).SaveFiles), ctx, files)
 }
 
 // UpdateFolderTitle mocks base method.

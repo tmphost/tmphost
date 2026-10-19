@@ -13,7 +13,10 @@ type (
 		// Change is the signed amount: +X added, -Y taken.
 		Change int `json:"change"`
 		// Current is the balance right after the change.
-		Current   int    `json:"current"`
+		Current int `json:"current"`
+		// Agent names what made the change, e.g. "Claude Code", "tmphost
+		// CLI" or "Web"; empty for grants, renewals and expiries.
+		Agent     string `json:"agent"`
 		CreatedAt string `json:"createdAt"`
 	}
 

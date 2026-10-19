@@ -161,7 +161,10 @@ onMounted(loadRange)
           <li v-for="a in activities" :key="a.id" class="flex items-center gap-3 px-4 py-2.5 text-xs" data-test="credits-row">
             <div class="flex-1 min-w-0">
               <p class="font-semibold text-gray-900 dark:text-zinc-100">{{ opsLabel(a.ops) }}</p>
-              <p class="text-[10px] text-gray-400 dark:text-zinc-500">{{ formatTime(a.createdAt) }}</p>
+              <p class="text-[10px] text-gray-400 dark:text-zinc-500">
+                <span v-if="a.agent" class="font-semibold text-gray-600 dark:text-zinc-300" data-test="credits-agent">{{ a.agent }} · </span
+                >{{ formatTime(a.createdAt) }}
+              </p>
             </div>
             <span
               :class="[

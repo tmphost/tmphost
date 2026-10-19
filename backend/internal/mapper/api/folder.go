@@ -39,7 +39,7 @@ func FromHTTPRequestToCreateFolderRequestEntity(c fiber.Ctx) *entity.CreateFolde
 			return nil
 		}
 	}
-	return &entity.CreateFolderRequest{UserID: userID, Anonymous: localAnonymous(c), TTLMinutes: rq.TTLMinutes}
+	return &entity.CreateFolderRequest{UserID: userID, Anonymous: localAnonymous(c), Agent: localAgent(c), TTLMinutes: rq.TTLMinutes}
 }
 
 // FromHTTPRequestToListFoldersRequestEntity reads GET /folders.
@@ -79,7 +79,7 @@ func FromHTTPRequestToExtendFolderRequestEntity(c fiber.Ctx) *entity.ExtendFolde
 	if rq == nil || json.Unmarshal(c.Body(), &body) != nil {
 		return nil
 	}
-	return &entity.ExtendFolderRequest{UserID: rq.UserID, FolderID: rq.FolderID, Minutes: body.Minutes}
+	return &entity.ExtendFolderRequest{UserID: rq.UserID, Agent: localAgent(c), FolderID: rq.FolderID, Minutes: body.Minutes}
 }
 
 // FromHTTPRequestToDeleteFolderRequestEntity reads DELETE /folders/:id.
@@ -99,7 +99,7 @@ func FromHTTPRequestToPutFilesRequestEntity(c fiber.Ctx) *entity.PutFilesRequest
 		return nil
 	}
 	// fasthttp reuses the body buffer once the handler returns.
-	return &entity.PutFilesRequest{UserID: rq.UserID, Anonymous: localAnonymous(c), FolderID: rq.FolderID, Files: []entity.FileUpload{{Path: rq.Path, Data: bytes.Clone(c.Body())}}}
+	return &entity.PutFilesRequest{UserID: rq.UserID, Anonymous: localAnonymous(c), Agent: localAgent(c), FolderID: rq.FolderID, Files: []entity.FileUpload{{Path: rq.Path, Data: bytes.Clone(c.Body())}}}
 }
 
 // FromHTTPRequestToDeleteFileRequestEntity reads DELETE /folders/:id/files/*.
@@ -216,12 +216,13 @@ func FromFolderEntityToFolderView(e entity.Folder) view.Folder {
 		URL:          e.URL,
 		Title:        e.Title,
 		DefaultTitle: e.DefaultTitle,
+		Agent:        e.Agent,
 	}
 }
 
 // FromFileEntityToFileView maps a file to its JSON view.
 func FromFileEntityToFileView(e entity.File) view.File {
-	return view.File{Path: e.Path, Size: e.Size, UpdatedAt: e.UpdatedAt.UTC().Format(time.RFC3339), URL: e.URL}
+	return view.File{Path: e.Path, Size: e.Size, UpdatedAt: e.UpdatedAt.UTC().Format(time.RFC3339), URL: e.URL, Agent: e.Agent}
 }
 
 // FromFileEntitiesToFileViews maps files to their JSON views.
@@ -258,4 +259,10 @@ func localUserID(c fiber.Ctx) int64 {
 func localAnonymous(c fiber.Ctx) bool {
 	anonymous, _ := c.Locals(LocalAnonymous).(bool)
 	return anonymous
+}
+
+// localAgent names what the auth middleware authenticated, or "".
+func localAgent(c fiber.Ctx) string {
+	agent, _ := c.Locals(LocalAgent).(string)
+	return agent
 }

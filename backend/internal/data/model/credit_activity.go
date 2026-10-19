@@ -36,4 +36,8 @@ type CreditActivity struct {
 	Change int `gorm:"not null"`
 	// Current is the balance right after the change.
 	Current int `gorm:"not null"`
+	// Agent names what made the change: the OAuth client's name (e.g.
+	// "Claude Code", "tmphost CLI") or "Web". Empty for changes the system
+	// makes: grants, renewals and expiries.
+	Agent string `gorm:"type:varchar(100);not null;default:''"`
 }

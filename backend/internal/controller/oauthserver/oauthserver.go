@@ -269,6 +269,7 @@ func (c *controller) Authorize(ctx context.Context, rq *entity.AuthorizeRequest)
 	consent, err := c.token.CreateConsentToken(token.OAuthGrant{
 		UserID:        monoflake.ID(user.ID).String(),
 		ClientID:      clientKey(rq.ClientID),
+		ClientName:    client.Name,
 		RedirectURI:   redirect,
 		CodeChallenge: rq.CodeChallenge,
 		State:         rq.State,
@@ -378,11 +379,11 @@ func (c *controller) issue(ctx context.Context, grant token.OAuthGrant) (*entity
 	if err != nil {
 		return nil, fmt.Errorf("find user: %w", err)
 	}
-	access, err := c.token.CreateAccessToken(grant.UserID, grant.ClientID)
+	access, err := c.token.CreateAccessToken(grant)
 	if err != nil {
 		return nil, fmt.Errorf("create access token: %w", err)
 	}
-	refresh, err := c.token.CreateRefreshToken(grant.UserID, grant.ClientID)
+	refresh, err := c.token.CreateRefreshToken(grant)
 	if err != nil {
 		return nil, fmt.Errorf("create refresh token: %w", err)
 	}

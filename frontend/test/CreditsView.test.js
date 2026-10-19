@@ -27,7 +27,7 @@ describe('CreditsView', () => {
 
   it('loads pages until the chart range is covered, then older ones on demand', async () => {
     listCreditActivities
-      .mockResolvedValueOnce({ activities: [{ id: 'c', ops: 'spend', change: -10, current: 990, createdAt: ago(0) }], next: 'c' })
+      .mockResolvedValueOnce({ activities: [{ id: 'c', ops: 'spend', change: -10, current: 990, agent: 'Claude Code', createdAt: ago(0) }], next: 'c' })
       .mockResolvedValueOnce({ activities: [{ id: 'b', ops: 'grant', change: 1000, current: 1000, createdAt: ago(40) }], next: 'b' })
       .mockResolvedValueOnce({ activities: [{ id: 'a', ops: 'mystery', change: 0, current: 0, createdAt: ago(50) }], next: '' })
     const wrapper = mountView()
@@ -46,6 +46,9 @@ describe('CreditsView', () => {
     expect(rows().map((r) => r.find('[data-test="credits-change"]').text())).toEqual(['-10', '+1000'])
     expect(rows()[1].find('[data-test="credits-change"]').classes()).toContain('text-emerald-600')
     expect(rows().map((r) => r.find('[data-test="credits-current"]').text())).toEqual(['990', '1000'])
+    // Spends name the agent that made them; the system's grants name none.
+    expect(rows()[0].find('[data-test="credits-agent"]').text()).toBe('Claude Code ·')
+    expect(rows()[1].find('[data-test="credits-agent"]').exists()).toBe(false)
 
     await wrapper.find('[data-test="credits-older"]').trigger('click')
     await flushPromises()

@@ -27,8 +27,8 @@ func TestFromCreditOpToCreditOpName(t *testing.T) {
 func TestFromCreditActivityModelsToCreditActivityEntities(t *testing.T) {
 	at := time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC)
 	got := FromCreditActivityModelsToCreditActivityEntities([]model.CreditActivity{
-		{ID: 2, CreatedAt: at, UserID: 7, Ops: model.CreditOpRefund, Change: 4, Current: 9},
+		{ID: 2, CreatedAt: at, UserID: 7, Ops: model.CreditOpRefund, Change: 4, Current: 9, Agent: "Web"},
 	})
-	assert.Equal(t, []entity.CreditActivity{{ID: 2, Ops: "refund", Change: 4, Current: 9, CreatedAt: at}}, got)
+	assert.Equal(t, []entity.CreditActivity{{ID: 2, Ops: "refund", Change: 4, Current: 9, Agent: "Web", CreatedAt: at}}, got)
 	assert.Empty(t, FromCreditActivityModelsToCreditActivityEntities(nil))
 }

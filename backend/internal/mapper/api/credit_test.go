@@ -48,10 +48,10 @@ func TestFromHTTPRequestToListCreditActivitiesRequestEntity(t *testing.T) {
 func TestFromListCreditActivitiesResponseEntityToHTTPResponse(t *testing.T) {
 	at := time.Date(2026, 10, 19, 4, 0, 0, 0, time.FixedZone("x", 3600))
 	got := FromListCreditActivitiesResponseEntityToHTTPResponse(&entity.ListCreditActivitiesResponse{
-		Activities: []entity.CreditActivity{{ID: 62, Ops: "spend", Change: -3, Current: 247, CreatedAt: at}},
+		Activities: []entity.CreditActivity{{ID: 62, Ops: "spend", Change: -3, Current: 247, Agent: "Claude Code", CreatedAt: at}},
 		Next:       62,
 	})
-	assert.JSONEq(t, `{"activities":[{"id":"00000000010","ops":"spend","change":-3,"current":247,"createdAt":"2026-10-19T03:00:00Z"}],"next":"00000000010"}`, string(got))
+	assert.JSONEq(t, `{"activities":[{"id":"00000000010","ops":"spend","change":-3,"current":247,"agent":"Claude Code","createdAt":"2026-10-19T03:00:00Z"}],"next":"00000000010"}`, string(got))
 
 	got = FromListCreditActivitiesResponseEntityToHTTPResponse(&entity.ListCreditActivitiesResponse{})
 	assert.JSONEq(t, `{"activities":[],"next":""}`, string(got))

@@ -49,7 +49,7 @@ func newFilesApp(t *testing.T) *filesEnv {
 	t.Helper()
 	mc := gomock.NewController(t)
 	auth := mockauth.NewMockController(mc)
-	auth.EXPECT().Authenticate(gomock.Any(), &entity.AuthenticateRequest{AccessToken: "access"}).Return(&entity.AuthenticateResponse{UserID: 7}, nil).AnyTimes()
+	auth.EXPECT().Authenticate(gomock.Any(), &entity.AuthenticateRequest{AccessToken: "access"}).Return(&entity.AuthenticateResponse{UserID: 7, Agent: "tmphost CLI"}, nil).AnyTimes()
 	e := &filesEnv{
 		app: fiber.New(), auth: auth, folders: mockfolder.NewMockController(mc), oauth: mockoauth.NewMockController(mc),
 		credits:  mockcredit.NewMockController(mc),
@@ -93,7 +93,7 @@ func TestFolder_Limits(t *testing.T) {
 func (e *filesEnv) anonymous(t *testing.T, method, target, body string) (*http.Response, string) {
 	t.Helper()
 	e.auth.EXPECT().AuthenticateAnonymous(gomock.Any(), &entity.AuthenticateAnonymousRequest{IP: "0.0.0.0", Origin: "https://tmphost.io"}).
-		Return(&entity.AuthenticateResponse{UserID: 3, Anonymous: true}, nil)
+		Return(&entity.AuthenticateResponse{UserID: 3, Anonymous: true, Agent: "Web"}, nil)
 	req := httptest.NewRequest(method, target, strings.NewReader(body))
 	req.Header.Set("Origin", "https://tmphost.io")
 	res, err := e.app.Test(req)
@@ -111,12 +111,12 @@ func TestFolder_Anonymous(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":30,"maxUploadBytes":1048576,"billingBlockMinutes":30,"billingUnitBytes":1048576,"anonymous":true,"fileOps":5,"fileBytes":4194304,"fileOpsWindowMinutes":30}`, body)
 
-	e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 3, Anonymous: true}).
+	e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 3, Anonymous: true, Agent: "Web"}).
 		Return(&entity.CreateFolderResponse{Folder: entity.Folder{ID: 1000, CreatedAt: _at, ExpiresAt: _at, URL: "u"}}, nil)
 	res, _ = e.anonymous(t, http.MethodPost, "/api/v1/folders", "")
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
 
-	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 3, Anonymous: true, FolderID: 1000, Files: []entity.FileUpload{{Path: "a", Data: []byte("hi")}}}).
+	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 3, Anonymous: true, Agent: "Web", FolderID: 1000, Files: []entity.FileUpload{{Path: "a", Data: []byte("hi")}}}).
 		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "a", Size: 2, UpdatedAt: _at, URL: "u/a"}}}, nil)
 	res, _ = e.anonymous(t, http.MethodPut, "/api/v1/folders/000000rs/files/a", "hi")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
@@ -158,7 +158,7 @@ func TestFolder_AnonymousWithExpiredSession(t *testing.T) {
 	e := newFilesApp(t)
 	e.auth.EXPECT().Authenticate(gomock.Any(), &entity.AuthenticateRequest{SessionToken: "expired"}).Return(nil, errBoom)
 	e.auth.EXPECT().AuthenticateAnonymous(gomock.Any(), &entity.AuthenticateAnonymousRequest{IP: "0.0.0.0", Origin: "https://tmphost.io"}).
-		Return(&entity.AuthenticateResponse{UserID: 3, Anonymous: true}, nil)
+		Return(&entity.AuthenticateResponse{UserID: 3, Anonymous: true, Agent: "Web"}, nil)
 	e.folders.EXPECT().GetLimits(gomock.Any(), &entity.GetLimitsRequest{Anonymous: true}).Return(&entity.GetLimitsResponse{Anonymous: true})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/limits", nil)
 	req.AddCookie(&http.Cookie{Name: "tmphost_session", Value: "expired"})
@@ -177,7 +177,7 @@ func TestFolder_RequiresAuth(t *testing.T) {
 
 func TestFolder_Create(t *testing.T) {
 	e := newFilesApp(t)
-	e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 7, TTLMinutes: 60}).
+	e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 7, Agent: "tmphost CLI", TTLMinutes: 60}).
 		Return(&entity.CreateFolderResponse{Folder: entity.Folder{ID: 1000, CreatedAt: _at, ExpiresAt: _at, URL: "u"}}, nil)
 	res, body := e.do(t, http.MethodPost, "/api/v1/folders", `{"ttlMinutes":60}`)
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
@@ -186,7 +186,7 @@ func TestFolder_Create(t *testing.T) {
 	res, _ = e.do(t, http.MethodPost, "/api/v1/folders", `{`)
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
 
-	e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 7}).Return(nil, folderctrl.ErrInvalidTTL)
+	e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 7, Agent: "tmphost CLI"}).Return(nil, folderctrl.ErrInvalidTTL)
 	res, body = e.do(t, http.MethodPost, "/api/v1/folders", "")
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
 	assert.JSONEq(t, `{"error":"invalid ttl"}`, body)
@@ -261,7 +261,7 @@ func TestFolder_Update(t *testing.T) {
 
 func TestFolder_Extend(t *testing.T) {
 	e := newFilesApp(t)
-	e.folders.EXPECT().ExtendFolder(gomock.Any(), &entity.ExtendFolderRequest{UserID: 7, FolderID: 1000, Minutes: 60}).
+	e.folders.EXPECT().ExtendFolder(gomock.Any(), &entity.ExtendFolderRequest{UserID: 7, Agent: "tmphost CLI", FolderID: 1000, Minutes: 60}).
 		Return(&entity.ExtendFolderResponse{Folder: entity.Folder{ID: 1000, CreatedAt: _at, ExpiresAt: _at.Add(time.Hour), URL: "u", DefaultTitle: "a.jpg"}, CreditsSpent: 2}, nil)
 	res, body := e.do(t, http.MethodPost, "/api/v1/folders/000000rs/extend", `{"minutes":60}`)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
@@ -278,7 +278,7 @@ func TestFolder_Extend(t *testing.T) {
 
 func TestFolder_PutFile(t *testing.T) {
 	e := newFilesApp(t)
-	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "site/a b.txt", Data: []byte("hi")}}}).
+	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, Agent: "tmphost CLI", FolderID: 1000, Files: []entity.FileUpload{{Path: "site/a b.txt", Data: []byte("hi")}}}).
 		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "site/a b.txt", Size: 2, UpdatedAt: _at, URL: "u"}}, CreditsSpent: 1}, nil)
 	res, body := e.do(t, http.MethodPut, "/api/v1/folders/000000rs/files/site/a%20b.txt", "hi")
 	assert.Equal(t, http.StatusOK, res.StatusCode)

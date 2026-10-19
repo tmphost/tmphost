@@ -27,6 +27,9 @@ const (
 	// LocalAnonymous is the fiber.Ctx local set to true when LocalUserID
 	// is an anonymous visitor's.
 	LocalAnonymous = "anonymous"
+	// LocalAgent is the fiber.Ctx local naming what made the request:
+	// the OAuth client of an access token, or the web app.
+	LocalAgent = "agent"
 )
 
 // FromHTTPRequestToStartLoginRequestEntity reads GET /auth/:provider/login.

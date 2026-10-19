@@ -40,11 +40,12 @@ type fileInfo struct {
 	Path     string `json:"path"`
 	Size     int64  `json:"size"`
 	URL      string `json:"url"`
+	Agent    string `json:"agent,omitempty"`
 }
 
 func toFileInfo(f client.File) fileInfo {
 	dir, name := splitPath(f.Path)
-	return fileInfo{FileName: name, Path: dir, Size: f.Size, URL: f.URL}
+	return fileInfo{FileName: name, Path: dir, Size: f.Size, URL: f.URL, Agent: f.Agent}
 }
 
 // splitPath splits a folder-relative path into its directory and base name.
@@ -166,9 +167,9 @@ func newFileGetCmd(a *app) *cobra.Command {
 				} else {
 					rows := make([]string, len(out.Files))
 					for i, f := range out.Files {
-						rows[i] = f.FileName + "\t" + f.Path + "\t" + humanSize(f.Size) + "\t" + f.URL
+						rows[i] = f.FileName + "\t" + f.Path + "\t" + humanSize(f.Size) + "\t" + f.Agent + "\t" + f.URL
 					}
-					table(w, "FILE NAME\tPATH\tSIZE\tURL", rows)
+					table(w, "FILE NAME\tPATH\tSIZE\tAGENT\tURL", rows)
 				}
 				fmt.Fprintf(w, "\nid:      %s\nurl:     %s\nexpires: %s\n", out.ID, out.URL, a.expiry(d.Folder.ExpiresAt))
 			})

@@ -60,6 +60,7 @@ func FromCreditActivityEntitiesToCreditActivityViews(es []entity.CreditActivity)
 			Ops:       e.Ops,
 			Change:    e.Change,
 			Current:   e.Current,
+			Agent:     e.Agent,
 			CreatedAt: e.CreatedAt.UTC().Format(time.RFC3339),
 		}
 	}

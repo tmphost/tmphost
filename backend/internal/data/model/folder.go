@@ -7,8 +7,8 @@ package model
 import "time"
 
 // Folder is a group of uploaded files that expire together. The files
-// themselves live in storage under u<UserID>/<ID>/; only the ownership and
-// the expiry are kept here.
+// themselves live in storage under u<UserID>/<ID>/; who wrote each one is
+// kept in File.
 type Folder struct {
 	ID        int64 `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt time.Time
@@ -16,4 +16,6 @@ type Folder struct {
 	ExpiresAt time.Time `gorm:"index;not null"`
 	// Title is the name the owner gave the folder; empty until renamed.
 	Title string `gorm:"size:400;not null;default:''"`
+	// Agent names what created the folder, like File.Agent.
+	Agent string `gorm:"size:100;not null;default:''"`
 }

@@ -24,7 +24,7 @@ func TestCreditList(t *testing.T) {
 		}, nil)
 		res, body := e.do(t, http.MethodGet, path+"?limit=2", "")
 		assert.Equal(t, http.StatusOK, res.StatusCode)
-		assert.JSONEq(t, `{"activities":[{"id":"00000000003","ops":"renewal","change":240,"current":250,"createdAt":"2026-10-18T12:00:00Z"}],"next":""}`, body)
+		assert.JSONEq(t, `{"activities":[{"id":"00000000003","ops":"renewal","change":240,"current":250,"agent":"","createdAt":"2026-10-18T12:00:00Z"}],"next":""}`, body)
 	})
 
 	t.Run("signed out", func(t *testing.T) {

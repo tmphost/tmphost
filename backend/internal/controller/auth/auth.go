@@ -47,6 +47,14 @@ var (
 	ErrUnauthorized = errors.New("unauthorized")
 )
 
+const (
+	// AgentWeb is the agent of requests from a browser: the web app.
+	AgentWeb = "Web"
+	// AgentUnnamed is the agent of an OAuth client that registered
+	// without a name.
+	AgentUnnamed = "Unnamed app"
+)
+
 type (
 	// Controller is the sign-in and session business logic.
 	Controller interface {
@@ -193,11 +201,17 @@ func (c *controller) CompleteLogin(ctx context.Context, rq *entity.CompleteLogin
 func (c *controller) Authenticate(_ context.Context, rq *entity.AuthenticateRequest) (*entity.AuthenticateResponse, error) {
 	var (
 		subject string
+		agent   = AgentWeb
 		err     error
 	)
 	switch {
 	case rq.AccessToken != "":
-		subject, err = c.token.ValidateAccessToken(rq.AccessToken)
+		var grant token.OAuthGrant
+		grant, err = c.token.ValidateAccessToken(rq.AccessToken)
+		subject, agent = grant.UserID, grant.ClientName
+		if agent == "" {
+			agent = AgentUnnamed
+		}
 	case rq.SessionToken != "":
 		subject, err = c.token.ValidateSessionToken(rq.SessionToken)
 	default:
@@ -210,7 +224,7 @@ func (c *controller) Authenticate(_ context.Context, rq *entity.AuthenticateRequ
 	if id <= 0 {
 		return nil, ErrUnauthorized
 	}
-	return &entity.AuthenticateResponse{UserID: id}, nil
+	return &entity.AuthenticateResponse{UserID: id, Agent: agent}, nil
 }
 
 // AuthenticateAnonymous accepts a request from the app's web origin, by
@@ -229,7 +243,7 @@ func (c *controller) AuthenticateAnonymous(_ context.Context, rq *entity.Authent
 	if id == 0 {
 		return nil, ErrUnauthorized
 	}
-	return &entity.AuthenticateResponse{UserID: id, Anonymous: true}, nil
+	return &entity.AuthenticateResponse{UserID: id, Anonymous: true, Agent: AgentWeb}, nil
 }
 
 func (c *controller) GetCurrentUser(ctx context.Context, rq *entity.GetCurrentUserRequest) (*entity.GetCurrentUserResponse, error) {
