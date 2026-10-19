@@ -128,6 +128,17 @@ export function filePath(path) {
   return path.split('/').map(encodeURIComponent).join('/')
 }
 
+// listCreditActivities returns a page of the user's credit history, newest
+// first, as { activities, next }; pass next back as before for the next page.
+export function listCreditActivities(before = '') {
+  const query = new URLSearchParams({ limit: String(CREDIT_PAGE_SIZE) })
+  if (before) query.set('before', before)
+  return request('GET', `/users/me/credits/activities?${query}`, { fallback: 'Failed to load credit history' })
+}
+
+// CREDIT_PAGE_SIZE is the largest page the server returns.
+export const CREDIT_PAGE_SIZE = 200
+
 // fetchLimits returns the upload limits and billing block size.
 export function fetchLimits() {
   return request('GET', '/limits', { fallback: 'Failed to load limits' })

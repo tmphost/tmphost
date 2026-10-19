@@ -245,6 +245,7 @@ func TestSetupFlow_SettingsApplyAndPersist(t *testing.T) {
 func TestSettingsFromConfig(t *testing.T) {
 	cfg := testConfig(t)
 	cfg.Credits.MonthlyGrant = 42
+	cfg.Credits.SignupGrant = 7
 	cfg.Postgres = PostgresConfig{Enabled: true, DSN: "postgres://u:p@h:1/d"}
 	cfg.S3 = S3Config{Endpoint: "e", Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", UsePathStyle: true}
 	cfg.Storage = StorageConfig{Driver: "s3", LocalPath: "/files"}
@@ -254,9 +255,11 @@ func TestSettingsFromConfig(t *testing.T) {
 	s := settingsFromConfig(cfg)
 	assert.Equal(t, 443, s.TLS.Port, "default TLS port")
 	assert.Equal(t, 42, s.Credits.MonthlyGrant)
+	assert.Equal(t, 7, s.Credits.SignupGrant)
 	assert.Equal(t, "postgres", s.Database.Driver)
 
 	defaults := settingsFromConfig(Config{})
+	assert.Equal(t, entity.CreditSettings{MonthlyGrant: credit.DefaultMonthlyGrant, SignupGrant: credit.DefaultSignupGrant}, defaults.Credits)
 	assert.Equal(t, "local", defaults.Storage.Driver)
 	assert.Equal(t, "./_storage/files", defaults.Storage.Local.Path)
 	assert.Equal(t, entity.FileSettings{MaxTTLMinutes: 7200 * 60, MaxUploadMB: 16, AnonymousMaxTTLMinutes: 10}, defaults.Files)
@@ -274,6 +277,7 @@ func TestSettingsFromConfig(t *testing.T) {
 	assert.Equal(t, cfg.Files, round.Files)
 	assert.Equal(t, cfg.Auth.Google, round.Auth.Google)
 	assert.Equal(t, 42, round.Credits.MonthlyGrant)
+	assert.Equal(t, 7, round.Credits.SignupGrant)
 	assert.Equal(t, cfg.App.BaseURL, round.App.BaseURL)
 	assert.Equal(t, "tmphost.io", round.App.SitesDomain)
 	cfg.TLS.Port = 443

@@ -34,13 +34,18 @@ type (
 		// ListUsersDueForCreditRenewal returns up to limit users whose
 		// credit renewal time is at or before now, oldest first.
 		ListUsersDueForCreditRenewal(ctx context.Context, now time.Time, limit int) ([]model.User, error)
-		// UpdateUserCredits sets a user's balance and next renewal time.
-		UpdateUserCredits(ctx context.Context, id int64, credits int, renewAt time.Time) error
+		// RenewUserCredits resets a user's balance to credits and sets the
+		// next renewal time.
+		RenewUserCredits(ctx context.Context, id int64, credits int, renewAt time.Time) error
 		// SpendCredits takes n credits from a user in one atomic update, or
 		// returns ErrInsufficientCredits and takes none.
 		SpendCredits(ctx context.Context, id int64, n int) error
 		// RefundCredits gives n spent credits back.
 		RefundCredits(ctx context.Context, id int64, n int) error
+		// ListCreditActivities returns up to limit of a user's credit
+		// activities, newest first, with IDs below before (0: from the
+		// newest).
+		ListCreditActivities(ctx context.Context, userID, before int64, limit int) ([]model.CreditActivity, error)
 	}
 
 	userRepository struct {
@@ -61,8 +66,15 @@ func (r *userRepository) FindUserByEmail(ctx context.Context, email string) (mod
 	return r.first(ctx, "email = ?", email)
 }
 
+// CreateUser stores a new user and the grant it starts with.
 func (r *userRepository) CreateUser(ctx context.Context, u model.User) (model.User, error) {
-	if err := r.db.WithContext(ctx).Create(&u).Error; err != nil {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&u).Error; err != nil {
+			return err
+		}
+		return record(tx, u.ID, model.CreditOpGrant, u.Credits)
+	})
+	if err != nil {
 		return model.User{}, err
 	}
 	return u, nil
@@ -88,27 +100,82 @@ func (r *userRepository) ListUsersDueForCreditRenewal(ctx context.Context, now t
 	return users, nil
 }
 
-func (r *userRepository) UpdateUserCredits(ctx context.Context, id int64, credits int, renewAt time.Time) error {
-	return r.db.WithContext(ctx).Model(&model.User{}).Where("id = ?", id).
-		Updates(map[string]any{"credits": credits, "credits_renew_at": renewAt}).Error
+func (r *userRepository) RenewUserCredits(ctx context.Context, id int64, credits int, renewAt time.Time) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// A no-op write locks the row, so no spend lands between reading
+		// the old balance and resetting it.
+		users := tx.Model(&model.User{}).Where("id = ?", id)
+		if err := users.Update("credits", gorm.Expr("credits")).Error; err != nil {
+			return err
+		}
+		old, err := balance(tx, id)
+		if err != nil {
+			return err
+		}
+		err = tx.Model(&model.User{}).Where("id = ?", id).
+			Updates(map[string]any{"credits": credits, "credits_renew_at": renewAt}).Error
+		if err != nil {
+			return err
+		}
+		return record(tx, id, model.CreditOpRenewal, credits-old)
+	})
 }
 
 func (r *userRepository) SpendCredits(ctx context.Context, id int64, n int) error {
-	res := r.db.WithContext(ctx).Model(&model.User{}).
-		Where("id = ? AND credits >= ?", id, n).
-		Update("credits", gorm.Expr("credits - ?", n))
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return ErrInsufficientCredits
-	}
-	return nil
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&model.User{}).
+			Where("id = ? AND credits >= ?", id, n).
+			Update("credits", gorm.Expr("credits - ?", n))
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return ErrInsufficientCredits
+		}
+		return record(tx, id, model.CreditOpSpend, -n)
+	})
 }
 
 func (r *userRepository) RefundCredits(ctx context.Context, id int64, n int) error {
-	return r.db.WithContext(ctx).Model(&model.User{}).Where("id = ?", id).
-		Update("credits", gorm.Expr("credits + ?", n)).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(&model.User{}).Where("id = ?", id).
+			Update("credits", gorm.Expr("credits + ?", n)).Error
+		if err != nil {
+			return err
+		}
+		return record(tx, id, model.CreditOpRefund, n)
+	})
+}
+
+func (r *userRepository) ListCreditActivities(ctx context.Context, userID, before int64, limit int) ([]model.CreditActivity, error) {
+	q := r.db.WithContext(ctx).Where("user_id = ?", userID)
+	if before > 0 {
+		q = q.Where("id < ?", before)
+	}
+	var as []model.CreditActivity
+	if err := q.Order("id DESC").Limit(limit).Find(&as).Error; err != nil {
+		return nil, err
+	}
+	return as, nil
+}
+
+// balance reads a user's credit balance inside tx.
+func balance(tx *gorm.DB, id int64) (int, error) {
+	var u model.User
+	if err := tx.Select("credits").Where("id = ?", id).First(&u).Error; err != nil {
+		return 0, err
+	}
+	return u.Credits, nil
+}
+
+// record adds a credit activity for a change just made inside tx, with the
+// balance it left.
+func record(tx *gorm.DB, id int64, ops uint8, change int) error {
+	current, err := balance(tx, id)
+	if err != nil {
+		return err
+	}
+	return tx.Create(&model.CreditActivity{UserID: id, Ops: ops, Change: change, Current: current}).Error
 }
 
 func (r *userRepository) first(ctx context.Context, query string, arg any) (model.User, error) {

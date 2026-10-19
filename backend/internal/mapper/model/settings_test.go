@@ -21,7 +21,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 			Enabled: true, Port: 443, Email: "ops@tmphost.io",
 			Lego: entity.LegoSettings{Enabled: true, CloudflareAPIToken: "cf"},
 		},
-		Credits: entity.CreditSettings{MonthlyGrant: 300},
+		Credits: entity.CreditSettings{MonthlyGrant: 300, SignupGrant: 900},
 		Database: entity.DatabaseSettings{
 			Driver:   "postgres",
 			SQLite:   entity.SQLiteSettings{DSN: "x.db"},

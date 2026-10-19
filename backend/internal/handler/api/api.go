@@ -14,6 +14,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/limiter"
 
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
+	creditctrl "github.com/tmphost/tmphost/backend/internal/controller/credit"
 	folderctrl "github.com/tmphost/tmphost/backend/internal/controller/folder"
 	oauthctrl "github.com/tmphost/tmphost/backend/internal/controller/oauthserver"
 	setupctrl "github.com/tmphost/tmphost/backend/internal/controller/setup"
@@ -41,6 +42,7 @@ type Params struct {
 	Setup   setupctrl.Controller
 	Folders folderctrl.Controller
 	OAuth   oauthctrl.Controller
+	Credits creditctrl.Controller
 	// FileSettings returns the current file settings, which choose how
 	// folders are served.
 	FileSettings func() entity.FileSettings
@@ -59,6 +61,7 @@ func New(p Params) {
 		cookieSecure: p.CookieSecure,
 	}
 	user := &User{controller: p.Auth}
+	credit := &Credit{controller: p.Credits}
 	setup := &Setup{controller: p.Setup, basePath: basePath, cookieSecure: p.CookieSecure}
 	folder := &Folder{controller: p.Folders}
 	public := &Public{controller: p.Folders, settings: p.FileSettings}
@@ -93,6 +96,7 @@ func New(p Params) {
 
 	authn := Authenticate(p.Auth)
 	r.Get("/users/me", authn, user.Get)
+	r.Get("/users/me/credits/activities", authn, credit.List)
 
 	// Visitors of the web app may upload without signing in, with lower
 	// limits.

@@ -134,6 +134,7 @@ type (
 	// CreditsConfig is the "credits" section.
 	CreditsConfig struct {
 		MonthlyGrant int `yaml:"monthlyGrant"`
+		SignupGrant  int `yaml:"signupGrant"`
 	}
 
 	// PoolConfig tunes a database connection pool.
@@ -245,13 +246,14 @@ func New(cfg Config, web fs.FS) (*App, error) {
 	basePath := strings.TrimRight(cfg.App.BasePath, "/")
 	baseURL := strings.TrimRight(cfg.App.BaseURL, "/")
 	auth := authctrl.New(authctrl.Params{
-		Providers: providers(cfg),
-		Token:     tokens,
-		Users:     users,
-		IDGen:     ids,
-		Grant:     setup.MonthlyGrant,
-		BasePath:  basePath,
-		BaseURL:   baseURL,
+		Providers:   providers(cfg),
+		Token:       tokens,
+		Users:       users,
+		IDGen:       ids,
+		Grant:       setup.MonthlyGrant,
+		SignupGrant: setup.SignupGrant,
+		BasePath:    basePath,
+		BaseURL:     baseURL,
 	})
 	folders := folderctrl.New(folderctrl.Params{
 		Folders:   repository.NewFolderRepository(db),
@@ -268,6 +270,7 @@ func New(cfg Config, web fs.FS) (*App, error) {
 	h := newHosts(cfg.App.BaseURL, cfg.App.SitesDomain)
 	f := fiber.New(fiberConfig(cfg.App, bodyLimit))
 	f.Use(recover.New())
+	credits := credit.New(credit.Params{Users: users, Grant: setup.MonthlyGrant})
 	api.New(api.Params{
 		Router:       f,
 		Hosts:        hostRouter(h),
@@ -275,6 +278,7 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		Setup:        setup,
 		Folders:      folders,
 		OAuth:        oauthctrl.New(oauthctrl.Params{Token: tokens, Users: users, Issuer: baseURL, Resource: baseURL + MCPPath}),
+		Credits:      credits,
 		FileSettings: setup.FileLimits,
 		BasePath:     basePath,
 		// A session cookie for an https app must never travel over plain
@@ -293,7 +297,7 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		fiber:     f,
 		addr:      net.JoinHostPort("", strconv.Itoa(cfg.App.Port)),
 		db:        db,
-		credits:   credit.New(credit.Params{Users: users, Grant: setup.MonthlyGrant}),
+		credits:   credits,
 		folders:   folders,
 		scheduler: scheduler.New(),
 	}

@@ -46,6 +46,7 @@ type (
 	// CreditSettings is the credits section.
 	CreditSettings struct {
 		MonthlyGrant int `json:"monthlyGrant"`
+		SignupGrant  int `json:"signupGrant"`
 	}
 
 	// DatabaseSettings is the database section.

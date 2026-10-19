@@ -120,6 +120,20 @@ func (mr *MockControllerMockRecorder) MonthlyGrant() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MonthlyGrant", reflect.TypeOf((*MockController)(nil).MonthlyGrant))
 }
 
+// SignupGrant mocks base method.
+func (m *MockController) SignupGrant() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SignupGrant")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// SignupGrant indicates an expected call of SignupGrant.
+func (mr *MockControllerMockRecorder) SignupGrant() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignupGrant", reflect.TypeOf((*MockController)(nil).SignupGrant))
+}
+
 // UpdateSettings mocks base method.
 func (m *MockController) UpdateSettings(ctx context.Context, rq *entity.UpdateSettingsRequest) (*entity.UpdateSettingsResponse, error) {
 	m.ctrl.T.Helper()

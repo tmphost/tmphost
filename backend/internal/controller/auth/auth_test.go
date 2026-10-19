@@ -57,14 +57,15 @@ func newEnv(t *testing.T) *env {
 	e.google.EXPECT().Icon().Return("").AnyTimes()
 	e.github.EXPECT().Icon().Return("<svg/>").AnyTimes()
 	e.ctrl = New(Params{
-		Providers: []oauth.Provider{e.google, e.github},
-		Token:     e.token,
-		Users:     e.users,
-		IDGen:     e.idgen,
-		Grant:     func() int { return 250 },
-		BasePath:  "/app/",
-		BaseURL:   "https://tmphost.io/app/",
-		Now:       func() time.Time { return _now },
+		Providers:   []oauth.Provider{e.google, e.github},
+		Token:       e.token,
+		Users:       e.users,
+		IDGen:       e.idgen,
+		Grant:       func() int { return 250 },
+		SignupGrant: func() int { return 1000 },
+		BasePath:    "/app/",
+		BaseURL:     "https://tmphost.io/app/",
+		Now:         func() time.Time { return _now },
 	})
 	return e
 }
@@ -73,6 +74,7 @@ func TestNew_DefaultClock(t *testing.T) {
 	c := New(Params{}).(*controller)
 	assert.WithinDuration(t, time.Now(), c.now(), time.Second)
 	assert.Equal(t, 250, c.grant())
+	assert.Equal(t, 1000, c.signup())
 }
 
 func TestGetAuthConfig(t *testing.T) {
@@ -178,7 +180,7 @@ func expectExchange(e *env, ctx context.Context) {
 	}, nil)
 }
 
-func TestCompleteLogin_NewUserGetsMonthlyCredits(t *testing.T) {
+func TestCompleteLogin_NewUserGetsSignupCredits(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
 	expectExchange(e, ctx)
@@ -187,7 +189,7 @@ func TestCompleteLogin_NewUserGetsMonthlyCredits(t *testing.T) {
 	e.users.EXPECT().CreateUser(ctx, gomock.Any()).DoAndReturn(func(_ context.Context, u model.User) (model.User, error) {
 		assert.Equal(t, model.User{
 			ID: 1000, Email: "new@example.com", Name: "New", Picture: "pic", Provider: "google",
-			Credits: 250, CreditsRenewAt: time.Date(2026, 11, 17, 0, 0, 0, 0, time.UTC),
+			Credits: 1000, CreditsRenewAt: time.Date(2026, 11, 17, 0, 0, 0, 0, time.UTC),
 		}, u)
 		return u, nil
 	})
@@ -197,8 +199,8 @@ func TestCompleteLogin_NewUserGetsMonthlyCredits(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "session", rs.SessionToken)
 	assert.Equal(t, "/app/settings", rs.RedirectURL)
-	assert.Equal(t, 250, rs.User.Credits)
-	assert.Equal(t, 250, rs.User.CreditsLimit)
+	assert.Equal(t, 1000, rs.User.Credits)
+	assert.Equal(t, 1000, rs.User.CreditsLimit, "the sign-up grant is above the monthly one")
 }
 
 func TestCompleteLogin_CreateFails(t *testing.T) {

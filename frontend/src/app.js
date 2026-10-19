@@ -41,6 +41,12 @@ export const routes = [
     meta: { title: 'Files' },
   },
   {
+    path: '/credits',
+    name: 'credits',
+    component: () => import('./views/CreditsView.vue'),
+    meta: { title: 'Credits' },
+  },
+  {
     path: '/connect',
     name: 'connect',
     component: () => import('./views/ConnectView.vue'),

@@ -27,7 +27,7 @@ func defaults() entity.Settings {
 	return entity.Settings{
 		Domain:  entity.DomainSettings{AppURL: "http://localhost:2027"},
 		TLS:     entity.TLSSettings{Port: DefaultTLSPort},
-		Credits: entity.CreditSettings{MonthlyGrant: 250},
+		Credits: entity.CreditSettings{MonthlyGrant: 250, SignupGrant: 1000},
 		Database: entity.DatabaseSettings{
 			Driver:   DriverSQLite,
 			SQLite:   entity.SQLiteSettings{DSN: "./_storage/tmphost.db"},
@@ -168,6 +168,7 @@ func TestUpdateSettings_CreditsApplyLive(t *testing.T) {
 	e := newEnv(t)
 	next := e.ctrl.GetSettings(ctx).Settings // secrets blank: kept
 	next.Credits.MonthlyGrant = 400
+	next.Credits.SignupGrant = 900
 	next.Files.MaxTTLMinutes = 60
 	next.Files.AnonymousMaxTTLMinutes = 5
 	next.Files.Subdomains = true
@@ -184,6 +185,7 @@ func TestUpdateSettings_CreditsApplyLive(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, rs.RestartRequired, "credits, max TTLs and public URLs apply without a restart")
 	assert.Equal(t, 400, e.ctrl.MonthlyGrant())
+	assert.Equal(t, 900, e.ctrl.SignupGrant())
 	assert.Equal(t, entity.FileSettings{MaxTTLMinutes: 60, MaxUploadMB: 16, AnonymousMaxTTLMinutes: 5, Subdomains: true, PublicDomain: "files.example.com:8443"}, e.ctrl.FileLimits())
 	assert.Empty(t, rs.Settings.Auth.Google.ClientSecret)
 }
@@ -223,7 +225,9 @@ func TestUpdateSettings_SaveFails(t *testing.T) {
 func TestUpdateSettings_Validation(t *testing.T) {
 	cases := map[string]func(*entity.Settings){
 		"negative credits":   func(s *entity.Settings) { s.Credits.MonthlyGrant = -1 },
-		"huge credits":       func(s *entity.Settings) { s.Credits.MonthlyGrant = _maxMonthlyGrant + 1 },
+		"huge credits":       func(s *entity.Settings) { s.Credits.MonthlyGrant = _maxGrant + 1 },
+		"negative signup":    func(s *entity.Settings) { s.Credits.SignupGrant = -1 },
+		"huge signup":        func(s *entity.Settings) { s.Credits.SignupGrant = _maxGrant + 1 },
 		"unknown driver":     func(s *entity.Settings) { s.Database.Driver = "mysql" },
 		"sqlite without dsn": func(s *entity.Settings) { s.Database.SQLite.DSN = " " },
 		"postgres bad dsn url": func(s *entity.Settings) {

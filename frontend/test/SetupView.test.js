@@ -21,7 +21,7 @@ function state(overrides = {}) {
     settings: {
       domain: { appUrl: 'https://app.tmphost.io/', sitesDomain: 'tmphost.io' },
       tls: { enabled: false, port: 443, email: '', lego: { enabled: false, cloudflareApiToken: '' } },
-      credits: { monthlyGrant: 250 },
+      credits: { monthlyGrant: 250, signupGrant: 1000 },
       database: {
         driver: 'sqlite',
         sqlite: { dsn: './_storage/tmphost.db' },
@@ -127,12 +127,37 @@ describe('SetupView', () => {
     expect(wrapper.find('#pg-dsn').attributes('placeholder')).toMatch(/^postgres:\/\//)
   })
 
+  it('shows one settings section at a time from the side menu', async () => {
+    fetchSettings.mockResolvedValue(state())
+    const wrapper = await mountView()
+    const ids = ['domain', 'tls', 'credits', 'database', 'storage', 'files', 'signin']
+    const visible = () => ids.filter((id) => wrapper.find(`[data-test="setup-${id}"]`).element.style.display !== 'none')
+    expect(wrapper.findAll('nav[aria-label="Settings"] button').map((b) => b.text())).toEqual([
+      'Domains',
+      'TLS',
+      'Credits',
+      'Database',
+      'Storage',
+      'Files',
+      'Sign-in',
+    ])
+    expect(visible()).toEqual(['domain'])
+    expect(wrapper.find('[data-test="setup-tab-domain"]').attributes('aria-current')).toBe('page')
+
+    await wrapper.find('[data-test="setup-tab-credits"]').trigger('click')
+    expect(visible()).toEqual(['credits'])
+    expect(wrapper.find('[data-test="setup-tab-credits"]').attributes('aria-current')).toBe('page')
+    expect(wrapper.find('[data-test="setup-tab-domain"]').attributes('aria-current')).toBeUndefined()
+    expect(wrapper.find('[data-test="setup-signup-grant"]').element.value).toBe('1000')
+  })
+
   it('saves the edited settings and shows restart notice', async () => {
     fetchSettings.mockResolvedValue(state())
     saveSettings.mockImplementation(async (settings) => state({ settings: { ...settings, auth: { ...settings.auth, github: { clientId: 'h', clientSecret: '' } } }, restartRequired: true }))
     const wrapper = await mountView()
 
     await wrapper.find('[data-test="setup-grant"]').setValue('400')
+    await wrapper.find('[data-test="setup-signup-grant"]').setValue('900')
     await wrapper.find('[data-test="setup-storage-s3"]').trigger('click')
     await wrapper.find('#s3-bucket').setValue('files')
     await wrapper.find('[data-test="setup-max-ttl"]').setValue('1440')
@@ -144,7 +169,7 @@ describe('SetupView', () => {
     await flushPromises()
 
     const sent = saveSettings.mock.calls[0][0]
-    expect(sent.credits.monthlyGrant).toBe(400)
+    expect(sent.credits).toEqual({ monthlyGrant: 400, signupGrant: 900 })
     expect(sent.storage.driver).toBe('s3')
     expect(sent.storage.s3).toMatchObject({ bucket: 'files' })
     expect(sent.storage.s3).not.toHaveProperty('enabled')

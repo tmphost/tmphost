@@ -48,6 +48,7 @@ auth:
     clientSecret: ${TMPHOSTIO_AUTH_GITHUB_CLIENT_SECRET}
 credits:
   monthlyGrant: ${TMPHOSTIO_CREDITS_MONTHLY_GRANT:250}
+  signupGrant: ${TMPHOSTIO_CREDITS_SIGNUP_GRANT:1000}
 # PostgreSQL is used when enabled; otherwise SQLite.
 sqlite:
   enabled: ${TMPHOSTIO_SQLITE_ENABLED:true}

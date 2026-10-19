@@ -56,7 +56,7 @@ const _settingsJSON = `{
 	"domain": {"appUrl": "https://app.tmphost.io", "sitesDomain": "tmphost.io"},
 	"tls": {"enabled": true, "port": 8443, "email": "ops@tmphost.io",
 		"lego": {"enabled": true, "cloudflareApiToken": "cf"}},
-	"credits": {"monthlyGrant": 300},
+	"credits": {"monthlyGrant": 300, "signupGrant": 900},
 	"database": {"driver": "postgres", "sqlite": {"dsn": "x.db"},
 		"postgres": {"dsn": "postgres://u:p@h/d"}},
 	"storage": {"s3": {"enabled": true, "endpoint": "https://s3", "region": "r", "bucket": "b",
@@ -71,6 +71,7 @@ func TestSettingsMapping(t *testing.T) {
 	runBody(t, `{"settings":`+_settingsJSON+`}`, func(c fiber.Ctx) { got = FromHTTPRequestToUpdateSettingsRequestEntity(c) })
 	require.NotNil(t, got)
 	assert.Equal(t, 300, got.Settings.Credits.MonthlyGrant)
+	assert.Equal(t, 900, got.Settings.Credits.SignupGrant)
 	assert.Equal(t, "postgres://u:p@h/d", got.Settings.Database.Postgres.DSN)
 	assert.Equal(t, "hs", got.Settings.Auth.GitHub.ClientSecret)
 	assert.Equal(t, entity.FileSettings{MaxTTLMinutes: 60, MaxUploadMB: 2, AnonymousMaxTTLMinutes: 7, Subdomains: true, PublicDomain: "x.io"}, got.Settings.Files)

@@ -22,6 +22,7 @@ const NAV = [
     section: 'Overview',
     items: [
       { to: '/', label: 'Files', icon: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z' },
+      { to: '/credits', label: 'Credits', icon: 'M3 3v18h18M7 15l4-4 3 3 5-6' },
       {
         to: '/connect',
         label: 'Connect',

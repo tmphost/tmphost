@@ -53,6 +53,10 @@ func settingsFromConfig(cfg Config) entity.Settings {
 	if grant == 0 {
 		grant = credit.DefaultMonthlyGrant
 	}
+	signupGrant := cfg.Credits.SignupGrant
+	if signupGrant == 0 {
+		signupGrant = credit.DefaultSignupGrant
+	}
 	s3 := cfg.S3
 	tlsPort := cfg.TLS.Port
 	if tlsPort == 0 {
@@ -90,7 +94,7 @@ func settingsFromConfig(cfg Config) entity.Settings {
 			Enabled: cfg.TLS.Enabled, Port: tlsPort, Email: cfg.TLS.Email,
 			Lego: entity.LegoSettings{Enabled: cfg.TLS.Lego.Enabled, CloudflareAPIToken: cfg.TLS.Lego.CloudflareAPIToken},
 		},
-		Credits: entity.CreditSettings{MonthlyGrant: grant},
+		Credits: entity.CreditSettings{MonthlyGrant: grant, SignupGrant: signupGrant},
 		Database: entity.DatabaseSettings{
 			Driver:   driver,
 			SQLite:   entity.SQLiteSettings{DSN: cfg.SQLite.DSN},
@@ -115,6 +119,7 @@ func settingsFromConfig(cfg Config) entity.Settings {
 // applySettings overlays the effective settings onto the config.
 func applySettings(cfg Config, s entity.Settings) Config {
 	cfg.Credits.MonthlyGrant = s.Credits.MonthlyGrant
+	cfg.Credits.SignupGrant = s.Credits.SignupGrant
 	cfg.SQLite.Enabled = s.Database.Driver == setupctrl.DriverSQLite
 	cfg.SQLite.DSN = s.Database.SQLite.DSN
 	cfg.Postgres.Enabled = s.Database.Driver == setupctrl.DriverPostgres

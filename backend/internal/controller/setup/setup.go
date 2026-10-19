@@ -43,7 +43,7 @@ const (
 	// DefaultTLSPort is the HTTPS port used when none is set.
 	DefaultTLSPort = 443
 
-	_maxMonthlyGrant = 1_000_000
+	_maxGrant = 1_000_000
 	// About ten years; anything longer is a typo, not a plan.
 	_maxTTLMinutes   = 10 * 365 * 24 * 60
 	_maxUploadMB     = 1024
@@ -83,6 +83,8 @@ type (
 		Current() entity.Settings
 		// MonthlyGrant returns the current monthly credit grant.
 		MonthlyGrant() int
+		// SignupGrant returns the current credit grant of new accounts.
+		SignupGrant() int
 		// FileLimits returns the current upload limits.
 		FileLimits() entity.FileSettings
 	}
@@ -183,6 +185,12 @@ func (c *controller) MonthlyGrant() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.current.Credits.MonthlyGrant
+}
+
+func (c *controller) SignupGrant() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.current.Credits.SignupGrant
 }
 
 func (c *controller) FileLimits() entity.FileSettings {
@@ -359,8 +367,11 @@ func validate(s entity.Settings) error {
 	if err := validateProviders(s.Auth.Providers); err != nil {
 		return err
 	}
-	if s.Credits.MonthlyGrant < 0 || s.Credits.MonthlyGrant > _maxMonthlyGrant {
-		return fmt.Errorf("monthly credits must be between 0 and %d", _maxMonthlyGrant)
+	if s.Credits.MonthlyGrant < 0 || s.Credits.MonthlyGrant > _maxGrant {
+		return fmt.Errorf("monthly credits must be between 0 and %d", _maxGrant)
+	}
+	if s.Credits.SignupGrant < 0 || s.Credits.SignupGrant > _maxGrant {
+		return fmt.Errorf("sign-up credits must be between 0 and %d", _maxGrant)
 	}
 	switch s.Database.Driver {
 	case DriverSQLite:

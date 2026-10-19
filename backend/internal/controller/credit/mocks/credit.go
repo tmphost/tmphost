@@ -35,6 +35,21 @@ func (m *MockController) EXPECT() *MockControllerMockRecorder {
 	return m.recorder
 }
 
+// ListCreditActivities mocks base method.
+func (m *MockController) ListCreditActivities(ctx context.Context, rq *entity.ListCreditActivitiesRequest) (*entity.ListCreditActivitiesResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListCreditActivities", ctx, rq)
+	ret0, _ := ret[0].(*entity.ListCreditActivitiesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListCreditActivities indicates an expected call of ListCreditActivities.
+func (mr *MockControllerMockRecorder) ListCreditActivities(ctx, rq interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCreditActivities", reflect.TypeOf((*MockController)(nil).ListCreditActivities), ctx, rq)
+}
+
 // RenewDueCredits mocks base method.
 func (m *MockController) RenewDueCredits(ctx context.Context) (*entity.RenewDueCreditsResponse, error) {
 	m.ctrl.T.Helper()

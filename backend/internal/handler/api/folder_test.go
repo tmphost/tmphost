@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	mockauth "github.com/tmphost/tmphost/backend/internal/controller/auth/mocks"
+	mockcredit "github.com/tmphost/tmphost/backend/internal/controller/credit/mocks"
 	folderctrl "github.com/tmphost/tmphost/backend/internal/controller/folder"
 	mockfolder "github.com/tmphost/tmphost/backend/internal/controller/folder/mocks"
 	mockoauth "github.com/tmphost/tmphost/backend/internal/controller/oauthserver/mocks"
@@ -34,6 +35,7 @@ type filesEnv struct {
 	auth     *mockauth.MockController
 	folders  *mockfolder.MockController
 	oauth    *mockoauth.MockController
+	credits  *mockcredit.MockController
 	settings entity.FileSettings
 }
 
@@ -46,10 +48,11 @@ func newFilesApp(t *testing.T) *filesEnv {
 	auth.EXPECT().Authenticate(gomock.Any(), &entity.AuthenticateRequest{AccessToken: "access"}).Return(&entity.AuthenticateResponse{UserID: 7}, nil).AnyTimes()
 	e := &filesEnv{
 		app: fiber.New(), auth: auth, folders: mockfolder.NewMockController(mc), oauth: mockoauth.NewMockController(mc),
+		credits:  mockcredit.NewMockController(mc),
 		settings: entity.FileSettings{Subdomains: true, PublicDomain: "tmp.host"},
 	}
 	New(Params{
-		Router: e.app, Auth: auth, Setup: mocksetup.NewMockController(mc), Folders: e.folders, OAuth: e.oauth,
+		Router: e.app, Auth: auth, Setup: mocksetup.NewMockController(mc), Folders: e.folders, OAuth: e.oauth, Credits: e.credits,
 		FileSettings: func() entity.FileSettings { return e.settings }, BasePath: "/base",
 		// Only tmp.host and httptest's example.com pass the host check.
 		Hosts: func(c fiber.Ctx) error {
