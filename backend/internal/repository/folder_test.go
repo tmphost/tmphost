@@ -6,11 +6,16 @@ package repository
 
 import (
 	"context"
+	"errors"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/tmphost/tmphost/backend/internal/data/model"
 )
@@ -83,14 +88,19 @@ func TestFolderRepository_Files(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Claude Code", got.Agent)
 
-	require.NoError(t, repo.SaveFiles(ctx, nil), "nothing to save")
-	require.NoError(t, repo.SaveFiles(ctx, []model.File{
-		{FolderID: 1, Path: "a.txt", Agent: "Claude Code", UpdatedAt: now},
-		{FolderID: 1, Path: "css/b.css", Agent: "Claude Code", UpdatedAt: now},
-		{FolderID: 2, Path: "a.txt", Agent: "Web", UpdatedAt: now},
+	assert.Nil(t, got.Files, "created without a list: listed from storage")
+	_, err = repo.CreateFolder(ctx, model.Folder{ID: 2, UserID: 7, ExpiresAt: now.Add(time.Hour), Files: model.FolderFiles{}})
+	require.NoError(t, err)
+
+	require.NoError(t, repo.SaveFiles(ctx, 1, "Web", nil), "nothing to save")
+	require.NoError(t, repo.SaveFiles(ctx, 1, "Claude Code", model.FolderFiles{
+		"a.txt":     {Size: 1, ContentType: "text/plain; charset=utf-8", UpdatedAt: now},
+		"css/b.css": {Size: 2, ContentType: "text/css; charset=utf-8", UpdatedAt: now},
 	}))
-	// Writing a path again replaces its record.
-	require.NoError(t, repo.SaveFiles(ctx, []model.File{{FolderID: 1, Path: "a.txt", Agent: "tmphost CLI", UpdatedAt: now.Add(time.Minute)}}))
+	require.NoError(t, repo.SaveFiles(ctx, 2, "Web", model.FolderFiles{"a.txt": {Size: 3, UpdatedAt: now}}))
+	// Writing a path again replaces its record and its entry.
+	require.NoError(t, repo.SaveFiles(ctx, 1, "tmphost CLI", model.FolderFiles{"a.txt": {Size: 5, UpdatedAt: now.Add(time.Minute)}}))
+	require.NoError(t, repo.SaveFiles(ctx, 2, "tmphost CLI", model.FolderFiles{"big.bin": {Size: 2 << 20, ContentType: "application/octet-stream", UpdatedAt: now}}))
 	files, err := repo.ListFiles(ctx, 1)
 	require.NoError(t, err)
 	agents := map[string]string{}
@@ -98,11 +108,25 @@ func TestFolderRepository_Files(t *testing.T) {
 		agents[f.Path] = f.Agent
 	}
 	assert.Equal(t, map[string]string{"a.txt": "tmphost CLI", "css/b.css": "Claude Code"}, agents)
+	got, err = repo.FindFolderByID(ctx, 1)
+	require.NoError(t, err)
+	assert.Nil(t, got.Files, "a folder without a list keeps none")
+	got, err = repo.FindFolderByID(ctx, 2)
+	require.NoError(t, err)
+	assert.Equal(t, model.FolderFiles{
+		"a.txt":   {Size: 3, UpdatedAt: now},
+		"big.bin": {Size: 2 << 20, ContentType: "application/octet-stream", UpdatedAt: now},
+	}, got.Files)
+	require.NoError(t, repo.SaveFiles(ctx, 99, "Web", model.FolderFiles{"a": {}}), "a deleted folder has nothing to describe")
 
 	require.NoError(t, repo.DeleteFile(ctx, 1, "css/b.css"))
 	files, err = repo.ListFiles(ctx, 1)
 	require.NoError(t, err)
 	assert.Len(t, files, 1)
+	require.NoError(t, repo.DeleteFile(ctx, 2, "a.txt"))
+	got, err = repo.FindFolderByID(ctx, 2)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"big.bin"}, slices.Collect(maps.Keys(got.Files)))
 
 	require.NoError(t, repo.DeleteFolder(ctx, 1))
 	files, err = repo.ListFiles(ctx, 1)
@@ -139,10 +163,72 @@ func TestFolderRepository_DBErrors(t *testing.T) {
 	assert.Error(t, repo.UpdateFolderTitle(ctx, 1, "x"))
 	assert.Error(t, repo.ExtendFolder(ctx, 1, time.Now(), time.Now()))
 	assert.Error(t, repo.DeleteFolder(ctx, 1))
-	assert.Error(t, repo.SaveFiles(ctx, []model.File{{FolderID: 1, Path: "a"}}))
+	assert.Error(t, repo.SaveFiles(ctx, 1, "Web", model.FolderFiles{"a": {}}))
 	_, err = repo.ListFiles(ctx, 1)
 	assert.Error(t, err)
 	assert.Error(t, repo.DeleteFile(ctx, 1, "a"))
+}
+
+func TestFolderRepository_FilesErrorsRollBack(t *testing.T) {
+	ctx := context.Background()
+	newRepo := func(t *testing.T) (*gorm.DB, FolderRepository) {
+		t.Helper()
+		db := newDB(t)
+		repo := NewFolderRepository(db)
+		_, err := repo.CreateFolder(ctx, model.Folder{ID: 1, UserID: 7, ExpiresAt: time.Now().Add(time.Hour), Files: model.FolderFiles{"a": {Size: 1}}})
+		require.NoError(t, err)
+		return db, repo
+	}
+	unchanged := func(t *testing.T, repo FolderRepository) {
+		t.Helper()
+		f, err := repo.FindFolderByID(ctx, 1)
+		require.NoError(t, err)
+		assert.Equal(t, model.FolderFiles{"a": {Size: 1}}, f.Files)
+	}
+	failFilesUpdate := func(t *testing.T, db *gorm.DB, lock bool) {
+		t.Helper()
+		require.NoError(t, db.Callback().Update().Before("gorm:update").Register("test:fail-files", func(tx *gorm.DB) {
+			m, _ := tx.Statement.Dest.(map[string]any)
+			if v, ok := m["files"]; ok {
+				if _, isLock := v.(clause.Expr); isLock == lock {
+					_ = tx.AddError(errors.New("update failed"))
+				}
+			}
+		}))
+	}
+
+	t.Run("locking the folder fails", func(t *testing.T) {
+		db, repo := newRepo(t)
+		failFilesUpdate(t, db, true)
+		assert.Error(t, repo.SaveFiles(ctx, 1, "Web", model.FolderFiles{"b": {}}))
+		assert.Error(t, repo.DeleteFile(ctx, 1, "a"))
+		unchanged(t, repo)
+	})
+
+	t.Run("reading the list fails", func(t *testing.T) {
+		db, repo := newRepo(t)
+		require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:fail-read", func(tx *gorm.DB) {
+			if tx.Statement.Table == "folders" && len(tx.Statement.Selects) == 1 {
+				_ = tx.AddError(errors.New("read failed"))
+			}
+		}))
+		assert.Error(t, repo.SaveFiles(ctx, 1, "Web", model.FolderFiles{"b": {}}))
+	})
+
+	t.Run("writing the list fails", func(t *testing.T) {
+		db, repo := newRepo(t)
+		failFilesUpdate(t, db, false)
+		assert.Error(t, repo.SaveFiles(ctx, 1, "Web", model.FolderFiles{"b": {}}))
+		unchanged(t, repo)
+	})
+
+	t.Run("the file records fail", func(t *testing.T) {
+		db, repo := newRepo(t)
+		require.NoError(t, db.Migrator().DropTable(&model.File{}))
+		assert.Error(t, repo.SaveFiles(ctx, 1, "Web", model.FolderFiles{"b": {}}))
+		assert.Error(t, repo.DeleteFile(ctx, 1, "a"))
+		unchanged(t, repo)
+	})
 }
 
 func folderIDs(fs []model.Folder) []int64 {

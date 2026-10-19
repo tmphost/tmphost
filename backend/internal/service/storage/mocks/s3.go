@@ -8,6 +8,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	s3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	gomock "github.com/golang/mock/gomock"
 )
@@ -133,4 +134,47 @@ func (mr *MockS3APIMockRecorder) PutObject(ctx, in interface{}, opts ...interfac
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, in}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutObject", reflect.TypeOf((*MockS3API)(nil).PutObject), varargs...)
+}
+
+// MockS3Presigner is a mock of S3Presigner interface.
+type MockS3Presigner struct {
+	ctrl     *gomock.Controller
+	recorder *MockS3PresignerMockRecorder
+}
+
+// MockS3PresignerMockRecorder is the mock recorder for MockS3Presigner.
+type MockS3PresignerMockRecorder struct {
+	mock *MockS3Presigner
+}
+
+// NewMockS3Presigner creates a new mock instance.
+func NewMockS3Presigner(ctrl *gomock.Controller) *MockS3Presigner {
+	mock := &MockS3Presigner{ctrl: ctrl}
+	mock.recorder = &MockS3PresignerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockS3Presigner) EXPECT() *MockS3PresignerMockRecorder {
+	return m.recorder
+}
+
+// PresignGetObject mocks base method.
+func (m *MockS3Presigner) PresignGetObject(ctx context.Context, in *s3.GetObjectInput, opts ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "PresignGetObject", varargs...)
+	ret0, _ := ret[0].(*v4.PresignedHTTPRequest)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PresignGetObject indicates an expected call of PresignGetObject.
+func (mr *MockS3PresignerMockRecorder) PresignGetObject(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PresignGetObject", reflect.TypeOf((*MockS3Presigner)(nil).PresignGetObject), varargs...)
 }

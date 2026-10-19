@@ -28,6 +28,7 @@ import (
 	"mime"
 	"net/url"
 	"path"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -158,7 +159,13 @@ type (
 		// BaseURL is the app's public URL. Folders are served below it,
 		// or on its scheme with subdomains.
 		BaseURL string
-		Now     func() time.Time
+		// RedirectOver is the size in bytes past which a file a caller
+		// can be redirected for is answered with a URL signed by the
+		// storage, valid for RedirectTTL, when the storage signs URLs. 0
+		// streams every file.
+		RedirectOver int64
+		RedirectTTL  time.Duration
+		Now          func() time.Time
 	}
 
 	controller struct {
@@ -171,6 +178,8 @@ type (
 		limits    func() entity.FileSettings
 		baseURL   string
 		scheme    string
+		redirect  int64
+		ttl       time.Duration
 		now       func() time.Time
 	}
 )
@@ -187,6 +196,8 @@ func New(p Params) Controller {
 		limits:    p.Limits,
 		baseURL:   strings.TrimRight(p.BaseURL, "/"),
 		scheme:    "http",
+		redirect:  p.RedirectOver,
+		ttl:       p.RedirectTTL,
 		now:       p.Now,
 	}
 	if c.now == nil {
@@ -246,6 +257,7 @@ func (c *controller) CreateFolder(ctx context.Context, rq *entity.CreateFolderRe
 		UserID:    rq.UserID,
 		ExpiresAt: now.Add(ttl),
 		Agent:     rq.Agent,
+		Files:     model.FolderFiles{},
 	})
 	if err != nil {
 		if rq.Anonymous {
@@ -265,7 +277,7 @@ func (c *controller) ListFolders(ctx context.Context, rq *entity.ListFoldersRequ
 	for i, f := range folders {
 		out[i] = c.folderEntity(f)
 		// A folder whose files cannot be listed still shows, under its ID.
-		if objects, err := c.storage.List(ctx, folderPrefix(f)); err == nil {
+		if objects, err := c.objects(ctx, f); err == nil {
 			out[i].DefaultTitle = defaultTitle(f, objects)
 		}
 	}
@@ -278,7 +290,7 @@ func (c *controller) GetFolder(ctx context.Context, rq *entity.GetFolderRequest)
 		return nil, err
 	}
 	prefix := folderPrefix(f)
-	objects, err := c.storage.List(ctx, prefix)
+	objects, err := c.objects(ctx, f)
 	if err != nil {
 		return nil, fmt.Errorf("list files: %w", err)
 	}
@@ -313,7 +325,7 @@ func (c *controller) UpdateFolder(ctx context.Context, rq *entity.UpdateFolderRe
 		return nil, fmt.Errorf("update folder: %w", err)
 	}
 	f.Title = title
-	objects, err := c.storage.List(ctx, folderPrefix(f))
+	objects, err := c.objects(ctx, f)
 	if err != nil {
 		return nil, fmt.Errorf("list files: %w", err)
 	}
@@ -333,7 +345,7 @@ func (c *controller) ExtendFolder(ctx context.Context, rq *entity.ExtendFolderRe
 	if rq.Minutes < 1 || f.ExpiresAt.Add(extension).Sub(now) > time.Duration(maxTTL)*time.Minute {
 		return nil, fmt.Errorf("%w: the folder can live at most %d more minutes", ErrInvalidTTL, maxTTL)
 	}
-	objects, err := c.storage.List(ctx, folderPrefix(f))
+	objects, err := c.objects(ctx, f)
 	if err != nil {
 		return nil, fmt.Errorf("list files: %w", err)
 	}
@@ -449,15 +461,15 @@ func (c *controller) PutFiles(ctx context.Context, rq *entity.PutFilesRequest) (
 	return &entity.PutFilesResponse{Files: files, CreditsSpent: total}, nil
 }
 
-// recordFiles records that agent wrote files. The files are stored and
-// paid for by then, so a failure is only logged: they list without an
-// agent.
+// recordFiles records that agent wrote files, in the folder's Files and
+// who wrote them. The files are stored and paid for by then, so a failure
+// is only logged: they are still served at their URLs, but not listed.
 func (c *controller) recordFiles(ctx context.Context, folderID int64, agent string, files []entity.File) {
-	records := make([]model.File, len(files))
-	for i, f := range files {
-		records[i] = model.File{FolderID: folderID, Path: f.Path, Agent: agent, UpdatedAt: f.UpdatedAt}
+	records := make(model.FolderFiles, len(files))
+	for _, f := range files {
+		records[f.Path] = model.FolderFile{Size: f.Size, ContentType: contentType(f.Path), UpdatedAt: f.UpdatedAt}
 	}
-	if err := c.folders.SaveFiles(ctx, records); err != nil {
+	if err := c.folders.SaveFiles(ctx, folderID, agent, records); err != nil {
 		zlog.Error().Err(err).Int64("folder", folderID).Msg("record files")
 	}
 }
@@ -516,7 +528,15 @@ func (c *controller) OpenFile(ctx context.Context, rq *entity.OpenFileRequest) (
 	if err != nil {
 		return nil, err
 	}
-	return c.open(ctx, f, rq.Path)
+	var sign *storage.SignOptions
+	if rq.Redirect {
+		// The same headers GetFile sends: never rendered, always saved.
+		sign = &storage.SignOptions{
+			ContentType:        "application/octet-stream",
+			ContentDisposition: mime.FormatMediaType("attachment", map[string]string{"filename": path.Base(rq.Path)}),
+		}
+	}
+	return c.open(ctx, f, rq.Path, sign)
 }
 
 func (c *controller) OpenPublicFile(ctx context.Context, rq *entity.OpenPublicFileRequest) (*entity.OpenFileResponse, error) {
@@ -535,7 +555,13 @@ func (c *controller) OpenPublicFile(ctx context.Context, rq *entity.OpenPublicFi
 	if rq.UserID != 0 && f.UserID != rq.UserID {
 		return nil, ErrNotFound
 	}
-	return c.open(ctx, f, p)
+	// A page stays on its folder's URL: its relative links lead to the
+	// folder's other files, and it renders sandboxed.
+	var sign *storage.SignOptions
+	if !strings.HasPrefix(contentType(p), "text/html") {
+		sign = &storage.SignOptions{ContentType: contentType(p)}
+	}
+	return c.open(ctx, f, p, sign)
 }
 
 func (c *controller) DeleteExpiredFolders(ctx context.Context) (*entity.DeleteExpiredFoldersResponse, error) {
@@ -638,19 +664,54 @@ func (c *controller) ownedFolder(ctx context.Context, userID, id int64) (model.F
 	return f, nil
 }
 
-func (c *controller) open(ctx context.Context, f model.Folder, p string) (*entity.OpenFileResponse, error) {
-	body, obj, err := c.storage.Get(ctx, folderPrefix(f)+p)
+// open opens a file. With sign, a file over the redirect size comes as a
+// signed URL that answers with sign's headers, when the storage signs.
+// The size comes from the folder's Files, so deciding takes no request to
+// the storage.
+func (c *controller) open(ctx context.Context, f model.Folder, p string, sign *storage.SignOptions) (*entity.OpenFileResponse, error) {
+	key := folderPrefix(f) + p
+	meta, known := f.Files[p]
+	if signer, ok := c.storage.(storage.Signer); ok && known && sign != nil && c.redirect > 0 && meta.Size > c.redirect {
+		opts := *sign
+		opts.TTL = c.ttl
+		u, err := signer.SignGet(ctx, key, opts)
+		if err != nil {
+			return nil, fmt.Errorf("sign file: %w", err)
+		}
+		if u != "" {
+			return &entity.OpenFileResponse{RedirectURL: u, Size: meta.Size, ContentType: contentType(p), ModTime: meta.UpdatedAt}, nil
+		}
+	}
+	body, obj, err := c.storage.Get(ctx, key)
 	if errors.Is(err, storage.ErrNotFound) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("open file: %w", err)
 	}
-	contentType := mime.TypeByExtension(path.Ext(p))
-	if contentType == "" {
-		contentType = "application/octet-stream"
+	return &entity.OpenFileResponse{Body: body, Size: obj.Size, ContentType: contentType(p), ModTime: obj.ModTime}, nil
+}
+
+// objects lists a folder's files: from its Files, or from the storage for a
+// folder created before Files was kept.
+func (c *controller) objects(ctx context.Context, f model.Folder) ([]storage.Object, error) {
+	if f.Files == nil {
+		return c.storage.List(ctx, folderPrefix(f))
 	}
-	return &entity.OpenFileResponse{Body: body, Size: obj.Size, ContentType: contentType, ModTime: obj.ModTime}, nil
+	out := make([]storage.Object, 0, len(f.Files))
+	for p, m := range f.Files {
+		out = append(out, storage.Object{Key: folderPrefix(f) + p, Size: m.Size, ModTime: m.UpdatedAt})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
+	return out, nil
+}
+
+// contentType is the media type a file is served with, by its extension.
+func contentType(p string) string {
+	if t := mime.TypeByExtension(path.Ext(p)); t != "" {
+		return t
+	}
+	return "application/octet-stream"
 }
 
 func (c *controller) deleteFolder(ctx context.Context, f model.Folder) error {

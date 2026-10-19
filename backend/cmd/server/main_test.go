@@ -67,6 +67,8 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	assert.Equal(t, 5*time.Minute, cfg.Storage.Cache.TTL)
 	assert.Equal(t, 256, cfg.Storage.Cache.MaxMB)
 	assert.True(t, cfg.Storage.Cache.Async)
+	assert.Equal(t, 1, cfg.Storage.Redirect.OverMB)
+	assert.Equal(t, 15*time.Minute, cfg.Storage.Redirect.TTL)
 	assert.False(t, cfg.Files.Subdomains)
 	assert.Empty(t, cfg.Files.PublicDomain)
 	assert.Equal(t, 432000, cfg.Files.MaxTTLMinutes)

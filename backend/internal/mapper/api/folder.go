@@ -113,7 +113,11 @@ func FromHTTPRequestToDeleteFileRequestEntity(c fiber.Ctx) *entity.DeleteFileReq
 
 // FromHTTPRequestToOpenFileRequestEntity reads GET /folders/:id/files/*.
 func FromHTTPRequestToOpenFileRequestEntity(c fiber.Ctx) *entity.OpenFileRequest {
-	return fileRequest(c)
+	rq := fileRequest(c)
+	if rq != nil {
+		rq.Redirect = true
+	}
+	return rq
 }
 
 // FromHTTPRequestToOpenPublicFileRequestEntity reads a request to a

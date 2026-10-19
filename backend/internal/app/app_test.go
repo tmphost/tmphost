@@ -248,7 +248,7 @@ func TestSettingsFromConfig(t *testing.T) {
 	cfg.Credits.SignupGrant = 7
 	cfg.Postgres = PostgresConfig{Enabled: true, DSN: "postgres://u:p@h:1/d"}
 	cfg.S3 = S3Config{Endpoint: "e", Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", UsePathStyle: true}
-	cfg.Storage = StorageConfig{Driver: "s3", LocalPath: "/files", Cache: StorageCacheConfig{TTL: 5 * time.Minute, MaxMB: 256, Async: true}}
+	cfg.Storage = StorageConfig{Driver: "s3", LocalPath: "/files", Cache: StorageCacheConfig{TTL: 5 * time.Minute, MaxMB: 256, Async: true}, Redirect: StorageRedirectConfig{OverMB: 1, TTL: 15 * time.Minute}}
 	cfg.Files = FilesConfig{MaxTTLMinutes: 60, MaxUploadMB: 2, AnonymousMaxTTLMinutes: 15, Subdomains: true, PublicDomain: "tmp.site"}
 	cfg.App.SitesDomain = "tmphost.io"
 	cfg.TLS = TLSConfig{Enabled: true, Email: "e@x.io", Lego: LegoConfig{Enabled: true, CloudflareAPIToken: "cf"}}
@@ -268,8 +268,9 @@ func TestSettingsFromConfig(t *testing.T) {
 	withSites := settingsFromConfig(Config{App: AppConfig{BaseURL: "https://app.tmphost.io", SitesDomain: "Sites.io"}})
 	assert.Equal(t, "sites.io", withSites.Files.PublicDomain, "defaults to the sites domain")
 
-	// The upload cache is not a setting: it stays as configured.
-	round := applySettings(Config{Storage: StorageConfig{Cache: cfg.Storage.Cache}}, s)
+	// The upload cache and redirects are not settings: they stay as
+	// configured.
+	round := applySettings(Config{Storage: StorageConfig{Cache: cfg.Storage.Cache, Redirect: cfg.Storage.Redirect}}, s)
 	assert.Equal(t, cfg.Postgres.DSN, round.Postgres.DSN)
 	assert.True(t, round.Postgres.Enabled)
 	assert.False(t, round.SQLite.Enabled)

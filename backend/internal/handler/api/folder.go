@@ -115,7 +115,8 @@ func (h *Folder) PutFile(c fiber.Ctx) error {
 }
 
 // GetFile downloads a file. It is always sent as an attachment: this is
-// the app's origin, where user content must never render.
+// the app's origin, where user content must never render. A large file is
+// a redirect to a signed URL of the bucket, which answers the same way.
 func (h *Folder) GetFile(c fiber.Ctx) error {
 	rq := mapper.FromHTTPRequestToOpenFileRequestEntity(c)
 	if rq == nil {
@@ -124,6 +125,10 @@ func (h *Folder) GetFile(c fiber.Ctx) error {
 	rs, err := h.controller.OpenFile(c.Context(), rq)
 	if err != nil {
 		return sendFolderError(c, err)
+	}
+	if rs.RedirectURL != "" {
+		c.Set(fiber.HeaderCacheControl, "no-store")
+		return c.Redirect().Status(fiber.StatusFound).To(rs.RedirectURL)
 	}
 	// Attachment guesses a type from the name, so it goes first.
 	c.Attachment(rq.Path)

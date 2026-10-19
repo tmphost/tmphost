@@ -170,6 +170,10 @@ type (
 		UserID   int64
 		FolderID int64
 		Path     string
+		// Redirect lets a large file be answered with RedirectURL; a
+		// caller that can't follow one, such as the MCP tool, leaves it
+		// off.
+		Redirect bool
 	}
 
 	// OpenPublicFileRequest asks for a file by its public URL parts.
@@ -183,8 +187,11 @@ type (
 		Path string
 	}
 
-	// OpenFileResponse is an open file. The caller closes Body.
+	// OpenFileResponse is an open file. The caller closes Body. A large
+	// file in a store that signs URLs comes as RedirectURL instead, with no
+	// Body: a time-limited URL that reads it straight from the store.
 	OpenFileResponse struct {
+		RedirectURL string
 		Body        io.ReadCloser
 		Size        int64
 		ContentType string

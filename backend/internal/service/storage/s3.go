@@ -13,6 +13,7 @@ import (
 	"io"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -32,6 +33,11 @@ type (
 		DeleteObjects(ctx context.Context, in *s3.DeleteObjectsInput, opts ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error)
 	}
 
+	// S3Presigner signs requests to the bucket.
+	S3Presigner interface {
+		PresignGetObject(ctx context.Context, in *s3.GetObjectInput, opts ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error)
+	}
+
 	// S3Config locates and authenticates against a bucket.
 	S3Config struct {
 		// Endpoint is set for S3-compatible services (R2, MinIO, ...) and
@@ -47,8 +53,9 @@ type (
 	}
 
 	s3Storage struct {
-		client S3API
-		bucket string
+		client    S3API
+		presigner S3Presigner
+		bucket    string
 	}
 )
 
@@ -67,12 +74,13 @@ func NewS3(ctx context.Context, cfg S3Config) (Service, error) {
 		}
 		o.UsePathStyle = cfg.UsePathStyle
 	})
-	return NewS3WithClient(client, cfg.Bucket), nil
+	return NewS3WithClient(client, s3.NewPresignClient(client), cfg.Bucket), nil
 }
 
-// NewS3WithClient returns a Service using client against bucket.
-func NewS3WithClient(client S3API, bucket string) Service {
-	return &s3Storage{client: client, bucket: bucket}
+// NewS3WithClient returns a Service using client against bucket, which
+// signs URLs with presigner. It is also a Signer.
+func NewS3WithClient(client S3API, presigner S3Presigner, bucket string) Service {
+	return &s3Storage{client: client, presigner: presigner, bucket: bucket}
 }
 
 func (s *s3Storage) Put(ctx context.Context, key string, data []byte) error {
@@ -101,6 +109,25 @@ func (s *s3Storage) Get(ctx context.Context, key string) (io.ReadCloser, Object,
 		return nil, Object{}, err
 	}
 	return out.Body, Object{Key: key, Size: aws.ToInt64(out.ContentLength), ModTime: aws.ToTime(out.LastModified)}, nil
+}
+
+// SignGet signs locally; it makes no request to the bucket.
+func (s *s3Storage) SignGet(ctx context.Context, key string, opts SignOptions) (string, error) {
+	if !validKey(key) {
+		return "", ErrInvalidKey
+	}
+	in := &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)}
+	if opts.ContentType != "" {
+		in.ResponseContentType = aws.String(opts.ContentType)
+	}
+	if opts.ContentDisposition != "" {
+		in.ResponseContentDisposition = aws.String(opts.ContentDisposition)
+	}
+	req, err := s.presigner.PresignGetObject(ctx, in, s3.WithPresignExpires(opts.TTL))
+	if err != nil {
+		return "", err
+	}
+	return req.URL, nil
 }
 
 func (s *s3Storage) List(ctx context.Context, prefix string) ([]Object, error) {

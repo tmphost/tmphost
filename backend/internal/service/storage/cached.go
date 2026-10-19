@@ -209,6 +209,23 @@ func (c *cached) Get(ctx context.Context, key string) (io.ReadCloser, Object, er
 	return c.Service.Get(ctx, key)
 }
 
+// SignGet leaves what is in memory to Get: a background write isn't in
+// the inner storage yet, and a fresh upload is served from memory anyway.
+// Anything else is signed by the inner storage, when it can sign.
+func (c *cached) SignGet(ctx context.Context, key string, opts SignOptions) (string, error) {
+	c.mu.Lock()
+	w := c.writes[key]
+	c.mu.Unlock()
+	if (w != nil && w.background) || c.lru.Contains(key) {
+		return "", nil
+	}
+	s, ok := c.Service.(Signer)
+	if !ok {
+		return "", nil
+	}
+	return s.SignGet(ctx, key, opts)
+}
+
 // List adds the background writes under prefix to what the inner storage
 // lists, so a folder shows its files before they are written.
 func (c *cached) List(ctx context.Context, prefix string) ([]Object, error) {
