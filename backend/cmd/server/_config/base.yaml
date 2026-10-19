@@ -85,6 +85,11 @@ storage:
   redirect:
     overMb: ${TMPHOSTIO_STORAGE_REDIRECT_OVER_MB:1}
     ttl: ${TMPHOSTIO_STORAGE_REDIRECT_TTL:15m}
+# Folders looked up by ID stay in memory, up to maxMb in all (least recently
+# used dropped first), until they are written to or expire. 0 turns it off.
+cache:
+  folders:
+    maxMb: ${TMPHOSTIO_CACHE_FOLDERS_MAX_MB:64}
 s3:
   endpoint: ${TMPHOSTIO_S3_ENDPOINT:}
   region: ${TMPHOSTIO_S3_REGION:}

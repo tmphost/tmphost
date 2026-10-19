@@ -66,6 +66,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	assert.Equal(t, "./_storage/files", cfg.Storage.LocalPath)
 	assert.Equal(t, 5*time.Minute, cfg.Storage.Cache.TTL)
 	assert.Equal(t, 256, cfg.Storage.Cache.MaxMB)
+	assert.Equal(t, 64, cfg.Cache.Folders.MaxMB)
 	assert.True(t, cfg.Storage.Cache.Async)
 	assert.Equal(t, 1, cfg.Storage.Redirect.OverMB)
 	assert.Equal(t, 15*time.Minute, cfg.Storage.Redirect.TTL)

@@ -85,6 +85,7 @@ func loadConfig(raw []byte, getenv func(string) string) (app.Config, error) {
 		"storage":  &cfg.Storage,
 		"s3":       &cfg.S3,
 		"files":    &cfg.Files,
+		"cache":    &cfg.Cache,
 		"idgen":    &cfg.IDGen,
 	}
 	for key, target := range sections {
