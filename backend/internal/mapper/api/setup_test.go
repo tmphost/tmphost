@@ -61,6 +61,7 @@ const _settingsJSON = `{
 		"postgres": {"dsn": "postgres://u:p@h/d"}},
 	"storage": {"s3": {"enabled": true, "endpoint": "https://s3", "region": "r", "bucket": "b",
 		"accessKeyId": "a", "secretAccessKey": "s", "usePathStyle": true}},
+	"files": {"maxTtlMinutes": 60, "maxUploadMb": 2, "subdomains": true, "publicDomain": "x.io"},
 	"auth": {"google": {"clientId": "g", "clientSecret": "gs"}, "github": {"clientId": "h", "clientSecret": "hs"},
 		"providers": [{"id": "okta", "name": "Okta", "icon": "<svg/>", "clientId": "o", "clientSecret": "os", "authUrl": "https://okta.example.com"}]}
 }`
@@ -72,6 +73,7 @@ func TestSettingsMapping(t *testing.T) {
 	assert.Equal(t, 300, got.Settings.Credits.MonthlyGrant)
 	assert.Equal(t, "postgres://u:p@h/d", got.Settings.Database.Postgres.DSN)
 	assert.Equal(t, "hs", got.Settings.Auth.GitHub.ClientSecret)
+	assert.Equal(t, entity.FileSettings{MaxTTLMinutes: 60, MaxUploadMB: 2, Subdomains: true, PublicDomain: "x.io"}, got.Settings.Files)
 	assert.Equal(t, entity.DomainSettings{AppURL: "https://app.tmphost.io", SitesDomain: "tmphost.io"}, got.Settings.Domain)
 	assert.Equal(t, entity.TLSSettings{
 		Enabled: true, Port: 8443, Email: "ops@tmphost.io",
@@ -90,7 +92,9 @@ func TestSettingsMapping(t *testing.T) {
 	settings := FromSettingsViewToSettingsEntity(FromSettingsEntityToSettingsView(entity.Settings{
 		Database: entity.DatabaseSettings{Postgres: entity.PostgresSettings{DSN: "host=db"}},
 		Storage:  entity.StorageSettings{S3: entity.S3Settings{UsePathStyle: true}},
+		Files:    entity.FileSettings{Subdomains: true, PublicDomain: "x.io"},
 	}))
+	assert.Equal(t, entity.FileSettings{Subdomains: true, PublicDomain: "x.io"}, settings.Files)
 	assert.Equal(t, "host=db", settings.Database.Postgres.DSN)
 	assert.True(t, settings.Storage.S3.UsePathStyle)
 }

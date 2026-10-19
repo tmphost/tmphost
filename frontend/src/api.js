@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The Go server injects the base path the app is served under.
-const basePath = (window.__TMPHOST_BASE_PATH__ || '').replace(/\/$/, '')
+export const BASE_PATH = (window.__TMPHOST_BASE_PATH__ || '').replace(/\/$/, '')
 
-export const API_BASE_URL = `${basePath}/api/v1`
+export const API_BASE_URL = `${BASE_PATH}/api/v1`
 
 let userCache = null
 let userPromise = null
@@ -106,4 +106,63 @@ export async function saveSettings(settings) {
   })
   if (!res.ok) throw await httpError(res, `Failed to save settings (${res.status})`)
   return res.json()
+}
+
+// request sends a JSON request for the signed-in user and returns the parsed
+// body, or null for 204. Failures throw an Error carrying the HTTP status.
+async function request(method, path, { body, raw, fallback } = {}) {
+  const init = { method, credentials: 'same-origin' }
+  if (raw !== undefined) {
+    init.body = raw
+  } else if (body !== undefined) {
+    init.headers = { 'Content-Type': 'application/json' }
+    init.body = JSON.stringify(body)
+  }
+  const res = await fetch(`${API_BASE_URL}${path}`, init)
+  if (!res.ok) throw await httpError(res, `${fallback} (${res.status})`)
+  return res.status === 204 ? null : res.json()
+}
+
+// filePath encodes each segment of a folder-relative path, keeping the slashes.
+export function filePath(path) {
+  return path.split('/').map(encodeURIComponent).join('/')
+}
+
+// fetchLimits returns the upload limits and billing block size.
+export function fetchLimits() {
+  return request('GET', '/limits', { fallback: 'Failed to load limits' })
+}
+
+export async function listFolders() {
+  const body = await request('GET', '/folders', { fallback: 'Failed to load folders' })
+  return body.folders
+}
+
+// createFolder charges nothing by itself; credits are spent per uploaded file.
+export async function createFolder(ttlMinutes) {
+  const body = await request('POST', '/folders', { body: { ttlMinutes }, fallback: 'Failed to create folder' })
+  return body.folder
+}
+
+// fetchFolder returns { folder, files }.
+export function fetchFolder(id) {
+  return request('GET', `/folders/${encodeURIComponent(id)}`, { fallback: 'Failed to load folder' })
+}
+
+export async function deleteFolder(id) {
+  await request('DELETE', `/folders/${encodeURIComponent(id)}`, { fallback: 'Failed to delete folder' })
+}
+
+// uploadFile stores one file under path and returns { file, creditsSpent }.
+export function uploadFile(folderId, path, file) {
+  return request('PUT', `/folders/${encodeURIComponent(folderId)}/files/${filePath(path)}`, {
+    raw: file,
+    fallback: `Failed to upload ${path}`,
+  })
+}
+
+export async function deleteFile(folderId, path) {
+  await request('DELETE', `/folders/${encodeURIComponent(folderId)}/files/${filePath(path)}`, {
+    fallback: 'Failed to delete file',
+  })
 }

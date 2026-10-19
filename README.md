@@ -10,6 +10,36 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   00:00 UTC resets due accounts to 250 (unused credits do not carry over) and
   moves their renewal 30 days forward.
 
+## File hosting
+
+- Files live in folders that expire after a TTL (default 30 minutes, at most
+  `files.maxTtlMinutes`, 7200 hours by default). Each file written costs 1
+  credit per started 30 minutes of the folder's remaining lifetime.
+- Storage is local disk (`TMPHOST_STORAGE_LOCAL_PATH`) or an S3 bucket, under
+  `u<userId>/<folderId>/<path>`. Paths are at most 5 directories deep and are
+  validated server-side, so a file can never leave its folder. The database
+  stores only each folder's ID, owner and expiry; a job deletes expired
+  folders every minute. Folder IDs are 11 random lowercase base36
+  characters, so public URLs can't be guessed.
+- Public URLs: `<TMPHOST_BASE_URL>/files/<userId>/<folderId>/<path>` by
+  default, or `f<folderId>.<publicDomain>/<path>` with subdomains on
+  (`TMPHOST_FILES_SUBDOMAINS`, `TMPHOST_FILES_PUBLIC_DOMAIN`, which defaults
+  to the sites domain; needs wildcard DNS and a certificate, which the
+  built-in TLS obtains when it is the sites domain). Both are served with `Content-Security-Policy:
+  sandbox`, so hosted pages never run with the app's origin.
+
+## MCP, CLI and OAuth
+
+- `/mcp` is a stateless MCP server with one tool, `file` (actions `upload`,
+  `download`, `get`, `url`). The `tmphost` CLI in [cli/](cli/) mirrors it.
+- Both sign in with tmphost's own OAuth 2.1 server: dynamic client
+  registration (`/oauth2/register`), PKCE S256, a consent page
+  (`/oauth2/authorize`) and refresh tokens (`/oauth2/token`), discovered via
+  `/.well-known/oauth-authorization-server` and
+  `/.well-known/oauth-protected-resource/mcp`. The CLI uses the built-in
+  public client ID `00000000001` with a loopback redirect. Access tokens also
+  work as Bearer tokens on `/api/v1`.
+
 ## Development
 
 ```sh
@@ -37,8 +67,8 @@ make test    # 100% coverage is enforced on both sides
 
 `/setup` opens only with the root access token (`TMPHOST_AUTH_ROOT_ACCESS_TOKEN`;
 when it is empty, a random one is generated and printed at startup). There you
-can change the monthly credit grant (applies immediately), and these, which
-apply after a restart:
+can change the monthly credit grant, the maximum TTL and the public URL mode
+(these apply immediately), and these, which apply after a restart:
 
 - **Domains**: the app URL (default `http://localhost:2027`; e.g.
   `https://app.tmphost.io`, any domain or subdomain) and the sites domain
@@ -53,7 +83,9 @@ apply after a restart:
     visit (Let's Encrypt allows about 50 new ones per week per registered
     domain), or, with an optional Cloudflare API token, one `*.<sites domain>`
     wildcard over DNS-01 with no such limit.
-- **Database** (SQLite or PostgreSQL) and **S3 storage**.
+- **Database** (SQLite or PostgreSQL) and **file storage** (local disk or S3).
+- **Files**: the maximum TTL and upload size, and whether folders are served
+  at paths or on `f<folder ID>.<public domain>` subdomains.
 - **Sign-in providers**: Google, GitHub, and any number of custom OpenID
   Connect providers (name, SVG icon, client ID, client secret, auth URL = the
   issuer; endpoints come from its `/.well-known/openid-configuration`).

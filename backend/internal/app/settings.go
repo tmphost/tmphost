@@ -8,13 +8,19 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"log"
+	"net/url"
+	"strings"
 
 	"github.com/tmphost/tmphost/backend/internal/controller/credit"
+	"github.com/tmphost/tmphost/backend/internal/controller/folder"
 	setupctrl "github.com/tmphost/tmphost/backend/internal/controller/setup"
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
 )
 
-const _defaultSettingsFile = "./_storage/settings.json"
+const (
+	_defaultSettingsFile = "./_storage/settings.json"
+	_defaultFilesDir     = "./_storage/files"
+)
 
 func settingsFile(cfg Config) string {
 	if cfg.App.SettingsFile != "" {
@@ -52,6 +58,29 @@ func settingsFromConfig(cfg Config) entity.Settings {
 	if tlsPort == 0 {
 		tlsPort = setupctrl.DefaultTLSPort
 	}
+	storageDriver := cfg.Storage.Driver
+	if storageDriver == "" {
+		storageDriver = setupctrl.StorageLocal
+	}
+	localPath := cfg.Storage.LocalPath
+	if localPath == "" {
+		localPath = _defaultFilesDir
+	}
+	files := entity.FileSettings(cfg.Files)
+	if files.MaxTTLMinutes == 0 {
+		files.MaxTTLMinutes = folder.DefaultMaxTTLMinutes
+	}
+	if files.MaxUploadMB == 0 {
+		files.MaxUploadMB = folder.DefaultMaxUploadMB
+	}
+	if files.PublicDomain == "" {
+		files.PublicDomain = strings.ToLower(cfg.App.SitesDomain)
+	}
+	if files.PublicDomain == "" {
+		if u, err := url.Parse(cfg.App.BaseURL); err == nil {
+			files.PublicDomain = strings.ToLower(u.Host)
+		}
+	}
 	return entity.Settings{
 		Domain: entity.DomainSettings{AppURL: cfg.App.BaseURL, SitesDomain: cfg.App.SitesDomain},
 		TLS: entity.TLSSettings{
@@ -64,10 +93,15 @@ func settingsFromConfig(cfg Config) entity.Settings {
 			SQLite:   entity.SQLiteSettings{DSN: cfg.SQLite.DSN},
 			Postgres: entity.PostgresSettings{DSN: cfg.Postgres.DSN},
 		},
-		Storage: entity.StorageSettings{S3: entity.S3Settings{
-			Enabled: s3.Enabled, Endpoint: s3.Endpoint, Region: s3.Region, Bucket: s3.Bucket,
-			AccessKeyID: s3.AccessKeyID, SecretAccessKey: s3.SecretAccessKey, UsePathStyle: s3.UsePathStyle,
-		}},
+		Storage: entity.StorageSettings{
+			Driver: storageDriver,
+			Local:  entity.LocalStorageSettings{Path: localPath},
+			S3: entity.S3Settings{
+				Endpoint: s3.Endpoint, Region: s3.Region, Bucket: s3.Bucket,
+				AccessKeyID: s3.AccessKeyID, SecretAccessKey: s3.SecretAccessKey, UsePathStyle: s3.UsePathStyle,
+			},
+		},
+		Files: files,
 		Auth: entity.AuthSettings{
 			Google: entity.OAuthClientSettings{ClientID: cfg.Auth.Google.ClientID, ClientSecret: cfg.Auth.Google.ClientSecret},
 			GitHub: entity.OAuthClientSettings{ClientID: cfg.Auth.GitHub.ClientID, ClientSecret: cfg.Auth.GitHub.ClientSecret},
@@ -83,8 +117,10 @@ func applySettings(cfg Config, s entity.Settings) Config {
 	cfg.Postgres.Enabled = s.Database.Driver == setupctrl.DriverPostgres
 	cfg.Postgres.DSN = s.Database.Postgres.DSN
 	s3 := s.Storage.S3
+	cfg.Storage = StorageConfig{Driver: s.Storage.Driver, LocalPath: s.Storage.Local.Path}
+	cfg.Files = FilesConfig(s.Files)
 	cfg.S3 = S3Config{
-		Enabled: s3.Enabled, Endpoint: s3.Endpoint, Region: s3.Region, Bucket: s3.Bucket,
+		Endpoint: s3.Endpoint, Region: s3.Region, Bucket: s3.Bucket,
 		AccessKeyID: s3.AccessKeyID, SecretAccessKey: s3.SecretAccessKey, UsePathStyle: s3.UsePathStyle,
 	}
 	cfg.Auth.Google = OAuthAppConfig{ClientID: s.Auth.Google.ClientID, ClientSecret: s.Auth.Google.ClientSecret}

@@ -32,11 +32,12 @@ func freePort(t *testing.T) int {
 func envFor(t *testing.T, port int) map[string]string {
 	t.Helper()
 	return map[string]string{
-		"PORT":                    strconv.Itoa(port),
-		"TMPHOST_AUTH_JWT_SECRET": "secret",
-		"TMPHOSTIO_MASTER_KEY":    "a-master-key-of-at-least-32-characters",
-		"TMPHOST_SQLITE_DSN":      filepath.Join(t.TempDir(), "tmphost.db"),
-		"TMPHOST_SETTINGS_FILE":   filepath.Join(t.TempDir(), "settings.json"),
+		"PORT":                       strconv.Itoa(port),
+		"TMPHOST_AUTH_JWT_SECRET":    "secret",
+		"TMPHOSTIO_MASTER_KEY":       "a-master-key-of-at-least-32-characters",
+		"TMPHOST_SQLITE_DSN":         filepath.Join(t.TempDir(), "tmphost.db"),
+		"TMPHOST_SETTINGS_FILE":      filepath.Join(t.TempDir(), "settings.json"),
+		"TMPHOST_STORAGE_LOCAL_PATH": filepath.Join(t.TempDir(), "files"),
 	}
 }
 
@@ -59,7 +60,12 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	assert.Empty(t, cfg.Postgres.DSN)
 	assert.Empty(t, cfg.MasterKey)
 	assert.Equal(t, 250, cfg.Credits.MonthlyGrant)
-	assert.False(t, cfg.S3.Enabled)
+	assert.Equal(t, "local", cfg.Storage.Driver)
+	assert.Equal(t, "./_storage/files", cfg.Storage.LocalPath)
+	assert.False(t, cfg.Files.Subdomains)
+	assert.Empty(t, cfg.Files.PublicDomain)
+	assert.Equal(t, 432000, cfg.Files.MaxTTLMinutes)
+	assert.Equal(t, 16, cfg.Files.MaxUploadMB)
 	assert.Equal(t, "./_storage/settings.json", cfg.App.SettingsFile)
 	assert.Equal(t, "", cfg.Auth.Google.ClientID)
 }

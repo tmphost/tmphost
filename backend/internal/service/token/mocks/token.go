@@ -8,6 +8,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
+	token "github.com/tmphost/tmphost/backend/internal/service/token"
 )
 
 // MockService is a mock of Service interface.
@@ -31,6 +32,81 @@ func NewMockService(ctrl *gomock.Controller) *MockService {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockService) EXPECT() *MockServiceMockRecorder {
 	return m.recorder
+}
+
+// CreateAccessToken mocks base method.
+func (m *MockService) CreateAccessToken(userID, clientID string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateAccessToken", userID, clientID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateAccessToken indicates an expected call of CreateAccessToken.
+func (mr *MockServiceMockRecorder) CreateAccessToken(userID, clientID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccessToken", reflect.TypeOf((*MockService)(nil).CreateAccessToken), userID, clientID)
+}
+
+// CreateAuthorizationCode mocks base method.
+func (m *MockService) CreateAuthorizationCode(grant token.OAuthGrant) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateAuthorizationCode", grant)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateAuthorizationCode indicates an expected call of CreateAuthorizationCode.
+func (mr *MockServiceMockRecorder) CreateAuthorizationCode(grant interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAuthorizationCode", reflect.TypeOf((*MockService)(nil).CreateAuthorizationCode), grant)
+}
+
+// CreateClientID mocks base method.
+func (m *MockService) CreateClientID(client token.OAuthClient) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateClientID", client)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateClientID indicates an expected call of CreateClientID.
+func (mr *MockServiceMockRecorder) CreateClientID(client interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateClientID", reflect.TypeOf((*MockService)(nil).CreateClientID), client)
+}
+
+// CreateConsentToken mocks base method.
+func (m *MockService) CreateConsentToken(grant token.OAuthGrant) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateConsentToken", grant)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateConsentToken indicates an expected call of CreateConsentToken.
+func (mr *MockServiceMockRecorder) CreateConsentToken(grant interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateConsentToken", reflect.TypeOf((*MockService)(nil).CreateConsentToken), grant)
+}
+
+// CreateRefreshToken mocks base method.
+func (m *MockService) CreateRefreshToken(userID, clientID string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateRefreshToken", userID, clientID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateRefreshToken indicates an expected call of CreateRefreshToken.
+func (mr *MockServiceMockRecorder) CreateRefreshToken(userID, clientID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRefreshToken", reflect.TypeOf((*MockService)(nil).CreateRefreshToken), userID, clientID)
 }
 
 // CreateRootToken mocks base method.
@@ -76,6 +152,81 @@ func (m *MockService) CreateStateToken(provider, redirectURL string) (string, er
 func (mr *MockServiceMockRecorder) CreateStateToken(provider, redirectURL interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateStateToken", reflect.TypeOf((*MockService)(nil).CreateStateToken), provider, redirectURL)
+}
+
+// ValidateAccessToken mocks base method.
+func (m *MockService) ValidateAccessToken(access string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ValidateAccessToken", access)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ValidateAccessToken indicates an expected call of ValidateAccessToken.
+func (mr *MockServiceMockRecorder) ValidateAccessToken(access interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateAccessToken", reflect.TypeOf((*MockService)(nil).ValidateAccessToken), access)
+}
+
+// ValidateAuthorizationCode mocks base method.
+func (m *MockService) ValidateAuthorizationCode(code string) (token.OAuthGrant, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ValidateAuthorizationCode", code)
+	ret0, _ := ret[0].(token.OAuthGrant)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ValidateAuthorizationCode indicates an expected call of ValidateAuthorizationCode.
+func (mr *MockServiceMockRecorder) ValidateAuthorizationCode(code interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateAuthorizationCode", reflect.TypeOf((*MockService)(nil).ValidateAuthorizationCode), code)
+}
+
+// ValidateClientID mocks base method.
+func (m *MockService) ValidateClientID(clientID string) (token.OAuthClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ValidateClientID", clientID)
+	ret0, _ := ret[0].(token.OAuthClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ValidateClientID indicates an expected call of ValidateClientID.
+func (mr *MockServiceMockRecorder) ValidateClientID(clientID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateClientID", reflect.TypeOf((*MockService)(nil).ValidateClientID), clientID)
+}
+
+// ValidateConsentToken mocks base method.
+func (m *MockService) ValidateConsentToken(consent string) (token.OAuthGrant, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ValidateConsentToken", consent)
+	ret0, _ := ret[0].(token.OAuthGrant)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ValidateConsentToken indicates an expected call of ValidateConsentToken.
+func (mr *MockServiceMockRecorder) ValidateConsentToken(consent interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateConsentToken", reflect.TypeOf((*MockService)(nil).ValidateConsentToken), consent)
+}
+
+// ValidateRefreshToken mocks base method.
+func (m *MockService) ValidateRefreshToken(refresh string) (token.OAuthGrant, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ValidateRefreshToken", refresh)
+	ret0, _ := ret[0].(token.OAuthGrant)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ValidateRefreshToken indicates an expected call of ValidateRefreshToken.
+func (mr *MockServiceMockRecorder) ValidateRefreshToken(refresh interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateRefreshToken", reflect.TypeOf((*MockService)(nil).ValidateRefreshToken), refresh)
 }
 
 // ValidateRootToken mocks base method.

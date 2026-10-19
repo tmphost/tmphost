@@ -6,6 +6,7 @@ package model
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -26,9 +27,12 @@ func TestSettingsRoundTrip(t *testing.T) {
 			SQLite:   entity.SQLiteSettings{DSN: "x.db"},
 			Postgres: entity.PostgresSettings{DSN: "postgres://u:p@h:5432/d?sslmode=require"},
 		},
-		Storage: entity.StorageSettings{S3: entity.S3Settings{
-			Enabled: true, Endpoint: "https://s3", Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", UsePathStyle: true,
-		}},
+		Storage: entity.StorageSettings{
+			Driver: "s3",
+			Local:  entity.LocalStorageSettings{Path: "/files"},
+			S3:     entity.S3Settings{Endpoint: "https://s3", Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", UsePathStyle: true},
+		},
+		Files: entity.FileSettings{MaxTTLMinutes: 60, MaxUploadMB: 2, Subdomains: true, PublicDomain: "x.io"},
 		Auth: entity.AuthSettings{
 			Google: entity.OAuthClientSettings{ClientID: "g", ClientSecret: "gs"},
 			GitHub: entity.OAuthClientSettings{ClientID: "h", ClientSecret: "hs"},
@@ -46,4 +50,14 @@ func TestSettingsRoundTrip_NoProviders(t *testing.T) {
 	m := FromSettingsEntityToSettingsModel(entity.Settings{})
 	assert.Equal(t, []model.OAuthProviderSettings{}, m.Auth.Providers, "saved as [] rather than null")
 	assert.Nil(t, FromSettingsModelToSettingsEntity(m).Auth.Providers)
+}
+
+func TestSettingsStorageDriverFromOlderSettings(t *testing.T) {
+	assert.Equal(t, "s3", FromSettingsModelToSettingsEntity(model.Settings{Storage: model.StorageSettings{S3: model.S3Settings{Enabled: true}}}).Storage.Driver)
+	assert.Equal(t, "local", FromSettingsModelToSettingsEntity(model.Settings{}).Storage.Driver)
+}
+
+func TestFolderMappers(t *testing.T) {
+	at := time.Unix(10, 0)
+	assert.Equal(t, entity.Folder{ID: 1, UserID: 2, CreatedAt: at, ExpiresAt: at}, FromFolderModelToFolderEntity(model.Folder{ID: 1, UserID: 2, CreatedAt: at, ExpiresAt: at}))
 }

@@ -10,10 +10,14 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/limiter"
 
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
+	folderctrl "github.com/tmphost/tmphost/backend/internal/controller/folder"
+	oauthctrl "github.com/tmphost/tmphost/backend/internal/controller/oauthserver"
 	setupctrl "github.com/tmphost/tmphost/backend/internal/controller/setup"
+	"github.com/tmphost/tmphost/backend/internal/data/entity"
 	mapper "github.com/tmphost/tmphost/backend/internal/mapper/api"
 )
 
@@ -30,8 +34,16 @@ const (
 // Params are the API's dependencies.
 type Params struct {
 	Router fiber.Router
-	Auth   authctrl.Controller
-	Setup  setupctrl.Controller
+	// Hosts checks the Host header of every request that is not for a
+	// folder host. It may be nil.
+	Hosts   fiber.Handler
+	Auth    authctrl.Controller
+	Setup   setupctrl.Controller
+	Folders folderctrl.Controller
+	OAuth   oauthctrl.Controller
+	// FileSettings returns the current file settings, which choose how
+	// folders are served.
+	FileSettings func() entity.FileSettings
 	// BasePath is the path prefix the app is served under ("" or "/x").
 	BasePath string
 	// CookieSecure marks cookies Secure; enable it behind HTTPS.
@@ -48,6 +60,30 @@ func New(p Params) {
 	}
 	user := &User{controller: p.Auth}
 	setup := &Setup{controller: p.Setup, basePath: basePath, cookieSecure: p.CookieSecure}
+	folder := &Folder{controller: p.Folders}
+	public := &Public{controller: p.Folders, settings: p.FileSettings}
+	oauth := &OAuth{controller: p.OAuth, basePath: basePath}
+
+	// Folder hosts are answered before any route, so no app route is ever
+	// reachable on a host that serves user content.
+	p.Router.Use(public.Serve)
+	if p.Hosts != nil {
+		p.Router.Use(p.Hosts)
+	}
+	p.Router.All(folderctrl.PublicPathPrefix+":user/:folder/*", public.ServePath)
+
+	// MCP clients may run in a browser; these need no cookies.
+	allowAny := cors.New()
+	for _, path := range []string{ServerMetadataPath, ResourceMetadataPath, oauthctrl.RegisterPath, oauthctrl.TokenPath} {
+		p.Router.Use(path, allowAny)
+	}
+	p.Router.Get(ServerMetadataPath, oauth.ServerMetadata)
+	p.Router.Get(ResourceMetadataPath, oauth.ResourceMetadata)
+	p.Router.Get(ResourceMetadataPath+"/*", oauth.ResourceMetadata)
+	p.Router.Post(oauthctrl.RegisterPath, oauth.Register)
+	p.Router.Get(oauthctrl.AuthorizePath, OptionalAuthenticate(p.Auth), oauth.Authorize)
+	p.Router.Post(oauthctrl.AuthorizePath, OptionalAuthenticate(p.Auth), oauth.Consent)
+	p.Router.Post(oauthctrl.TokenPath, oauth.Token)
 
 	r := p.Router.Group(RoutePrefix)
 	r.Get("/auth/config", auth.Config)
@@ -55,7 +91,17 @@ func New(p Params) {
 	r.Get("/auth/:provider/callback", auth.Callback)
 	r.Post("/auth/logout", auth.Logout)
 
-	r.Get("/users/me", Authenticate(p.Auth), user.Get)
+	authn := Authenticate(p.Auth)
+	r.Get("/users/me", authn, user.Get)
+
+	r.Get("/limits", authn, folder.Limits)
+	r.Post("/folders", authn, folder.Create)
+	r.Get("/folders", authn, folder.List)
+	r.Get("/folders/:id", authn, folder.Get)
+	r.Delete("/folders/:id", authn, folder.Delete)
+	r.Put("/folders/:id/files/*", authn, folder.PutFile)
+	r.Get("/folders/:id/files/*", authn, folder.GetFile)
+	r.Delete("/folders/:id/files/*", authn, folder.DeleteFile)
 
 	r.Post("/setup/login", limiter.New(limiter.Config{
 		Max:          _rootLoginMax,

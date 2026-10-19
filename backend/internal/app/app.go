@@ -8,6 +8,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log"
 	"net"
@@ -16,24 +17,34 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/adaptor"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"gorm.io/gorm"
 
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
 	"github.com/tmphost/tmphost/backend/internal/controller/credit"
+	folderctrl "github.com/tmphost/tmphost/backend/internal/controller/folder"
+	oauthctrl "github.com/tmphost/tmphost/backend/internal/controller/oauthserver"
 	setupctrl "github.com/tmphost/tmphost/backend/internal/controller/setup"
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
 	"github.com/tmphost/tmphost/backend/internal/handler/api"
+	mcphandler "github.com/tmphost/tmphost/backend/internal/handler/mcp"
 	"github.com/tmphost/tmphost/backend/internal/repository"
 	"github.com/tmphost/tmphost/backend/internal/service/encryption"
 	"github.com/tmphost/tmphost/backend/internal/service/idgen"
 	"github.com/tmphost/tmphost/backend/internal/service/oauth"
 	"github.com/tmphost/tmphost/backend/internal/service/scheduler"
+	"github.com/tmphost/tmphost/backend/internal/service/storage"
 	"github.com/tmphost/tmphost/backend/internal/service/tlscert"
 	"github.com/tmphost/tmphost/backend/internal/service/token"
 )
 
-const _renewalTimeout = 10 * time.Minute
+const (
+	_renewalTimeout = 10 * time.Minute
+	_sweepTimeout   = 5 * time.Minute
+	// MCPPath is where the MCP server is mounted.
+	MCPPath = "/mcp"
+)
 
 // _listenConfig is how every server listens; main logs the address.
 var _listenConfig = fiber.ListenConfig{DisableStartupMessage: true}
@@ -50,7 +61,9 @@ type (
 		Credits   CreditsConfig
 		SQLite    SQLiteConfig
 		Postgres  PostgresConfig
+		Storage   StorageConfig
 		S3        S3Config
+		Files     FilesConfig
 		IDGen     IDGenConfig
 	}
 
@@ -139,15 +152,32 @@ type (
 		PoolConfig `yaml:",inline"`
 	}
 
+	// StorageConfig is the "storage" section.
+	StorageConfig struct {
+		// Driver is "local" or "s3".
+		Driver    string `yaml:"driver"`
+		LocalPath string `yaml:"localPath"`
+	}
+
 	// S3Config is the "s3" section (an S3-compatible bucket).
 	S3Config struct {
-		Enabled         bool   `yaml:"enabled"`
 		Endpoint        string `yaml:"endpoint"`
 		Region          string `yaml:"region"`
 		Bucket          string `yaml:"bucket"`
 		AccessKeyID     string `yaml:"accessKeyId"`
 		SecretAccessKey string `yaml:"secretAccessKey"`
 		UsePathStyle    bool   `yaml:"usePathStyle"`
+	}
+
+	// FilesConfig is the "files" section.
+	FilesConfig struct {
+		MaxTTLMinutes int `yaml:"maxTtlMinutes"`
+		MaxUploadMB   int `yaml:"maxUploadMb"`
+		// Subdomains serves each folder on its own host,
+		// <folderID>-<userID>.<PublicDomain>, instead of below BaseURL.
+		Subdomains bool `yaml:"subdomains"`
+		// PublicDomain defaults to the BaseURL host.
+		PublicDomain string `yaml:"publicDomain"`
 	}
 
 	// IDGenConfig is the "idgen" section.
@@ -161,6 +191,7 @@ type (
 		addr      string
 		db        *gorm.DB
 		credits   credit.Controller
+		folders   folderctrl.Controller
 		scheduler scheduler.Service
 		// The rest is set only with TLS enabled.
 		tlsAddr  string
@@ -192,29 +223,60 @@ func New(cfg Config, web fs.FS) (*App, error) {
 	// Saved settings override the config file and environment.
 	cfg = applySettings(cfg, setup.Current())
 
+	store, err := openStorage(cfg)
+	if err != nil {
+		return nil, err
+	}
 	db, err := openDatabase(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	users := repository.NewUserRepository(db)
+	ids := idgen.New(cfg.IDGen.Node)
 	basePath := strings.TrimRight(cfg.App.BasePath, "/")
+	baseURL := strings.TrimRight(cfg.App.BaseURL, "/")
 	auth := authctrl.New(authctrl.Params{
 		Providers: providers(cfg),
 		Token:     tokens,
 		Users:     users,
-		IDGen:     idgen.New(cfg.IDGen.Node),
+		IDGen:     ids,
 		Grant:     setup.MonthlyGrant,
 		BasePath:  basePath,
 	})
+	folders := folderctrl.New(folderctrl.Params{
+		Folders: repository.NewFolderRepository(db),
+		Users:   users,
+		Storage: store,
+		Limits:  setup.FileLimits,
+		BaseURL: baseURL,
+	})
+	// Uploads reach the MCP server base64-encoded, a third bigger. The
+	// folder controller enforces the real limit on the decoded bytes.
+	bodyLimit := cfg.Files.MaxUploadMB<<20*4/3 + 1<<20
 
 	h := newHosts(cfg.App.BaseURL, cfg.App.SitesDomain)
-	f := fiber.New()
+	f := fiber.New(fiber.Config{BodyLimit: bodyLimit})
 	f.Use(recover.New())
-	f.Use(hostRouter(h))
-	// A session cookie for an https app must never travel over plain http.
-	cookieSecure := cfg.App.CookieSecure || strings.HasPrefix(cfg.App.BaseURL, "https://")
-	api.New(api.Params{Router: f, Auth: auth, Setup: setup, BasePath: basePath, CookieSecure: cookieSecure})
+	api.New(api.Params{
+		Router:       f,
+		Hosts:        hostRouter(h),
+		Auth:         auth,
+		Setup:        setup,
+		Folders:      folders,
+		OAuth:        oauthctrl.New(oauthctrl.Params{Token: tokens, Users: users, Issuer: baseURL, Resource: baseURL + MCPPath}),
+		FileSettings: setup.FileLimits,
+		BasePath:     basePath,
+		// A session cookie for an https app must never travel over plain
+		// http.
+		CookieSecure: cfg.App.CookieSecure || strings.HasPrefix(cfg.App.BaseURL, "https://"),
+	})
+	f.All(MCPPath, adaptor.HTTPHandler(mcphandler.New(mcphandler.Params{
+		Folders:             folders,
+		Auth:                auth,
+		MaxBodyBytes:        int64(bodyLimit),
+		ResourceMetadataURL: baseURL + api.ResourceMetadataPath + MCPPath,
+	})))
 	f.Get("/*", spaHandler(web, basePath))
 
 	a := &App{
@@ -222,10 +284,12 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		addr:      net.JoinHostPort("", strconv.Itoa(cfg.App.Port)),
 		db:        db,
 		credits:   credit.New(credit.Params{Users: users, Grant: setup.MonthlyGrant}),
+		folders:   folders,
 		scheduler: scheduler.New(),
 	}
-	// RenewalSchedule is a valid constant spec, so this cannot fail.
+	// Both are valid constant specs, so these cannot fail.
 	_ = a.scheduler.AddFunc(credit.RenewalSchedule, a.renewCredits)
+	_ = a.scheduler.AddFunc(folderctrl.SweepSchedule, a.sweepFolders)
 	if cfg.TLS.Enabled {
 		a.setupTLS(cfg, enc, h)
 	}
@@ -274,6 +338,34 @@ func (a *App) renewCredits() {
 		return
 	}
 	log.Printf("credit renewal: renewed %d accounts", rs.Renewed)
+}
+
+func (a *App) sweepFolders() {
+	ctx, cancel := context.WithTimeout(context.Background(), _sweepTimeout)
+	defer cancel()
+	rs, err := a.folders.DeleteExpiredFolders(ctx)
+	if err != nil {
+		log.Printf("folder sweep: deleted %d, failed: %v", rs.Deleted, err)
+		return
+	}
+	if rs.Deleted > 0 {
+		log.Printf("folder sweep: deleted %d expired folders", rs.Deleted)
+	}
+}
+
+func openStorage(cfg Config) (storage.Service, error) {
+	switch cfg.Storage.Driver {
+	case setupctrl.StorageLocal:
+		return storage.NewLocal(cfg.Storage.LocalPath)
+	case setupctrl.StorageS3:
+		s3 := cfg.S3
+		return storage.NewS3(context.Background(), storage.S3Config{
+			Endpoint: s3.Endpoint, Region: s3.Region, Bucket: s3.Bucket,
+			AccessKeyID: s3.AccessKeyID, SecretAccessKey: s3.SecretAccessKey, UsePathStyle: s3.UsePathStyle,
+		})
+	default:
+		return nil, fmt.Errorf("storage: unknown driver %q", cfg.Storage.Driver)
+	}
 }
 
 func providers(cfg Config) []oauth.Provider {

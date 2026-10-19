@@ -68,8 +68,9 @@ func (h hosts) classify(host string) (hostKind, string) {
 	return hostUnknown, ""
 }
 
-// isSite reports whether host is a dynamic subdomain. Until hosting lands,
-// any well-formed one qualifies for a certificate.
+// isSite reports whether host is a dynamic subdomain. Any well-formed one
+// qualifies for a certificate, so a folder's host works from its first
+// request.
 func (h hosts) isSite(host string) bool {
 	kind, _ := h.classify(host)
 	return kind == hostSite
@@ -79,8 +80,8 @@ func isLocal(name string) bool {
 	return name == "localhost" || name == "127.0.0.1" || name == "::1"
 }
 
-// hostRouter lets app host requests through, answers dynamic subdomains, and
-// refuses every other host.
+// hostRouter lets app host requests through, answers dynamic subdomains no
+// folder was served on, and refuses every other host.
 func hostRouter(h hosts) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		kind, siteID := h.classify(string(c.Request().Host()))
@@ -89,7 +90,9 @@ func hostRouter(h hosts) fiber.Handler {
 			return c.Next()
 		case hostSite:
 			c.Locals(LocalSiteID, siteID)
-			// No site is published yet; hosting lands here.
+			// Live folders were answered before this check, when
+			// subdomains are on and the public domain is the sites
+			// domain; anything left names no folder.
 			return sendJSONError(c, fiber.StatusNotFound, "site not found")
 		default:
 			return sendJSONError(c, fiber.StatusNotFound, "host not allowed")

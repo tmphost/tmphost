@@ -152,3 +152,107 @@ func TestRootToken_WrongSubject(t *testing.T) {
 	require.NoError(t, err)
 	assert.ErrorIs(t, svc.ValidateRootToken(tok), ErrInvalidToken)
 }
+
+func TestClientID(t *testing.T) {
+	now := time.Now()
+	svc := newService(t, func() time.Time { return now })
+	client := OAuthClient{Name: "Claude", RedirectURIs: []string{"http://127.0.0.1/cb"}}
+
+	id, err := svc.CreateClientID(client)
+	require.NoError(t, err)
+	got, err := svc.ValidateClientID(id)
+	require.NoError(t, err)
+	assert.Equal(t, client, got)
+
+	_, err = newService(t, func() time.Time { return now.Add(ClientTTL + time.Minute) }).ValidateClientID(id)
+	assert.ErrorIs(t, err, ErrInvalidToken, "expired")
+
+	noURIs, err := svc.CreateClientID(OAuthClient{Name: "x"})
+	require.NoError(t, err)
+	_, err = svc.ValidateClientID(noURIs)
+	assert.ErrorIs(t, err, ErrInvalidToken, "no redirect URIs")
+
+	wrongSubject := sign(t, clientClaims{RegisteredClaims: claimsFor("someone", _clientAudience, now), OAuthClient: client})
+	_, err = svc.ValidateClientID(wrongSubject)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+
+	access, err := svc.CreateAccessToken("u1", "c1")
+	require.NoError(t, err)
+	_, err = svc.ValidateClientID(access)
+	assert.ErrorIs(t, err, ErrInvalidToken, "an access token is not a client ID")
+}
+
+func TestGrantTokens(t *testing.T) {
+	now := time.Now()
+	svc := newService(t, func() time.Time { return now })
+	grant := OAuthGrant{UserID: "u1", ClientID: "c1", RedirectURI: "http://127.0.0.1/cb", CodeChallenge: "ch", State: "st"}
+
+	consent, err := svc.CreateConsentToken(grant)
+	require.NoError(t, err)
+	got, err := svc.ValidateConsentToken(consent)
+	require.NoError(t, err)
+	assert.Equal(t, grant, got)
+
+	code, err := svc.CreateAuthorizationCode(grant)
+	require.NoError(t, err)
+	got, err = svc.ValidateAuthorizationCode(code)
+	require.NoError(t, err)
+	assert.Equal(t, grant, got)
+
+	access, err := svc.CreateAccessToken("u1", "c1")
+	require.NoError(t, err)
+	user, err := svc.ValidateAccessToken(access)
+	require.NoError(t, err)
+	assert.Equal(t, "u1", user)
+
+	refresh, err := svc.CreateRefreshToken("u1", "c1")
+	require.NoError(t, err)
+	got, err = svc.ValidateRefreshToken(refresh)
+	require.NoError(t, err)
+	assert.Equal(t, OAuthGrant{UserID: "u1", ClientID: "c1"}, got)
+
+	// No kind passes for another.
+	_, err = svc.ValidateAuthorizationCode(consent)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+	_, err = svc.ValidateAccessToken(refresh)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+	_, err = svc.ValidateRefreshToken(access)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+	session, err := svc.CreateSessionToken("u1")
+	require.NoError(t, err)
+	_, err = svc.ValidateAccessToken(session)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+	_, err = svc.ValidateConsentToken(code)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+
+	// Expiry.
+	later := newService(t, func() time.Time { return now.Add(AuthorizationCodeTTL + time.Second) })
+	_, err = later.ValidateAuthorizationCode(code)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+	later = newService(t, func() time.Time { return now.Add(AccessTokenTTL + time.Second) })
+	_, err = later.ValidateAccessToken(access)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+
+	// A grant needs a user and a client.
+	noClient := sign(t, grantClaims{RegisteredClaims: claimsFor("u1", _accessAudience, now)})
+	_, err = svc.ValidateAccessToken(noClient)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+	noUser := sign(t, grantClaims{RegisteredClaims: claimsFor("", _accessAudience, now), ClientID: "c1"})
+	_, err = svc.ValidateAccessToken(noUser)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+}
+
+func claimsFor(subject, audience string, now time.Time) jwt.RegisteredClaims {
+	return jwt.RegisteredClaims{
+		Subject:   subject,
+		Audience:  jwt.ClaimStrings{audience},
+		ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)),
+	}
+}
+
+func sign(t *testing.T, claims jwt.Claims) string {
+	t.Helper()
+	tok, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte("test-secret"))
+	require.NoError(t, err)
+	return tok
+}

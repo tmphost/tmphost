@@ -145,3 +145,86 @@ describe('setup api', () => {
     await expect(api.saveSettings({})).rejects.toMatchObject({ message: 'invalid settings: sqlite DSN is required', status: 400 })
   })
 })
+
+describe('files api', () => {
+  beforeEach(() => {
+    globalThis.fetch = vi.fn()
+  })
+
+  it('exports the base path', async () => {
+    expect((await loadApi('/app/')).BASE_PATH).toBe('/app')
+  })
+
+  it('filePath encodes each segment', async () => {
+    const api = await loadApi('')
+    expect(api.filePath('a b/c#d/e.txt')).toBe('a%20b/c%23d/e.txt')
+  })
+
+  it('fetchLimits returns the limits', async () => {
+    const api = await loadApi('')
+    const limits = { defaultTtlMinutes: 30, maxTtlMinutes: 60, maxUploadBytes: 10, billingBlockMinutes: 30 }
+    fetch.mockResolvedValueOnce(json(limits))
+    expect(await api.fetchLimits()).toEqual(limits)
+    expect(fetch).toHaveBeenCalledWith('/api/v1/limits', { method: 'GET', credentials: 'same-origin' })
+    fetch.mockResolvedValueOnce(json({}, 500))
+    await expect(api.fetchLimits()).rejects.toMatchObject({ message: 'Failed to load limits (500)', status: 500 })
+  })
+
+  it('lists, creates, fetches and deletes folders', async () => {
+    const api = await loadApi('')
+    fetch.mockResolvedValueOnce(json({ folders: [{ id: 'f1' }] }))
+    expect(await api.listFolders()).toEqual([{ id: 'f1' }])
+
+    fetch.mockResolvedValueOnce(json({ folder: { id: 'f2' } }, 201))
+    expect(await api.createFolder(60)).toEqual({ id: 'f2' })
+    expect(fetch).toHaveBeenLastCalledWith('/api/v1/folders', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"ttlMinutes":60}',
+    })
+
+    fetch.mockResolvedValueOnce(json({ folder: { id: 'f2' }, files: [] }))
+    expect(await api.fetchFolder('f2')).toEqual({ folder: { id: 'f2' }, files: [] })
+    expect(fetch).toHaveBeenLastCalledWith('/api/v1/folders/f2', { method: 'GET', credentials: 'same-origin' })
+
+    fetch.mockResolvedValueOnce(json(null, 204))
+    expect(await api.deleteFolder('f2')).toBeUndefined()
+    expect(fetch).toHaveBeenLastCalledWith('/api/v1/folders/f2', { method: 'DELETE', credentials: 'same-origin' })
+
+    fetch.mockResolvedValueOnce(json({ error: 'not enough credits' }, 402))
+    await expect(api.createFolder(30)).rejects.toMatchObject({ message: 'not enough credits', status: 402 })
+    fetch.mockResolvedValueOnce(json({}, 500))
+    await expect(api.listFolders()).rejects.toThrow('Failed to load folders (500)')
+    fetch.mockResolvedValueOnce(json({}, 404))
+    await expect(api.fetchFolder('x')).rejects.toThrow('Failed to load folder (404)')
+    fetch.mockResolvedValueOnce(json({}, 500))
+    await expect(api.deleteFolder('x')).rejects.toThrow('Failed to delete folder (500)')
+  })
+
+  it('uploads and deletes files by encoded path', async () => {
+    const api = await loadApi('')
+    const file = new Blob(['hi'])
+    fetch.mockResolvedValueOnce(json({ file: { path: 'a b/c.txt' }, creditsSpent: 2 }))
+    expect(await api.uploadFile('f1', 'a b/c.txt', file)).toEqual({ file: { path: 'a b/c.txt' }, creditsSpent: 2 })
+    expect(fetch).toHaveBeenLastCalledWith('/api/v1/folders/f1/files/a%20b/c.txt', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      body: file,
+    })
+
+    fetch.mockResolvedValueOnce(json({ error: 'file too large' }, 413))
+    await expect(api.uploadFile('f1', 'big.bin', file)).rejects.toMatchObject({ message: 'file too large', status: 413 })
+    fetch.mockResolvedValueOnce(json({}, 500))
+    await expect(api.uploadFile('f1', 'x.txt', file)).rejects.toThrow('Failed to upload x.txt (500)')
+
+    fetch.mockResolvedValueOnce(json(null, 204))
+    await api.deleteFile('f1', 'a b/c.txt')
+    expect(fetch).toHaveBeenLastCalledWith('/api/v1/folders/f1/files/a%20b/c.txt', {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    })
+    fetch.mockResolvedValueOnce(json({}, 404))
+    await expect(api.deleteFile('f1', 'x')).rejects.toThrow('Failed to delete file (404)')
+  })
+})

@@ -8,6 +8,8 @@ import { usePlatformStore } from '../src/stores/platformStore'
 import { useToasts } from '../src/composables/useToasts'
 import { creditsPercent, renewsIn } from '../src/utils/credits'
 import { loginErrorMessage } from '../src/utils/loginErrors'
+import { expiresIn, formatBytes, formatMinutes, relativePath, TTL_CHOICES, ttlOptions, uploadCost } from '../src/utils/files'
+import { useClipboard } from '../src/composables/useClipboard'
 
 describe('platformStore', () => {
   beforeEach(() => setActivePinia(createPinia()))
@@ -97,5 +99,76 @@ describe('providers', () => {
   it('renders SVG as a data URI', async () => {
     const { svgDataUri } = await import('../src/utils/providers')
     expect(svgDataUri('<svg a="#"/>')).toBe('data:image/svg+xml;charset=utf-8,%3Csvg%20a%3D%22%23%22%2F%3E')
+  })
+})
+
+describe('files utils', () => {
+  it('ttlOptions caps the choices', () => {
+    expect(ttlOptions(432000)).toEqual(TTL_CHOICES)
+    expect(ttlOptions(120)).toEqual([30, 60, 120])
+    expect(ttlOptions(10)).toEqual([])
+  })
+
+  it('formatMinutes picks a readable unit', () => {
+    expect(formatMinutes(30)).toBe('30 min')
+    expect(formatMinutes(60)).toBe('1 h')
+    expect(formatMinutes(90)).toBe('1 h 30 min')
+    expect(formatMinutes(720)).toBe('12 h')
+    expect(formatMinutes(1440)).toBe('1 day')
+    expect(formatMinutes(10080)).toBe('7 days')
+    expect(formatMinutes(432000)).toBe('300 days')
+    expect(formatMinutes(1500)).toBe('25 h')
+  })
+
+  it('uploadCost charges per file per started block', () => {
+    expect(uploadCost(3, 30, 30)).toBe(3)
+    expect(uploadCost(3, 31, 30)).toBe(6)
+    expect(uploadCost(2, 10080, 30)).toBe(672)
+    expect(uploadCost(0, 60, 30)).toBe(0)
+  })
+
+  it('formatBytes scales units', () => {
+    expect(formatBytes(0)).toBe('0 B')
+    expect(formatBytes(1023)).toBe('1023 B')
+    expect(formatBytes(1536)).toBe('1.5 KB')
+    expect(formatBytes(16 * 1024 * 1024)).toBe('16.0 MB')
+    expect(formatBytes(3 * 1024 ** 3)).toBe('3.0 GB')
+    expect(formatBytes(2048 * 1024 ** 3)).toBe('2048.0 GB')
+  })
+
+  it('expiresIn counts down', () => {
+    const now = Date.parse('2026-10-18T12:00:00Z')
+    expect(expiresIn('nope', now)).toBe('')
+    expect(expiresIn('2026-10-18T11:00:00Z', now)).toBe('Expired')
+    expect(expiresIn('2026-10-18T12:00:00Z', now)).toBe('Expired')
+    expect(expiresIn('2026-10-18T12:00:01Z', now)).toBe('1m')
+    expect(expiresIn('2026-10-18T12:45:00Z', now)).toBe('45m')
+    expect(expiresIn('2026-10-18T17:12:00Z', now)).toBe('5h 12m')
+    expect(expiresIn('2026-10-21T16:30:00Z', now)).toBe('3d 4h')
+    expect(expiresIn(new Date(Date.now() + 10 * 60000).toISOString())).toBe('10m')
+  })
+
+  it('relativePath prefers the folder-relative path', () => {
+    expect(relativePath({ name: 'a.txt', webkitRelativePath: 'dir/a.txt' })).toBe('dir/a.txt')
+    expect(relativePath({ name: 'a.txt', webkitRelativePath: '' })).toBe('a.txt')
+    expect(relativePath({ name: 'b.txt' })).toBe('b.txt')
+  })
+})
+
+describe('useClipboard', () => {
+  afterEach(() => {
+    useToasts().toasts.value = []
+  })
+
+  it('copies and toasts success or failure', async () => {
+    const writeText = vi.fn().mockResolvedValueOnce().mockRejectedValueOnce(new Error('denied'))
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    const { copy } = useClipboard()
+    expect(await copy('hello')).toBe(true)
+    expect(writeText).toHaveBeenCalledWith('hello')
+    expect(useToasts().toasts.value.at(-1)).toMatchObject({ type: 'success', message: 'Copied to clipboard' })
+    expect(await copy('x', 'Link copied')).toBe(false)
+    expect(useToasts().toasts.value.at(-1)).toMatchObject({ type: 'error', message: 'Could not copy to the clipboard' })
+    delete navigator.clipboard
   })
 })

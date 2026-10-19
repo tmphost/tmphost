@@ -165,11 +165,21 @@ func (c *controller) CompleteLogin(ctx context.Context, rq *entity.CompleteLogin
 	}, nil
 }
 
+// Authenticate accepts an OAuth access token or, without one, a browser
+// session.
 func (c *controller) Authenticate(_ context.Context, rq *entity.AuthenticateRequest) (*entity.AuthenticateResponse, error) {
-	if rq.SessionToken == "" {
+	var (
+		subject string
+		err     error
+	)
+	switch {
+	case rq.AccessToken != "":
+		subject, err = c.token.ValidateAccessToken(rq.AccessToken)
+	case rq.SessionToken != "":
+		subject, err = c.token.ValidateSessionToken(rq.SessionToken)
+	default:
 		return nil, ErrUnauthorized
 	}
-	subject, err := c.token.ValidateSessionToken(rq.SessionToken)
 	if err != nil {
 		return nil, ErrUnauthorized
 	}

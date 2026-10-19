@@ -31,6 +31,18 @@ export const routes = [
     component: () => import('./views/HomeView.vue'),
     meta: { title: 'Home' },
   },
+  {
+    path: '/files',
+    name: 'files',
+    component: () => import('./views/FilesView.vue'),
+    meta: { title: 'Files' },
+  },
+  {
+    path: '/connect',
+    name: 'connect',
+    component: () => import('./views/ConnectView.vue'),
+    meta: { title: 'Connect' },
+  },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

@@ -82,7 +82,9 @@ func loadConfig(raw []byte, getenv func(string) string) (app.Config, error) {
 		"credits":  &cfg.Credits,
 		"sqlite":   &cfg.SQLite,
 		"postgres": &cfg.Postgres,
+		"storage":  &cfg.Storage,
 		"s3":       &cfg.S3,
+		"files":    &cfg.Files,
 		"idgen":    &cfg.IDGen,
 	}
 	for key, target := range sections {

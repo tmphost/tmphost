@@ -9,6 +9,7 @@ import { onMounted, ref } from 'vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import { fetchSettings, saveSettings, setupLogin, setupLogout } from '../api'
 import { useToasts } from '../composables/useToasts'
+import { formatMinutes } from '../utils/files'
 import { providerSlug, svgDataUri } from '../utils/providers'
 
 const PG_DSN_EXAMPLE = 'postgres://user:password@host:5432/tmphost?sslmode=disable'
@@ -119,6 +120,11 @@ function callbackUrl(provider) {
 
 function providerSecretSet(provider) {
   return Boolean(secretsSet.value.providerClientSecrets?.[providerSlug(provider.name)])
+}
+
+// ttlHint spells a minute count out in hours or days.
+function ttlHint(minutes) {
+  return Number.isInteger(minutes) && minutes > 0 ? `= ${formatMinutes(minutes)}` : 'Enter a whole number of minutes'
 }
 
 function secretPlaceholder(isSet) {
@@ -337,17 +343,32 @@ onMounted(refresh)
 
         <!-- Storage -->
         <section class="rounded-xl border border-gray-200 bg-white p-5">
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <h2 class="text-sm font-bold text-gray-900">S3 storage</h2>
-              <p class="text-xs text-gray-500 mb-4">Any S3-compatible bucket. Requires a restart.</p>
-            </div>
-            <label class="flex items-center gap-2 text-xs font-bold text-gray-700">
-              <input v-model="form.storage.s3.enabled" type="checkbox" class="accent-black" data-test="setup-s3-enabled" />
-              Enabled
-            </label>
+          <h2 class="text-sm font-bold text-gray-900">Storage</h2>
+          <p class="text-xs text-gray-500 mb-4">Where uploaded files live. Requires a restart. Files are not copied between drivers.</p>
+          <div class="inline-flex rounded-lg border border-gray-200 p-0.5 mb-4" role="radiogroup">
+            <button
+              v-for="option in [{ value: 'local', label: 'Local disk' }, { value: 's3', label: 'S3' }]"
+              :key="option.value"
+              type="button"
+              role="radio"
+              :aria-checked="form.storage.driver === option.value"
+              :class="[
+                'rounded-md px-3 py-1.5 text-xs font-bold transition-colors',
+                form.storage.driver === option.value ? 'bg-black text-white' : 'text-gray-500 hover:text-gray-900',
+              ]"
+              :data-test="`setup-storage-${option.value}`"
+              @click="form.storage.driver = option.value"
+            >
+              {{ option.label }}
+            </button>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" :class="{ 'opacity-50': !form.storage.s3.enabled }">
+
+          <div v-if="form.storage.driver === 'local'" data-test="setup-local">
+            <label for="local-path" :class="LABEL">Local path</label>
+            <input id="local-path" v-model="form.storage.local.path" :class="INPUT" />
+          </div>
+          <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3" data-test="setup-s3">
+            <p class="sm:col-span-2 text-[11px] text-gray-400">Any S3-compatible bucket.</p>
             <div class="sm:col-span-2">
               <label for="s3-endpoint" :class="LABEL">Endpoint (blank for AWS)</label>
               <input id="s3-endpoint" v-model="form.storage.s3.endpoint" placeholder="https://" :class="INPUT" />
@@ -376,10 +397,84 @@ onMounted(refresh)
               />
             </div>
             <label class="sm:col-span-2 flex items-center gap-2 text-xs text-gray-700">
-              <input v-model="form.storage.s3.usePathStyle" type="checkbox" class="accent-black" />
+              <input v-model="form.storage.s3.usePathStyle" type="checkbox" class="accent-black" data-test="setup-s3-path-style" />
               Use path-style URLs (MinIO and some providers)
             </label>
           </div>
+        </section>
+
+        <!-- Files -->
+        <section class="rounded-xl border border-gray-200 bg-white p-5">
+          <h2 class="text-sm font-bold text-gray-900">Files</h2>
+          <p class="text-xs text-gray-500 mb-4" data-test="setup-files-help">
+            Limits for every upload and the form of public URLs. Max TTL and public URLs apply immediately; max upload
+            size needs a restart.
+          </p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label for="max-ttl" :class="LABEL">Max TTL (minutes)</label>
+              <input
+                id="max-ttl"
+                v-model.number="form.files.maxTtlMinutes"
+                type="number"
+                min="1"
+                :class="INPUT"
+                data-test="setup-max-ttl"
+              />
+              <p class="mt-1 text-[11px] text-gray-400" data-test="setup-max-ttl-hint">{{ ttlHint(form.files.maxTtlMinutes) }}</p>
+            </div>
+            <div>
+              <label for="max-upload" :class="LABEL">Max upload size (MB)</label>
+              <input
+                id="max-upload"
+                v-model.number="form.files.maxUploadMb"
+                type="number"
+                min="1"
+                :class="INPUT"
+                data-test="setup-max-upload"
+              />
+              <p class="mt-1 text-[11px] text-gray-400">Per file upload.</p>
+            </div>
+          </div>
+
+          <p id="public-urls-label" class="mt-5 text-[11px] font-bold text-gray-500 mb-1">Public URLs</p>
+          <div class="inline-flex rounded-lg border border-gray-200 p-0.5 mb-2" role="radiogroup" aria-labelledby="public-urls-label">
+            <button
+              v-for="option in [{ value: false, label: 'Path' }, { value: true, label: 'Subdomains' }]"
+              :key="option.label"
+              type="button"
+              role="radio"
+              :aria-checked="Boolean(form.files.subdomains) === option.value"
+              :class="[
+                'rounded-md px-3 py-1.5 text-xs font-bold transition-colors',
+                Boolean(form.files.subdomains) === option.value ? 'bg-black text-white' : 'text-gray-500 hover:text-gray-900',
+              ]"
+              :data-test="`setup-urls-${option.value ? 'subdomains' : 'path'}`"
+              @click="form.files.subdomains = option.value"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+          <div v-if="form.files.subdomains" data-test="setup-subdomains">
+            <p class="text-[11px] text-gray-400 mb-3" data-test="setup-subdomains-help">
+              Each folder is served at <code class="font-mono">f&lt;folderId&gt;.&lt;public domain&gt;</code>, where the
+              folder ID is 11 characters (e.g. f1a2b3c4d5e6.tmphost.io). Needs a wildcard DNS record and certificate for the
+              domain. Leave the public domain blank to use the sites domain.
+            </p>
+            <label for="public-domain" :class="LABEL">Public domain</label>
+            <input
+              id="public-domain"
+              v-model.trim="form.files.publicDomain"
+              placeholder="tmphost.io"
+              autocomplete="off"
+              spellcheck="false"
+              :class="INPUT"
+              data-test="setup-public-domain"
+            />
+          </div>
+          <p v-else class="text-[11px] text-gray-400" data-test="setup-path">
+            Files are served at <code class="font-mono">&lt;base URL&gt;/files/&lt;userId&gt;/&lt;folderId&gt;/…</code>.
+          </p>
         </section>
 
         <!-- Sign-in providers -->

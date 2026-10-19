@@ -1,6 +1,6 @@
 # Values here (and the environment) are defaults. Once root saves settings on
 # the /setup page, the settings file overrides the app URL, sites domain, tls,
-# credits, database, s3 and auth provider values below.
+# credits, database, storage, s3, files and auth provider values below.
 app:
   port: ${PORT:2027}
   # Public URL of the app, e.g. https://app.tmphost.io. Its host is the only
@@ -52,13 +52,27 @@ postgres:
   maxIdleConns: 10
   maxOpenConns: 100
   maxConnLifetime: 1h
+# Where uploaded files live: "local" (localPath on disk) or "s3".
+storage:
+  driver: ${TMPHOST_STORAGE_DRIVER:local}
+  localPath: ${TMPHOST_STORAGE_LOCAL_PATH:./_storage/files}
 s3:
-  enabled: ${TMPHOST_S3_ENABLED:false}
   endpoint: ${TMPHOST_S3_ENDPOINT:}
   region: ${TMPHOST_S3_REGION:}
   bucket: ${TMPHOST_S3_BUCKET:}
   accessKeyId: ${TMPHOST_S3_ACCESS_KEY_ID:}
   secretAccessKey: ${TMPHOST_S3_SECRET_ACCESS_KEY:}
   usePathStyle: ${TMPHOST_S3_USE_PATH_STYLE:false}
+files:
+  # Longest folder lifetime (7200 hours) and largest upload per request.
+  maxTtlMinutes: ${TMPHOST_FILES_MAX_TTL_MINUTES:432000}
+  maxUploadMb: ${TMPHOST_FILES_MAX_UPLOAD_MB:16}
+  # Folders are served at <baseUrl>/files/<userId>/<folderId>/, or with
+  # subdomains on, at f<folderId>.<publicDomain> (needs a wildcard DNS record
+  # and certificate). publicDomain defaults to the sites domain, else the
+  # baseUrl host; *.localhost resolves to 127.0.0.1 in browsers, so it works
+  # locally as is.
+  subdomains: ${TMPHOST_FILES_SUBDOMAINS:false}
+  publicDomain: ${TMPHOST_FILES_PUBLIC_DOMAIN:}
 idgen:
   node: ${MONOFLAKE_NODE:0}

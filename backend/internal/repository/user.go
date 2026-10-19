@@ -17,8 +17,12 @@ import (
 	"github.com/tmphost/tmphost/backend/internal/data/model"
 )
 
-// ErrNotFound is returned when a record does not exist.
-var ErrNotFound = errors.New("not found")
+var (
+	// ErrNotFound is returned when a record does not exist.
+	ErrNotFound = errors.New("not found")
+	// ErrInsufficientCredits is returned when a user cannot cover a spend.
+	ErrInsufficientCredits = errors.New("insufficient credits")
+)
 
 type (
 	// UserRepository persists users.
@@ -32,6 +36,11 @@ type (
 		ListUsersDueForCreditRenewal(ctx context.Context, now time.Time, limit int) ([]model.User, error)
 		// UpdateUserCredits sets a user's balance and next renewal time.
 		UpdateUserCredits(ctx context.Context, id int64, credits int, renewAt time.Time) error
+		// SpendCredits takes n credits from a user in one atomic update, or
+		// returns ErrInsufficientCredits and takes none.
+		SpendCredits(ctx context.Context, id int64, n int) error
+		// RefundCredits gives n spent credits back.
+		RefundCredits(ctx context.Context, id int64, n int) error
 	}
 
 	userRepository struct {
@@ -82,6 +91,24 @@ func (r *userRepository) ListUsersDueForCreditRenewal(ctx context.Context, now t
 func (r *userRepository) UpdateUserCredits(ctx context.Context, id int64, credits int, renewAt time.Time) error {
 	return r.db.WithContext(ctx).Model(&model.User{}).Where("id = ?", id).
 		Updates(map[string]any{"credits": credits, "credits_renew_at": renewAt}).Error
+}
+
+func (r *userRepository) SpendCredits(ctx context.Context, id int64, n int) error {
+	res := r.db.WithContext(ctx).Model(&model.User{}).
+		Where("id = ? AND credits >= ?", id, n).
+		Update("credits", gorm.Expr("credits - ?", n))
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrInsufficientCredits
+	}
+	return nil
+}
+
+func (r *userRepository) RefundCredits(ctx context.Context, id int64, n int) error {
+	return r.db.WithContext(ctx).Model(&model.User{}).Where("id = ?", id).
+		Update("credits", gorm.Expr("credits + ?", n)).Error
 }
 
 func (r *userRepository) first(ctx context.Context, query string, arg any) (model.User, error) {

@@ -33,7 +33,12 @@ func defaults() entity.Settings {
 			SQLite:   entity.SQLiteSettings{DSN: "./_storage/tmphost.db"},
 			Postgres: entity.PostgresSettings{DSN: "postgres://postgres:pgpass@localhost:5432/tmphost?sslmode=disable"},
 		},
-		Storage: entity.StorageSettings{S3: entity.S3Settings{SecretAccessKey: "s3secret"}},
+		Storage: entity.StorageSettings{
+			Driver: StorageLocal,
+			Local:  entity.LocalStorageSettings{Path: "./_storage/files"},
+			S3:     entity.S3Settings{SecretAccessKey: "s3secret"},
+		},
+		Files: entity.FileSettings{MaxTTLMinutes: 432000, MaxUploadMB: 16, PublicDomain: "tmphost.io"},
 		Auth: entity.AuthSettings{
 			Google: entity.OAuthClientSettings{ClientID: "g", ClientSecret: "gsecret"},
 		},
@@ -85,6 +90,17 @@ func TestNew(t *testing.T) {
 		ctrl, err := New(Params{Repository: repo, RootAccessToken: "x", Defaults: defaults()})
 		require.NoError(t, err)
 		assert.Equal(t, defaults(), ctrl.Current())
+	})
+
+	t.Run("sections missing from older saved settings take the defaults", func(t *testing.T) {
+		repo := mockrepo.NewMockSettingsRepository(mc)
+		saved := defaults()
+		saved.Storage.Local.Path, saved.Files = "", entity.FileSettings{}
+		repo.EXPECT().LoadSettings().Return(mappermodel.FromSettingsEntityToSettingsModel(saved), nil)
+		ctrl, err := New(Params{Repository: repo, RootAccessToken: "x", Defaults: defaults()})
+		require.NoError(t, err)
+		assert.Equal(t, defaults(), ctrl.Current())
+		assert.Equal(t, entity.FileSettings{MaxTTLMinutes: 432000, MaxUploadMB: 16, PublicDomain: "tmphost.io"}, ctrl.FileLimits())
 	})
 
 	t.Run("load error", func(t *testing.T) {
@@ -152,6 +168,9 @@ func TestUpdateSettings_CreditsApplyLive(t *testing.T) {
 	e := newEnv(t)
 	next := e.ctrl.GetSettings(ctx).Settings // secrets blank: kept
 	next.Credits.MonthlyGrant = 400
+	next.Files.MaxTTLMinutes = 60
+	next.Files.Subdomains = true
+	next.Files.PublicDomain = " Files.Example.com:8443 "
 
 	e.repo.EXPECT().SaveSettings(gomock.Any()).DoAndReturn(func(m model.Settings) error {
 		assert.Equal(t, 400, m.Credits.MonthlyGrant)
@@ -162,8 +181,9 @@ func TestUpdateSettings_CreditsApplyLive(t *testing.T) {
 	})
 	rs, err := e.ctrl.UpdateSettings(ctx, &entity.UpdateSettingsRequest{Settings: next})
 	require.NoError(t, err)
-	assert.False(t, rs.RestartRequired, "credits apply without a restart")
+	assert.False(t, rs.RestartRequired, "credits, max TTL and public URLs apply without a restart")
 	assert.Equal(t, 400, e.ctrl.MonthlyGrant())
+	assert.Equal(t, entity.FileSettings{MaxTTLMinutes: 60, MaxUploadMB: 16, Subdomains: true, PublicDomain: "files.example.com:8443"}, e.ctrl.FileLimits())
 	assert.Empty(t, rs.Settings.Auth.Google.ClientSecret)
 }
 
@@ -213,15 +233,27 @@ func TestUpdateSettings_Validation(t *testing.T) {
 			s.Database.Driver = DriverPostgres
 			s.Database.Postgres.DSN = "host=db sslmode=sometimes"
 		},
+		"unknown storage":    func(s *entity.Settings) { s.Storage.Driver = "ftp" },
+		"local without path": func(s *entity.Settings) { s.Storage.Local.Path = " " },
 		"s3 without bucket": func(s *entity.Settings) {
-			s.Storage.S3 = entity.S3Settings{Enabled: true, Region: "r"}
+			s.Storage.Driver, s.Storage.S3 = StorageS3, entity.S3Settings{Region: "r"}
 		},
 		"s3 bad endpoint": func(s *entity.Settings) {
-			s.Storage.S3 = entity.S3Settings{Enabled: true, Region: "r", Bucket: "b", Endpoint: "ftp://x"}
+			s.Storage.Driver, s.Storage.S3 = StorageS3, entity.S3Settings{Region: "r", Bucket: "b", Endpoint: "ftp://x"}
 		},
 		"s3 unparsable endpoint": func(s *entity.Settings) {
-			s.Storage.S3 = entity.S3Settings{Enabled: true, Region: "r", Bucket: "b", Endpoint: "http://[::1"}
+			s.Storage.Driver, s.Storage.S3 = StorageS3, entity.S3Settings{Region: "r", Bucket: "b", Endpoint: "http://[::1"}
 		},
+		"zero max ttl":    func(s *entity.Settings) { s.Files.MaxTTLMinutes = 0 },
+		"huge max ttl":    func(s *entity.Settings) { s.Files.MaxTTLMinutes = _maxTTLMinutes + 1 },
+		"zero max upload": func(s *entity.Settings) { s.Files.MaxUploadMB = 0 },
+		"huge max upload": func(s *entity.Settings) { s.Files.MaxUploadMB = _maxUploadMB + 1 },
+		"subdomains without domain": func(s *entity.Settings) {
+			s.Files.Subdomains, s.Files.PublicDomain = true, " "
+		},
+		"domain with scheme":       func(s *entity.Settings) { s.Files.PublicDomain = "https://tmphost.io" },
+		"domain with path":         func(s *entity.Settings) { s.Files.PublicDomain = "tmphost.io/x" },
+		"domain with bad label":    func(s *entity.Settings) { s.Files.PublicDomain = "-x.tmphost.io" },
 		"github id without secret": func(s *entity.Settings) { s.Auth.GitHub = entity.OAuthClientSettings{ClientID: "h"} },
 	}
 	for name, mutate := range cases {
@@ -268,11 +300,14 @@ func TestUpdateSettings_PostgresDSN(t *testing.T) {
 func TestUpdateSettings_ValidS3(t *testing.T) {
 	e := newEnv(t)
 	next := defaults()
-	next.Storage.S3 = entity.S3Settings{Enabled: true, Region: "auto", Bucket: "b", Endpoint: "https://r2.example.com"}
+	next.Storage.Driver = " S3 "
+	next.Storage.S3 = entity.S3Settings{Region: "auto", Bucket: "b", Endpoint: "https://r2.example.com"}
 	e.repo.EXPECT().SaveSettings(gomock.Any()).Return(nil)
 	rs, err := e.ctrl.UpdateSettings(context.Background(), &entity.UpdateSettingsRequest{Settings: next})
 	require.NoError(t, err)
 	assert.True(t, rs.SecretsSet.S3SecretAccessKey, "kept from current")
+	assert.Equal(t, StorageS3, rs.Settings.Storage.Driver)
+	assert.True(t, rs.RestartRequired, "storage changes need a restart")
 }
 
 func newEnvWith(t *testing.T, mutate func(*entity.Settings)) *env {

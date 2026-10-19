@@ -5,11 +5,11 @@
 -->
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, provide, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppSidebar from './components/AppSidebar.vue'
 import ToastStack from './components/ToastStack.vue'
-import { fetchUser, logout } from './api'
+import { clearUserCache, fetchUser, logout } from './api'
 import { useToasts } from './composables/useToasts'
 
 const route = useRoute()
@@ -29,6 +29,15 @@ async function loadUser() {
     notifyError(err.message)
   }
 }
+
+// refreshUser refetches the user after the credits changed, so the sidebar
+// counter follows uploads.
+async function refreshUser() {
+  clearUserCache()
+  await loadUser()
+}
+
+provide('currentUser', { user, refreshUser })
 
 async function onLogout() {
   try {

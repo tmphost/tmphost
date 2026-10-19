@@ -83,15 +83,22 @@ func FromSettingsViewToSettingsEntity(v view.Settings) entity.Settings {
 			SQLite:   entity.SQLiteSettings{DSN: v.Database.SQLite.DSN},
 			Postgres: entity.PostgresSettings{DSN: v.Database.Postgres.DSN},
 		},
-		Storage: entity.StorageSettings{S3: entity.S3Settings{
-			Enabled:         v.Storage.S3.Enabled,
-			Endpoint:        v.Storage.S3.Endpoint,
-			Region:          v.Storage.S3.Region,
-			Bucket:          v.Storage.S3.Bucket,
-			AccessKeyID:     v.Storage.S3.AccessKeyID,
-			SecretAccessKey: v.Storage.S3.SecretAccessKey,
-			UsePathStyle:    v.Storage.S3.UsePathStyle,
-		}},
+		Storage: entity.StorageSettings{
+			Driver: v.Storage.Driver,
+			Local:  entity.LocalStorageSettings{Path: v.Storage.Local.Path},
+			S3: entity.S3Settings{
+				Endpoint:        v.Storage.S3.Endpoint,
+				Region:          v.Storage.S3.Region,
+				Bucket:          v.Storage.S3.Bucket,
+				AccessKeyID:     v.Storage.S3.AccessKeyID,
+				SecretAccessKey: v.Storage.S3.SecretAccessKey,
+				UsePathStyle:    v.Storage.S3.UsePathStyle,
+			},
+		},
+		Files: entity.FileSettings{
+			MaxTTLMinutes: v.Files.MaxTTLMinutes, MaxUploadMB: v.Files.MaxUploadMB,
+			Subdomains: v.Files.Subdomains, PublicDomain: v.Files.PublicDomain,
+		},
 		Auth: entity.AuthSettings{
 			Google:    entity.OAuthClientSettings{ClientID: v.Auth.Google.ClientID, ClientSecret: v.Auth.Google.ClientSecret},
 			GitHub:    entity.OAuthClientSettings{ClientID: v.Auth.GitHub.ClientID, ClientSecret: v.Auth.GitHub.ClientSecret},
@@ -119,15 +126,22 @@ func FromSettingsEntityToSettingsView(e entity.Settings) view.Settings {
 			SQLite:   view.SQLiteSettings{DSN: e.Database.SQLite.DSN},
 			Postgres: view.PostgresSettings{DSN: e.Database.Postgres.DSN},
 		},
-		Storage: view.StorageSettings{S3: view.S3Settings{
-			Enabled:         e.Storage.S3.Enabled,
-			Endpoint:        e.Storage.S3.Endpoint,
-			Region:          e.Storage.S3.Region,
-			Bucket:          e.Storage.S3.Bucket,
-			AccessKeyID:     e.Storage.S3.AccessKeyID,
-			SecretAccessKey: e.Storage.S3.SecretAccessKey,
-			UsePathStyle:    e.Storage.S3.UsePathStyle,
-		}},
+		Storage: view.StorageSettings{
+			Driver: e.Storage.Driver,
+			Local:  view.LocalStorageSettings{Path: e.Storage.Local.Path},
+			S3: view.S3Settings{
+				Endpoint:        e.Storage.S3.Endpoint,
+				Region:          e.Storage.S3.Region,
+				Bucket:          e.Storage.S3.Bucket,
+				AccessKeyID:     e.Storage.S3.AccessKeyID,
+				SecretAccessKey: e.Storage.S3.SecretAccessKey,
+				UsePathStyle:    e.Storage.S3.UsePathStyle,
+			},
+		},
+		Files: view.FileSettings{
+			MaxTTLMinutes: e.Files.MaxTTLMinutes, MaxUploadMB: e.Files.MaxUploadMB,
+			Subdomains: e.Files.Subdomains, PublicDomain: e.Files.PublicDomain,
+		},
 		Auth: view.AuthSettings{
 			Google:    view.OAuthClientSettings{ClientID: e.Auth.Google.ClientID, ClientSecret: e.Auth.Google.ClientSecret},
 			GitHub:    view.OAuthClientSettings{ClientID: e.Auth.GitHub.ClientID, ClientSecret: e.Auth.GitHub.ClientSecret},
