@@ -277,7 +277,7 @@ onMounted(refresh)
                 <label for="sites-domain" :class="LABEL">Sites domain</label>
                 <input id="sites-domain" v-model="form.domain.sitesDomain" placeholder="tmphost.io" :class="INPUT" />
                 <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500">
-                  Dynamic subdomains are served as f + 11 characters under it, e.g. f1a2b3c4d5e6.tmphost.io. Leave blank to disable.
+                  Dynamic subdomains are served as 11 characters under it, e.g. 1a2b3c4d5e6.tmphost.io. Leave blank to disable.
                 </p>
               </div>
             </div>
@@ -545,8 +545,8 @@ onMounted(refresh)
             </div>
             <div v-if="form.files.subdomains" data-test="setup-subdomains">
               <p class="text-[11px] text-gray-400 dark:text-zinc-500 mb-3" data-test="setup-subdomains-help">
-                Each folder is served at <code class="font-mono">f&lt;folderId&gt;.&lt;public domain&gt;</code>, where the
-                folder ID is 11 characters (e.g. f1a2b3c4d5e6.tmphost.io). Needs a wildcard DNS record and certificate for the
+                Each folder is served at <code class="font-mono">&lt;folderId&gt;.&lt;public domain&gt;</code>, where the
+                folder ID is 11 characters (e.g. 1a2b3c4d5e6.tmphost.io). Needs a wildcard DNS record and certificate for the
                 domain. Leave the public domain blank to use the sites domain.
               </p>
               <label for="public-domain" :class="LABEL">Public domain</label>

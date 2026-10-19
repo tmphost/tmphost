@@ -19,25 +19,26 @@ func TestHostsClassify(t *testing.T) {
 	h := newHosts("https://App.Example.com", "Example.com")
 	assert.False(t, h.open)
 	cases := map[string]hostKind{
-		"app.example.com":               hostApp,
-		"APP.example.com:443":           hostApp,
-		"localhost:2027":                hostApp,
-		"127.0.0.1":                     hostApp,
-		"[::1]:2027":                    hostApp,
-		"f0123456789a.example.com":      hostSite,
-		"f0123456789a.example.com:8443": hostSite,
-		"F0123456789A.EXAMPLE.COM":      hostSite,
-		"f0123456789.example.com":       hostUnknown, // 10 characters
-		"g0123456789a.example.com":      hostUnknown,
-		"f0123456789a.a.example.com":    hostUnknown,
-		"example.com":                   hostUnknown,
-		"evil.com":                      hostUnknown,
+		"app.example.com":              hostApp,
+		"APP.example.com:443":          hostApp,
+		"localhost:2027":               hostApp,
+		"127.0.0.1":                    hostApp,
+		"[::1]:2027":                   hostApp,
+		"0123456789a.example.com":      hostSite,
+		"0123456789a.example.com:8443": hostSite,
+		"0123456789A.EXAMPLE.COM":      hostSite,
+		"f0123456789a.example.com":     hostUnknown, // 12 characters
+		"0123456789.example.com":       hostUnknown, // 10 characters
+		"g0123456789a.example.com":     hostUnknown,
+		"0123456789a.a.example.com":    hostUnknown,
+		"example.com":                  hostUnknown,
+		"evil.com":                     hostUnknown,
 	}
 	for host, want := range cases {
 		got, id := h.classify(host)
 		assert.Equal(t, want, got, host)
 		if want == hostSite {
-			assert.Equal(t, "f0123456789a", id)
+			assert.Equal(t, "0123456789a", id, host)
 		}
 	}
 
@@ -48,15 +49,15 @@ func TestHostsClassify(t *testing.T) {
 		assert.True(t, open.open)
 		kind, _ := open.classify("anything.lan")
 		assert.Equal(t, hostApp, kind)
-		kind, _ = open.classify("f0123456789a.example.com")
+		kind, _ = open.classify("0123456789a.example.com")
 		assert.Equal(t, hostSite, kind)
 	}
 
-	assert.True(t, h.isSite("f0123456789a.example.com"))
+	assert.True(t, h.isSite("0123456789a.example.com"))
 	assert.False(t, h.isSite("app.example.com"))
 
 	// No sites domain, no dynamic subdomains.
-	kind, _ := newHosts("https://app.example.com", "").classify("f0123456789a.example.com")
+	kind, _ := newHosts("https://app.example.com", "").classify("0123456789a.example.com")
 	assert.Equal(t, hostUnknown, kind)
 }
 
@@ -80,7 +81,7 @@ func TestHostRouter(t *testing.T) {
 	res, _ := request("app.example.com")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
-	res, body := request("f0123456789a.example.com")
+	res, body := request("0123456789a.example.com")
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 	assert.JSONEq(t, `{"error":"site not found"}`, body)
 
@@ -107,7 +108,7 @@ func TestHTTPSRedirect(t *testing.T) {
 	}{
 		{"app.example.com", 443, "https://app.example.com/x?y=1"},
 		{"app.example.com:2027", 8443, "https://app.example.com:8443/x?y=1"},
-		{"f0123456789a.example.com", 443, "https://f0123456789a.example.com/x?y=1"},
+		{"0123456789a.example.com", 443, "https://0123456789a.example.com/x?y=1"},
 	}
 	for _, tc := range cases {
 		req := httptest.NewRequest(http.MethodGet, "/x?y=1", nil)

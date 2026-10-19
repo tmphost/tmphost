@@ -60,7 +60,7 @@ func ParseBase36(s string) int64 {
 }
 
 // FolderIDLength is the length of a written folder ID: 11 base36
-// characters, so "f" and the ID make a dynamic subdomain's label.
+// characters, which are also a dynamic subdomain's label.
 const FolderIDLength = 11
 
 // _folderIDSpace bounds folder IDs: 56 random bits fit in 11 base36

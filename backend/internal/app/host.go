@@ -20,9 +20,9 @@ import (
 // stored under.
 const LocalSiteID = "siteID"
 
-// _siteLabelRE is a dynamic subdomain's label: "f" and 11 more lowercase
+// _siteLabelRE is a dynamic subdomain's label: a folder ID, 11 lowercase
 // letters or digits.
-var _siteLabelRE = regexp.MustCompile(`^f[a-z0-9]{11}$`)
+var _siteLabelRE = regexp.MustCompile(`^[a-z0-9]{11}$`)
 
 type (
 	// hosts tells the app host and the dynamic subdomains apart from hosts

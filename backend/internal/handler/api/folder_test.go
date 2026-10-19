@@ -329,7 +329,7 @@ func TestPublic(t *testing.T) {
 
 	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: "site/a b.html"}).
 		Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader("<p>")), Size: 3, ContentType: "text/html; charset=utf-8", ModTime: _at}, nil)
-	res, body := get(http.MethodGet, "F000000000RS.TMP.HOST", "/site/a%20b.html")
+	res, body := get(http.MethodGet, "000000000RS.TMP.HOST", "/site/a%20b.html")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "<p>", body)
 	assert.Equal(t, "text/html; charset=utf-8", res.Header.Get("Content-Type"))
@@ -337,18 +337,18 @@ func TestPublic(t *testing.T) {
 	assert.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"))
 	assert.Equal(t, "Sun, 18 Oct 2026 12:00:00 GMT", res.Header.Get("Last-Modified"))
 
-	res, _ = get(http.MethodPost, "f000000000rs.tmp.host", "/")
+	res, _ = get(http.MethodPost, "000000000rs.tmp.host", "/")
 	assert.Equal(t, http.StatusMethodNotAllowed, res.StatusCode)
 
 	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: ""}).Return(nil, folderctrl.ErrNotFound)
-	res, body = get(http.MethodGet, "f000000000rs.tmp.host", "/")
+	res, body = get(http.MethodGet, "000000000rs.tmp.host", "/")
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 	assert.Equal(t, "Not found. The file may have expired.", body)
 	assert.Contains(t, res.Header.Get("Content-Type"), "text/plain")
 
 	logs := captureLog(t)
 	e.folders.EXPECT().OpenPublicFile(gomock.Any(), gomock.Any()).Return(nil, errBoom)
-	res, _ = get(http.MethodGet, "f000000000rs.tmp.host", "/")
+	res, _ = get(http.MethodGet, "000000000rs.tmp.host", "/")
 	assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
 	assert.Contains(t, logs.String(), `"error":"boom","method":"GET","host":"f000000000rs.tmp.host","path":"/"`)
 
@@ -367,7 +367,7 @@ func TestPublic(t *testing.T) {
 
 	// Without subdomains, folder hosts are not served at all.
 	e.settings.Subdomains = false
-	res, _ = get(http.MethodGet, "f000000000rs.tmp.host", "/api/v1/folders")
+	res, _ = get(http.MethodGet, "000000000rs.tmp.host", "/api/v1/folders")
 	assert.Equal(t, http.StatusMisdirectedRequest, res.StatusCode)
 }
 

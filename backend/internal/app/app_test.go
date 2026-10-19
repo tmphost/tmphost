@@ -465,7 +465,7 @@ func TestFileHosting(t *testing.T) {
 	res, _ = call(http.MethodGet, "/files/7/"+id, "", "")
 	assert.Equal(t, http.StatusMovedPermanently, res.StatusCode)
 	assert.Equal(t, id+"/", res.Header.Get("Location"))
-	res, _ = call(http.MethodGet, "/site/index%20page.html", "f"+id+".localhost:3000", "")
+	res, _ = call(http.MethodGet, "/site/index%20page.html", id+".localhost:3000", "")
 	assert.NotEqual(t, http.StatusOK, res.StatusCode, "no folder hosts without subdomains")
 
 	res, body = call(http.MethodPut, "/api/v1/folders/"+id+"/files/site/index.html", "", "<h1>index</h1>")
@@ -538,15 +538,15 @@ func TestFileHosting_Subdomains(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(body), &created))
 	id := created.Folder.ID
 	assert.Len(t, id, 11)
-	assert.Equal(t, "http://f"+id+".localhost:3000/", created.Folder.URL)
+	assert.Equal(t, "http://"+id+".localhost:3000/", created.Folder.URL)
 
 	res, body = call(http.MethodPut, "/api/v1/folders/"+id+"/files/index.html", "localhost:3000", "<p>x</p>")
 	require.Equal(t, http.StatusOK, res.StatusCode, body)
 
-	res, body = call(http.MethodGet, "/", "f"+id+".localhost:3000", "")
+	res, body = call(http.MethodGet, "/", id+".localhost:3000", "")
 	require.Equal(t, http.StatusOK, res.StatusCode, body)
 	assert.Equal(t, "<p>x</p>", body)
-	res, _ = call(http.MethodGet, "/", "f00000000001.localhost:3000", "")
+	res, _ = call(http.MethodGet, "/", "00000000001.localhost:3000", "")
 	assert.Equal(t, http.StatusNotFound, res.StatusCode, "no such folder")
 	_, body = call(http.MethodGet, "/files/7/"+id+"/index.html", "localhost:3000", "")
 	assert.NotEqual(t, "<p>x</p>", body, "no folder paths with subdomains")
