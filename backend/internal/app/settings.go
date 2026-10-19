@@ -7,10 +7,10 @@ package app
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"log"
 	"net/url"
 	"strings"
 
+	zlog "github.com/rs/zerolog/log"
 	"github.com/tmphost/tmphost/backend/internal/controller/credit"
 	"github.com/tmphost/tmphost/backend/internal/controller/folder"
 	setupctrl "github.com/tmphost/tmphost/backend/internal/controller/setup"
@@ -39,7 +39,7 @@ func rootAccessToken(cfg Config) string {
 	// crypto/rand.Read never returns an error.
 	_, _ = rand.Read(b)
 	tok := hex.EncodeToString(b)
-	log.Printf("setup: generated root access token %s (set TMPHOSTIO_AUTH_ROOT_ACCESS_TOKEN to keep one across restarts)", tok)
+	zlog.Warn().Str("token", tok).Msg("setup: generated root access token (set TMPHOSTIO_AUTH_ROOT_ACCESS_TOKEN to keep one across restarts)")
 	return tok
 }
 

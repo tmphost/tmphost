@@ -12,6 +12,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/limiter"
+	zlog "github.com/rs/zerolog/log"
 
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
 	creditctrl "github.com/tmphost/tmphost/backend/internal/controller/credit"
@@ -134,4 +135,9 @@ func sendJSON(c fiber.Ctx, status int, payload []byte) error {
 
 func sendError(c fiber.Ctx, status int, msg string) error {
 	return sendJSON(c, status, mapper.FromErrorToHTTPResponse(msg))
+}
+
+// logServerError logs the cause of a 500, which the response hides.
+func logServerError(c fiber.Ctx, err error) {
+	zlog.Error().Err(err).Str("method", c.Method()).Str("host", c.Hostname()).Str("path", c.Path()).Msg("server error")
 }

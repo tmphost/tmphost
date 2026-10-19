@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	mathrand "math/rand/v2"
 	"os"
 	"path/filepath"
@@ -39,6 +38,7 @@ import (
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/providers/dns/cloudflare"
 	"github.com/go-acme/lego/v4/registration"
+	zlog "github.com/rs/zerolog/log"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/tmphost/tmphost/backend/internal/service/encryption"
@@ -316,10 +316,10 @@ func (s *service) refresh() {
 			continue
 		}
 		if _, err := s.obtainAndInstall(name); err != nil {
-			log.Printf("tls: obtaining a certificate for %s failed: %v", name, err)
+			zlog.Error().Err(err).Str("name", name).Msg("tls: obtaining a certificate failed")
 			continue
 		}
-		log.Printf("tls: certificate for %s installed", name)
+		zlog.Info().Str("name", name).Msg("tls: certificate installed")
 	}
 }
 
@@ -435,7 +435,7 @@ func (s *service) loadCache() {
 		}
 		name := strings.Replace(file, "_wildcard", "*", 1)
 		if err := s.loadCached(name); err != nil {
-			log.Printf("tls: ignoring cached certificate %s: %v", e.Name(), err)
+			zlog.Warn().Err(err).Str("file", e.Name()).Msg("tls: ignoring cached certificate")
 		}
 	}
 }

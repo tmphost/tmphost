@@ -5,8 +5,8 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -133,9 +135,10 @@ func TestMain_StopsOnSignal(t *testing.T) {
 	for k, v := range envFor(t, port) {
 		t.Setenv(k, v)
 	}
-	var fatalErr []any
-	fatal = func(v ...any) { fatalErr = v }
-	t.Cleanup(func() { fatal = log.Fatal })
+	var logs bytes.Buffer
+	logger := zerolog.New(&logs)
+	fatal = logger.Error
+	t.Cleanup(func() { fatal = zlog.Fatal })
 
 	done := make(chan struct{})
 	go func() { main(); close(done) }()
@@ -150,14 +153,15 @@ func TestMain_StopsOnSignal(t *testing.T) {
 
 	require.NoError(t, syscall.Kill(os.Getpid(), syscall.SIGINT))
 	<-done
-	assert.Nil(t, fatalErr)
+	assert.Empty(t, logs.String())
 }
 
 func TestMain_Fatal(t *testing.T) {
 	t.Setenv("TMPHOSTIO_AUTH_JWT_SECRET", "")
-	var fatalErr []any
-	fatal = func(v ...any) { fatalErr = v }
-	t.Cleanup(func() { fatal = log.Fatal })
+	var logs bytes.Buffer
+	logger := zerolog.New(&logs)
+	fatal = logger.Error
+	t.Cleanup(func() { fatal = zlog.Fatal })
 	main()
-	assert.NotEmpty(t, fatalErr)
+	assert.Contains(t, logs.String(), `"message":"run"`)
 }

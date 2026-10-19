@@ -145,6 +145,7 @@ func sendFolderError(c fiber.Ctx, err error) error {
 	case errors.Is(err, folderctrl.ErrQuotaExceeded):
 		return sendError(c, fiber.StatusTooManyRequests, err.Error())
 	default:
+		logServerError(c, err)
 		return sendError(c, fiber.StatusInternalServerError, "storage failed")
 	}
 }

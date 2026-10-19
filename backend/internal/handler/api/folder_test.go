@@ -5,6 +5,7 @@
 package api
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang/mock/gomock"
+	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -214,6 +217,13 @@ func TestFolder_ListGetDelete(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 	assert.JSONEq(t, `{"error":"not found"}`, body)
 
+	logs := captureLog(t)
+	e.folders.EXPECT().GetFolder(gomock.Any(), gomock.Any()).Return(nil, errBoom)
+	res, body = e.do(t, http.MethodGet, "/api/v1/folders/000000000rs", "")
+	assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
+	assert.JSONEq(t, `{"error":"storage failed"}`, body, "the cause stays out of the response")
+	assert.Contains(t, logs.String(), `"error":"boom","method":"GET","host":"example.com","path":"/api/v1/folders/000000000rs"`, "but reaches the log")
+
 	e.folders.EXPECT().DeleteFolder(gomock.Any(), &entity.DeleteFolderRequest{UserID: 7, FolderID: 1000}).Return(nil)
 	res, _ = e.do(t, http.MethodDelete, "/api/v1/folders/000000000rs", "")
 	assert.Equal(t, http.StatusNoContent, res.StatusCode)
@@ -336,9 +346,11 @@ func TestPublic(t *testing.T) {
 	assert.Equal(t, "Not found. The file may have expired.", body)
 	assert.Contains(t, res.Header.Get("Content-Type"), "text/plain")
 
+	logs := captureLog(t)
 	e.folders.EXPECT().OpenPublicFile(gomock.Any(), gomock.Any()).Return(nil, errBoom)
 	res, _ = get(http.MethodGet, "f000000000rs.tmp.host", "/")
 	assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
+	assert.Contains(t, logs.String(), `"error":"boom","method":"GET","host":"f000000000rs.tmp.host","path":"/"`)
 
 	// Any other host falls through to the app routes.
 	res, _ = get(http.MethodGet, "tmp.host", "/api/v1/folders")
@@ -397,4 +409,14 @@ func TestHandlers_MissingUserID(t *testing.T) {
 	app.Get("/folders", (&Folder{}).List)
 	res, _ := do(t, app, http.MethodGet, "/folders")
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
+}
+
+// captureLog sends the global zerolog logger to a buffer for the rest of the test.
+func captureLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	prev := zlog.Logger
+	zlog.Logger = zerolog.New(&buf)
+	t.Cleanup(func() { zlog.Logger = prev })
+	return &buf
 }
