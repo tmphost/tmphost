@@ -109,3 +109,17 @@ func (mr *MockFolderRepositoryMockRecorder) ListFoldersByUser(ctx, userID, now i
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListFoldersByUser", reflect.TypeOf((*MockFolderRepository)(nil).ListFoldersByUser), ctx, userID, now)
 }
+
+// UpdateFolderTitle mocks base method.
+func (m *MockFolderRepository) UpdateFolderTitle(ctx context.Context, id int64, title string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateFolderTitle", ctx, id, title)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateFolderTitle indicates an expected call of UpdateFolderTitle.
+func (mr *MockFolderRepositoryMockRecorder) UpdateFolderTitle(ctx, id, title interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFolderTitle", reflect.TypeOf((*MockFolderRepository)(nil).UpdateFolderTitle), ctx, id, title)
+}

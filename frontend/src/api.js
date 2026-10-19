@@ -149,6 +149,16 @@ export function fetchFolder(id) {
   return request('GET', `/folders/${encodeURIComponent(id)}`, { fallback: 'Failed to load folder' })
 }
 
+// renameFolder sets a folder's title; an empty title clears it. It returns
+// the updated folder.
+export async function renameFolder(id, title) {
+  const body = await request('PATCH', `/folders/${encodeURIComponent(id)}`, {
+    body: { title },
+    fallback: 'Failed to rename folder',
+  })
+  return body.folder
+}
+
 export async function deleteFolder(id) {
   await request('DELETE', `/folders/${encodeURIComponent(id)}`, { fallback: 'Failed to delete folder' })
 }

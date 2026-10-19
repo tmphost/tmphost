@@ -5,9 +5,9 @@
 -->
 
 <script setup>
-import { computed, inject, onMounted, onUnmounted, ref } from 'vue'
+import { computed, inject, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import DeleteModal from '../components/DeleteModal.vue'
-import { createFolder, deleteFile, deleteFolder, fetchFolder, fetchLimits, listFolders, uploadFile } from '../api'
+import { createFolder, deleteFile, deleteFolder, fetchFolder, fetchLimits, listFolders, renameFolder, uploadFile } from '../api'
 import { useClipboard } from '../composables/useClipboard'
 import { useToasts } from '../composables/useToasts'
 import {
@@ -58,6 +58,11 @@ const progress = ref({ done: 0, total: 0 })
 // Expanded folders: id -> { loading, files }
 const expanded = ref({})
 
+// The folder title being edited: { id, value }.
+const editing = ref(null)
+// The title input; a ref inside v-for is an array, of one input here.
+const titleInput = ref([])
+
 // The pending deletion: { folder } or { folder, file }.
 const pendingDelete = ref(null)
 const deleting = ref(false)
@@ -87,12 +92,17 @@ const canUpload = computed(
   () => Boolean(limits.value) && selected.value.length > 0 && oversized.value.length === 0 && !uploading.value,
 )
 
+// folderTitle is what a folder is called: its title, else the name of its
+// only file, else its ID.
+const folderTitle = (folder) => folder.title || folder.defaultTitle || folder.id
+
 const deleteTitle = computed(() => (pendingDelete.value?.file ? 'Delete file?' : 'Delete folder?'))
 const deleteMessage = computed(() => {
   const target = pendingDelete.value
   if (!target) return ''
-  if (target.file) return `${target.file.path} is removed from folder ${target.folder.id}. Its link stops working.`
-  return `Folder ${target.folder.id} and all of its files are removed. Their links stop working.`
+  const name = folderTitle(target.folder)
+  if (target.file) return `${target.file.path} is removed from folder ${name}. Its link stops working.`
+  return `Folder ${name} and all of its files are removed. Their links stop working.`
 })
 
 async function loadLimits() {
@@ -196,6 +206,31 @@ async function toggleFolder(folder) {
   }
 }
 
+async function startRename(folder) {
+  editing.value = { id: folder.id, value: folderTitle(folder) }
+  await nextTick()
+  titleInput.value[0]?.focus()
+  titleInput.value[0]?.select()
+}
+
+// saveRename stores the edited title. Enter and the blur that follows both
+// call it, so the first one ends the edit. Clearing the title restores the
+// default one.
+async function saveRename(folder) {
+  const edit = editing.value
+  if (edit?.id !== folder.id) return
+  editing.value = null
+  const title = edit.value.trim()
+  if (title === folderTitle(folder)) return
+  try {
+    const updated = await renameFolder(folder.id, title)
+    folders.value = folders.value.map((f) => (f.id === folder.id ? { ...f, ...updated } : f))
+    notifySuccess('Folder renamed')
+  } catch (err) {
+    notifyError(err.message)
+  }
+}
+
 async function confirmDelete() {
   const { folder, file } = pendingDelete.value
   deleting.value = true
@@ -205,6 +240,8 @@ async function confirmDelete() {
       const entry = expanded.value[folder.id]
       entry.files = entry.files.filter((f) => f.path !== file.path)
       notifySuccess('File deleted')
+      // A folder left with one file is named after it.
+      await loadFolders()
     } else {
       await deleteFolder(folder.id)
       folders.value = folders.value.filter((f) => f.id !== folder.id)
@@ -367,23 +404,24 @@ onUnmounted(() => clearInterval(timer))
         <p class="mt-1 text-xs text-gray-500 dark:text-zinc-400">Uploaded files show up here until they expire.</p>
       </div>
 
-      <ul v-else class="space-y-2">
+      <ul v-else class="grid grid-cols-1 items-start gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <li
           v-for="folder in sortedFolders"
           :key="folder.id"
-          class="rounded-xl border border-gray-100 dark:border-zinc-800 hover:border-gray-200 dark:hover:border-zinc-700 transition-colors"
+          class="min-w-0 rounded-xl border border-gray-100 dark:border-zinc-800 hover:border-gray-200 dark:hover:border-zinc-700 transition-colors"
           :data-test="`folder-${folder.id}`"
         >
-          <div class="flex items-center gap-2 px-3 py-2">
+          <div class="flex items-center gap-1.5 px-3 pt-2">
             <button
               type="button"
-              class="flex items-center gap-2 grow min-w-0 text-left"
+              class="inline-flex items-center justify-center size-5 shrink-0 rounded text-gray-400 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-zinc-100"
               :aria-expanded="Boolean(expanded[folder.id])"
+              :aria-label="expanded[folder.id] ? 'Hide files' : 'Show files'"
               data-test="folder-toggle"
               @click="toggleFolder(folder)"
             >
               <svg
-                :class="['w-3.5 h-3.5 shrink-0 text-gray-400 dark:text-zinc-500 transition-transform', expanded[folder.id] ? 'rotate-90' : '']"
+                :class="['w-3.5 h-3.5 transition-transform', expanded[folder.id] ? 'rotate-90' : '']"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -391,10 +429,38 @@ onUnmounted(() => clearInterval(timer))
               >
                 <path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" />
               </svg>
-              <span class="truncate font-mono text-xs font-bold text-gray-900 dark:text-zinc-100">{{ folder.id }}</span>
             </button>
-            <span class="shrink-0 text-[11px] tabular-nums text-gray-400 dark:text-zinc-500" :title="folder.expiresAt" data-test="folder-expires">
-              {{ expiresIn(folder.expiresAt, now) }}
+            <input
+              v-if="editing?.id === folder.id"
+              ref="titleInput"
+              v-model="editing.value"
+              type="text"
+              maxlength="100"
+              :placeholder="folder.defaultTitle || folder.id"
+              aria-label="Folder title"
+              class="grow min-w-0 rounded-md border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-1.5 py-0.5 text-xs font-bold text-gray-900 dark:text-zinc-100 focus:border-gray-400 dark:focus:border-zinc-500 focus:outline-none"
+              data-test="folder-title-input"
+              @keydown.enter.prevent="saveRename(folder)"
+              @keydown.esc="editing = null"
+              @blur="saveRename(folder)"
+            />
+            <button
+              v-else
+              type="button"
+              class="grow min-w-0 truncate rounded-md px-1.5 py-0.5 text-left text-xs font-bold text-gray-900 dark:text-zinc-100 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-text transition-colors"
+              :title="`${folderTitle(folder)} · click to rename`"
+              data-test="folder-title"
+              @click="startRename(folder)"
+            >
+              {{ folderTitle(folder) }}
+            </button>
+          </div>
+          <div class="flex items-center gap-1 pl-11 pr-2 pb-1.5">
+            <span class="grow min-w-0 truncate text-[11px] text-gray-400 dark:text-zinc-500">
+              <template v-if="folderTitle(folder) !== folder.id">
+                <span class="font-mono" data-test="folder-id">{{ folder.id }}</span> ·
+              </template>
+              <span class="tabular-nums" :title="folder.expiresAt" data-test="folder-expires">{{ expiresIn(folder.expiresAt, now) }}</span>
             </span>
             <button type="button" :class="ICON_BUTTON" title="Copy folder URL" data-test="folder-copy" @click="copy(folder.url, 'Folder URL copied')">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -426,21 +492,23 @@ onUnmounted(() => clearInterval(timer))
               <li
                 v-for="file in expanded[folder.id].files"
                 :key="file.path"
-                class="flex items-center gap-2 py-1 pl-5"
+                class="flex items-center gap-2 py-1"
                 :data-test="`file-${file.path}`"
               >
-                <span class="grow min-w-0 truncate font-mono text-xs text-gray-900 dark:text-zinc-100">{{ file.path }}</span>
+                <a
+                  :href="file.url"
+                  target="_blank"
+                  rel="noopener"
+                  class="grow min-w-0 truncate font-mono text-xs text-gray-900 dark:text-zinc-100 hover:underline"
+                  :title="`Open ${file.path}`"
+                  data-test="file-link"
+                >{{ file.path }}</a>
                 <span class="shrink-0 text-[11px] tabular-nums text-gray-400 dark:text-zinc-500">{{ formatBytes(file.size) }}</span>
                 <button type="button" :class="ICON_BUTTON" title="Copy file URL" data-test="file-copy" @click="copy(file.url, 'File URL copied')">
                   <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                     <path stroke-linecap="round" stroke-linejoin="round" :d="ICONS.copy" />
                   </svg>
                 </button>
-                <a :href="file.url" target="_blank" rel="noopener" :class="ICON_BUTTON" title="Open file" data-test="file-open">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" :d="ICONS.open" />
-                  </svg>
-                </a>
                 <button
                   type="button"
                   :class="[ICON_BUTTON, 'hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10']"

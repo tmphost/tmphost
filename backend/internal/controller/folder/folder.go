@@ -30,6 +30,7 @@ import (
 	"path"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
@@ -71,6 +72,9 @@ const (
 	// AnonymousWindow is the window of the anonymous quota.
 	AnonymousWindow = 30 * time.Minute
 
+	// MaxTitleLength is how many characters a folder title can have.
+	MaxTitleLength = 100
+
 	_maxPathLength    = 512
 	_maxSegmentLength = 255
 	_indexFile        = "index.html"
@@ -88,6 +92,9 @@ var (
 	// ErrInvalidPath is returned for a file path that is not a clean,
 	// relative, slash-separated path at most MaxDirDepth directories deep.
 	ErrInvalidPath = errors.New("invalid file path")
+	// ErrInvalidTitle is returned for a folder title that is too long or
+	// has control characters.
+	ErrInvalidTitle = errors.New("invalid folder title")
 	// ErrNoFiles is returned for an upload without files.
 	ErrNoFiles = errors.New("no files to upload")
 	// ErrDuplicatePath is returned when an upload names a path twice.
@@ -109,6 +116,8 @@ type (
 		CreateFolder(ctx context.Context, rq *entity.CreateFolderRequest) (*entity.CreateFolderResponse, error)
 		ListFolders(ctx context.Context, rq *entity.ListFoldersRequest) (*entity.ListFoldersResponse, error)
 		GetFolder(ctx context.Context, rq *entity.GetFolderRequest) (*entity.GetFolderResponse, error)
+		// UpdateFolder renames a folder; an empty title clears it.
+		UpdateFolder(ctx context.Context, rq *entity.UpdateFolderRequest) (*entity.UpdateFolderResponse, error)
 		DeleteFolder(ctx context.Context, rq *entity.DeleteFolderRequest) error
 		PutFiles(ctx context.Context, rq *entity.PutFilesRequest) (*entity.PutFilesResponse, error)
 		DeleteFile(ctx context.Context, rq *entity.DeleteFileRequest) error
@@ -238,6 +247,10 @@ func (c *controller) ListFolders(ctx context.Context, rq *entity.ListFoldersRequ
 	out := make([]entity.Folder, len(folders))
 	for i, f := range folders {
 		out[i] = c.folderEntity(f)
+		// A folder whose files cannot be listed still shows, under its ID.
+		if objects, err := c.storage.List(ctx, folderPrefix(f)); err == nil {
+			out[i].DefaultTitle = defaultTitle(f, objects)
+		}
 	}
 	return &entity.ListFoldersResponse{Folders: out}, nil
 }
@@ -257,7 +270,55 @@ func (c *controller) GetFolder(ctx context.Context, rq *entity.GetFolderRequest)
 		p := strings.TrimPrefix(o.Key, prefix)
 		files[i] = entity.File{Path: p, Size: o.Size, UpdatedAt: o.ModTime.UTC(), URL: c.fileURL(f, p)}
 	}
-	return &entity.GetFolderResponse{Folder: c.folderEntity(f), Files: files}, nil
+	folder := c.folderEntity(f)
+	folder.DefaultTitle = defaultTitle(f, objects)
+	return &entity.GetFolderResponse{Folder: folder, Files: files}, nil
+}
+
+func (c *controller) UpdateFolder(ctx context.Context, rq *entity.UpdateFolderRequest) (*entity.UpdateFolderResponse, error) {
+	title := strings.TrimSpace(rq.Title)
+	if !ValidTitle(title) {
+		return nil, fmt.Errorf("%w: at most %d characters, no control characters", ErrInvalidTitle, MaxTitleLength)
+	}
+	f, err := c.ownedFolder(ctx, rq.UserID, rq.FolderID)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.folders.UpdateFolderTitle(ctx, f.ID, title); err != nil {
+		return nil, fmt.Errorf("update folder: %w", err)
+	}
+	f.Title = title
+	objects, err := c.storage.List(ctx, folderPrefix(f))
+	if err != nil {
+		return nil, fmt.Errorf("list files: %w", err)
+	}
+	folder := c.folderEntity(f)
+	folder.DefaultTitle = defaultTitle(f, objects)
+	return &entity.UpdateFolderResponse{Folder: folder}, nil
+}
+
+// ValidTitle reports whether t can be a folder title: at most
+// MaxTitleLength characters of valid UTF-8 with no control characters.
+// The empty title is valid; it clears the title.
+func ValidTitle(t string) bool {
+	if !utf8.ValidString(t) || utf8.RuneCountInString(t) > MaxTitleLength {
+		return false
+	}
+	for _, r := range t {
+		if unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// defaultTitle names a folder that has no title: the name of its only
+// file, else its ID.
+func defaultTitle(f model.Folder, objects []storage.Object) string {
+	if len(objects) == 1 {
+		return path.Base(objects[0].Key)
+	}
+	return idgen.FormatFolderID(f.ID)
 }
 
 func (c *controller) DeleteFolder(ctx context.Context, rq *entity.DeleteFolderRequest) error {
@@ -506,6 +567,7 @@ func (c *controller) folderEntity(f model.Folder) entity.Folder {
 	e := mappermodel.FromFolderModelToFolderEntity(f)
 	e.CreatedAt, e.ExpiresAt = e.CreatedAt.UTC(), e.ExpiresAt.UTC()
 	e.URL = c.fileURL(f, "")
+	e.DefaultTitle = idgen.FormatFolderID(f.ID)
 	return e
 }
 

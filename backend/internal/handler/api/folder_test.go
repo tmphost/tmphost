@@ -173,7 +173,7 @@ func TestFolder_Create(t *testing.T) {
 		Return(&entity.CreateFolderResponse{Folder: entity.Folder{ID: 1000, CreatedAt: _at, ExpiresAt: _at, URL: "u"}}, nil)
 	res, body := e.do(t, http.MethodPost, "/api/v1/folders", `{"ttlMinutes":60}`)
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
-	assert.JSONEq(t, `{"folder":{"id":"000000000rs","createdAt":"2026-10-18T12:00:00Z","expiresAt":"2026-10-18T12:00:00Z","url":"u"}}`, body)
+	assert.JSONEq(t, `{"folder":{"id":"000000000rs","createdAt":"2026-10-18T12:00:00Z","expiresAt":"2026-10-18T12:00:00Z","url":"u","title":"","defaultTitle":""}}`, body)
 
 	res, _ = e.do(t, http.MethodPost, "/api/v1/folders", `{`)
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
@@ -221,6 +221,27 @@ func TestFolder_ListGetDelete(t *testing.T) {
 	e.folders.EXPECT().DeleteFolder(gomock.Any(), gomock.Any()).Return(errBoom)
 	res, _ = e.do(t, http.MethodDelete, "/api/v1/folders/000000000rs", "")
 	assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
+}
+
+func TestFolder_Update(t *testing.T) {
+	e := newFilesApp(t)
+	e.folders.EXPECT().UpdateFolder(gomock.Any(), &entity.UpdateFolderRequest{UserID: 7, FolderID: 1000, Title: "Photos"}).
+		Return(&entity.UpdateFolderResponse{Folder: entity.Folder{ID: 1000, CreatedAt: _at, ExpiresAt: _at, URL: "u", Title: "Photos", DefaultTitle: "a.jpg"}}, nil)
+	res, body := e.do(t, http.MethodPatch, "/api/v1/folders/000000000rs", `{"title":"Photos"}`)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.JSONEq(t, `{"folder":{"id":"000000000rs","createdAt":"2026-10-18T12:00:00Z","expiresAt":"2026-10-18T12:00:00Z","url":"u","title":"Photos","defaultTitle":"a.jpg"}}`, body)
+
+	res, _ = e.do(t, http.MethodPatch, "/api/v1/folders/000000000rs", `{}`)
+	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+	e.folders.EXPECT().UpdateFolder(gomock.Any(), gomock.Any()).Return(nil, folderctrl.ErrInvalidTitle)
+	res, body = e.do(t, http.MethodPatch, "/api/v1/folders/000000000rs", `{"title":"x"}`)
+	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
+	assert.JSONEq(t, `{"error":"invalid folder title"}`, body)
+
+	e.folders.EXPECT().UpdateFolder(gomock.Any(), gomock.Any()).Return(nil, folderctrl.ErrNotFound)
+	res, _ = e.do(t, http.MethodPatch, "/api/v1/folders/000000000rs", `{"title":"x"}`)
+	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 }
 
 func TestFolder_PutFile(t *testing.T) {

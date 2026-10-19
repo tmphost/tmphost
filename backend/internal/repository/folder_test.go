@@ -51,6 +51,14 @@ func TestFolderRepository(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, expired, 1)
 
+	require.NoError(t, repo.UpdateFolderTitle(ctx, 2, "Holiday photos"))
+	got, err = repo.FindFolderByID(ctx, 2)
+	require.NoError(t, err)
+	assert.Equal(t, "Holiday photos", got.Title)
+	got, err = repo.FindFolderByID(ctx, 3)
+	require.NoError(t, err)
+	assert.Empty(t, got.Title, "untitled by default")
+
 	require.NoError(t, repo.DeleteFolder(ctx, 4))
 	_, err = repo.FindFolderByID(ctx, 4)
 	assert.ErrorIs(t, err, ErrNotFound)
@@ -71,6 +79,7 @@ func TestFolderRepository_DBErrors(t *testing.T) {
 	assert.Error(t, err)
 	_, err = repo.ListExpiredFolders(ctx, time.Now(), 1)
 	assert.Error(t, err)
+	assert.Error(t, repo.UpdateFolderTitle(ctx, 1, "x"))
 	assert.Error(t, repo.DeleteFolder(ctx, 1))
 }
 
