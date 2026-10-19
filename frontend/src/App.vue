@@ -17,7 +17,8 @@ const router = useRouter()
 const { notifyError } = useToasts()
 
 const user = ref(null)
-const isCollapsed = ref(false)
+// The sidebar starts collapsed on every sign-in.
+const isCollapsed = ref(true)
 const isMobileMenuOpen = ref(false)
 
 const isPublicPage = computed(() => Boolean(route.meta.public))
@@ -46,6 +47,7 @@ async function onLogout() {
     // The session cookie may still be set, but the client forgets the user.
   }
   user.value = null
+  isCollapsed.value = true
   router.push('/login')
 }
 

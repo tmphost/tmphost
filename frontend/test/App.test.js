@@ -71,6 +71,7 @@ describe('App', () => {
   it('renders the shell with the user once', async () => {
     const { wrapper, router } = await mountApp('/')
     expect(wrapper.find('[data-test="home-page"]').exists()).toBe(true)
+    await wrapper.find('[data-test="sidebar-toggle"]').trigger('click')
     expect(wrapper.find('[data-test="sidebar"]').text()).toContain('Ada')
     await router.push('/other')
     await flushPromises()
@@ -80,6 +81,9 @@ describe('App', () => {
 
   it('toggles the sidebar and the mobile menu', async () => {
     const { wrapper, router } = await mountApp('/')
+    expect(wrapper.find('[data-test="sidebar-brand"]').exists()).toBe(false)
+    await wrapper.find('[data-test="sidebar-toggle"]').trigger('click')
+    expect(wrapper.find('[data-test="sidebar-brand"]').exists()).toBe(true)
     await wrapper.find('[data-test="sidebar-toggle"]').trigger('click')
     expect(wrapper.find('[data-test="sidebar-brand"]').exists()).toBe(false)
 
@@ -97,6 +101,7 @@ describe('App', () => {
 
   it('shares the user and refreshes the sidebar credits', async () => {
     const { wrapper } = await mountApp('/spend')
+    await wrapper.find('[data-test="sidebar-toggle"]').trigger('click')
     expect(wrapper.find('[data-test="spend"]').text()).toBe('250')
     fetchUser.mockResolvedValue({ ...user, credits: 240 })
     await wrapper.find('[data-test="spend"]').trigger('click')
@@ -125,5 +130,19 @@ describe('App', () => {
       expect(wrapper.find('[data-test="sidebar"]').exists()).toBe(false)
       wrapper.unmount()
     }
+  })
+
+  it('collapses the sidebar again when the next sign-in follows a logout', async () => {
+    const { wrapper, router } = await mountApp('/')
+    await wrapper.find('[data-test="sidebar-toggle"]').trigger('click')
+    expect(wrapper.find('[data-test="sidebar-brand"]').exists()).toBe(true)
+    await wrapper.find('[data-test="user-menu-toggle"]').trigger('click')
+    await wrapper.find('[data-test="logout"]').trigger('click')
+    await flushPromises()
+    await router.push('/')
+    await flushPromises()
+    expect(wrapper.find('[data-test="sidebar"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="sidebar-brand"]').exists()).toBe(false)
+    wrapper.unmount()
   })
 })
