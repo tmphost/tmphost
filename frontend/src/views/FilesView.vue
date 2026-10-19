@@ -10,7 +10,16 @@ import DeleteModal from '../components/DeleteModal.vue'
 import { createFolder, deleteFile, deleteFolder, fetchFolder, fetchLimits, listFolders, uploadFile } from '../api'
 import { useClipboard } from '../composables/useClipboard'
 import { useToasts } from '../composables/useToasts'
-import { expiresIn, formatBytes, formatMinutes, relativePath, ttlOptions, uploadCost } from '../utils/files'
+import {
+  droppedFiles,
+  expiresIn,
+  fileItems,
+  formatBytes,
+  formatMinutes,
+  isFileDrag,
+  ttlOptions,
+  uploadCost,
+} from '../utils/files'
 
 const TICK_MS = 30 * 1000
 
@@ -40,6 +49,9 @@ let timer = null
 const selected = ref([])
 const ttl = ref(30)
 const dragging = ref(false)
+// dragenter/dragleave fire for every child the pointer crosses; count them so
+// the drop overlay only hides once the drag has left the page.
+let dragDepth = 0
 const uploading = ref(false)
 const progress = ref({ done: 0, total: 0 })
 
@@ -103,24 +115,38 @@ async function loadFolders() {
   }
 }
 
-function addFiles(fileList) {
+function addFiles(items) {
   const byPath = new Map(selected.value.map((item) => [item.path, item]))
-  for (const file of fileList) {
-    const path = relativePath(file)
-    byPath.set(path, { path, file })
-  }
+  for (const item of items) byPath.set(item.path, item)
   selected.value = [...byPath.values()]
 }
 
 function onPick(event) {
-  addFiles(event.target.files)
+  addFiles(fileItems(event.target.files))
   // Allow picking the same files again after removing them.
   event.target.value = ''
 }
 
-function onDrop(event) {
+function onDragEnter(event) {
+  if (!isFileDrag(event)) return
+  dragDepth++
+  dragging.value = true
+}
+
+function onDragLeave(event) {
+  if (!isFileDrag(event)) return
+  dragDepth = Math.max(0, dragDepth - 1)
+  if (!dragDepth) dragging.value = false
+}
+
+async function onDrop(event) {
+  dragDepth = 0
   dragging.value = false
-  addFiles(event.dataTransfer.files)
+  try {
+    addFiles(await droppedFiles(event.dataTransfer))
+  } catch (err) {
+    notifyError(err.message)
+  }
 }
 
 function removeSelected(path) {
@@ -204,7 +230,28 @@ onUnmounted(() => clearInterval(timer))
 </script>
 
 <template>
-  <div class="flex flex-col">
+  <div
+    class="relative grow flex flex-col"
+    data-test="files-page"
+    @dragenter="onDragEnter"
+    @dragover.prevent
+    @dragleave="onDragLeave"
+    @drop.prevent="onDrop"
+  >
+    <div
+      v-if="dragging"
+      class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-gray-300 dark:border-zinc-600 bg-white/90 dark:bg-zinc-900/90"
+      data-test="drop-overlay"
+    >
+      <div class="text-center">
+        <svg class="mx-auto w-8 h-8 text-gray-900 dark:text-zinc-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L7 9m5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
+        </svg>
+        <p class="mt-2 text-sm font-bold text-gray-900 dark:text-zinc-100">Drop files or folders</p>
+        <p class="text-xs text-gray-500 dark:text-zinc-400">They go into a new folder that expires after {{ formatMinutes(ttl) }}.</p>
+      </div>
+    </div>
+
     <header class="px-4 pb-4 border-b border-gray-100 dark:border-zinc-800">
       <h1 class="text-lg font-bold text-gray-900 dark:text-zinc-100 tracking-tight">Files</h1>
       <p class="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">Upload files to a temporary folder and share the links until it expires.</p>
@@ -213,19 +260,13 @@ onUnmounted(() => clearInterval(timer))
     <!-- Upload -->
     <section class="px-4 pt-4">
       <div
-        :class="[
-          'rounded-xl border p-5 transition-colors',
-          dragging ? 'border-gray-400 dark:border-zinc-500 bg-zinc-50 dark:bg-zinc-950' : 'border-gray-100 dark:border-zinc-800 hover:border-gray-200 dark:hover:border-zinc-700',
-        ]"
+        class="rounded-xl border border-gray-100 dark:border-zinc-800 hover:border-gray-200 dark:hover:border-zinc-700 p-5 transition-colors"
         data-test="upload-card"
-        @dragover.prevent="dragging = true"
-        @dragleave="dragging = false"
-        @drop.prevent="onDrop"
       >
         <div class="flex flex-wrap items-end gap-3">
           <div class="grow min-w-0">
             <h2 class="text-sm font-bold text-gray-900 dark:text-zinc-100">New folder</h2>
-            <p class="text-xs text-gray-500 dark:text-zinc-400">Choose files or a whole folder, or drop files here.</p>
+            <p class="text-xs text-gray-500 dark:text-zinc-400">Choose files or a whole folder, or drop them anywhere on this page.</p>
           </div>
           <label :class="[SECONDARY, 'cursor-pointer']">
             Choose files

@@ -10,7 +10,7 @@ import BrandLogo from '../components/BrandLogo.vue'
 import { createFolder, fetchLimits, uploadFile } from '../api'
 import { useClipboard } from '../composables/useClipboard'
 import { useToasts } from '../composables/useToasts'
-import { formatBytes, formatMinutes, relativePath } from '../utils/files'
+import { droppedFiles, fileItems, formatBytes, formatMinutes } from '../utils/files'
 
 // Upload without an account: the server knows the visitor by IP address
 // and applies the anonymous limits it reports from /limits.
@@ -45,23 +45,24 @@ const canUpload = computed(
     Boolean(limits.value) && selected.value.length > 0 && !oversized.value.length && !tooMany.value && !uploading.value,
 )
 
-function addFiles(fileList) {
+function addFiles(items) {
   const byPath = new Map(selected.value.map((item) => [item.path, item]))
-  for (const file of fileList) {
-    const path = relativePath(file)
-    byPath.set(path, { path, file })
-  }
+  for (const item of items) byPath.set(item.path, item)
   selected.value = [...byPath.values()]
 }
 
 function onPick(event) {
-  addFiles(event.target.files)
+  addFiles(fileItems(event.target.files))
   event.target.value = ''
 }
 
-function onDrop(event) {
+async function onDrop(event) {
   dragging.value = false
-  addFiles(event.dataTransfer.files)
+  try {
+    addFiles(await droppedFiles(event.dataTransfer))
+  } catch (err) {
+    notifyError(err.message)
+  }
 }
 
 function removeSelected(path) {

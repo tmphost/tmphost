@@ -93,10 +93,7 @@ describe('createtmphostApp', () => {
     expect(app._context.directives['click-outside']).toBe(clickOutside)
 
     await router.push('/')
-    expect(router.currentRoute.value.name).toBe('home')
-    expect(document.title).toBe('Home · tmphost.io')
-
-    await router.push('/files')
+    expect(router.currentRoute.value.name).toBe('files')
     expect(document.title).toBe('Files · tmphost.io')
     await router.push('/connect')
     expect(router.currentRoute.value.name).toBe('connect')
