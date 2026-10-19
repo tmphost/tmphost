@@ -19,6 +19,8 @@ func TestFromCreditOpToCreditOpName(t *testing.T) {
 	assert.Equal(t, "renewal", FromCreditOpToCreditOpName(model.CreditOpRenewal))
 	assert.Equal(t, "spend", FromCreditOpToCreditOpName(model.CreditOpSpend))
 	assert.Equal(t, "refund", FromCreditOpToCreditOpName(model.CreditOpRefund))
+	assert.Equal(t, "admin_grant", FromCreditOpToCreditOpName(model.CreditOpAdminGrant))
+	assert.Equal(t, "expiry", FromCreditOpToCreditOpName(model.CreditOpExpiry))
 	assert.Equal(t, "unknown", FromCreditOpToCreditOpName(0))
 }
 

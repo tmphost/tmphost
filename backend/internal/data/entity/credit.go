@@ -10,13 +10,33 @@ type (
 	// RenewDueCreditsResponse reports how many accounts were renewed.
 	RenewDueCreditsResponse struct {
 		Renewed int
+		// Expired is how many admin grants expired.
+		Expired int
+	}
+
+	// GrantCreditsRequest asks root to grant credits to one user (by email)
+	// or to every user.
+	GrantCreditsRequest struct {
+		Credits int
+		// Email names the user; empty with All set.
+		Email string
+		// All grants to every user.
+		All bool
+	}
+
+	// GrantCreditsResponse reports a grant.
+	GrantCreditsResponse struct {
+		// Users is how many users got the grant.
+		Users int
+		// ExpiresAt is when what is left of the grant is taken away.
+		ExpiresAt time.Time
 	}
 
 	// CreditActivity is one change to a user's credit balance.
 	CreditActivity struct {
 		ID int64
-		// Ops names what changed the balance: grant, renewal, spend or
-		// refund.
+		// Ops names what changed the balance: grant, renewal, spend,
+		// refund, admin_grant or expiry.
 		Ops string
 		// Change is the signed amount.
 		Change int

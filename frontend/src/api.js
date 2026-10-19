@@ -117,6 +117,19 @@ export async function saveSettings(settings) {
   return res.json()
 }
 
+// grantCredits gives credits that expire to one user (by email) or to
+// every user (all), as root. It returns { users, expiresAt }.
+export async function grantCredits({ credits, email, all }) {
+  const res = await fetch(`${API_BASE_URL}/admin/credits/grants`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(all ? { credits, all: true } : { credits, email }),
+  })
+  if (!res.ok) throw await httpError(res, `Failed to grant credits (${res.status})`)
+  return res.json()
+}
+
 // request sends a JSON request for the signed-in user and returns the parsed
 // body, or null for 204. Failures throw an Error carrying the HTTP status.
 async function request(method, path, { body, raw, fallback } = {}) {

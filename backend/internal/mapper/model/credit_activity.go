@@ -11,10 +11,12 @@ import (
 
 // _creditOps names the stored credit operations.
 var _creditOps = map[uint8]string{
-	model.CreditOpGrant:   "grant",
-	model.CreditOpRenewal: "renewal",
-	model.CreditOpSpend:   "spend",
-	model.CreditOpRefund:  "refund",
+	model.CreditOpGrant:      "grant",
+	model.CreditOpRenewal:    "renewal",
+	model.CreditOpSpend:      "spend",
+	model.CreditOpRefund:     "refund",
+	model.CreditOpAdminGrant: "admin_grant",
+	model.CreditOpExpiry:     "expiry",
 }
 
 // FromCreditOpToCreditOpName names a stored credit operation; an unknown

@@ -13,7 +13,7 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   over) and moves their renewal 30 days forward.
 - Every change to a balance is kept in `credit_activities`, written in the
   same transaction as the change: `ops` (stored as a uint8: grant, renewal,
-  spend, refund), the signed `change` (+X or -Y) and the `current` balance
+  spend, refund, admin_grant, expiry), the signed `change` (+X or -Y) and the `current` balance
   after it. The Credits page charts daily use and balance over 30 days and
   lists the history (`GET /api/v1/users/me/credits/activities?before=&limit=`,
   newest first).
@@ -111,6 +111,17 @@ Database: SQLite by default (`TMPHOSTIO_SQLITE_DSN`); set
 make build   # bin/tmphost with the frontend embedded
 make test    # 100% coverage is enforced on both sides
 ```
+
+## Admin page
+
+`/admin` opens only with the root access token too (one root sign-in covers
+`/setup` and `/admin`). Root can grant credits to one user (by email) or to
+every user (`POST /api/v1/admin/credits/grants` with
+`{"credits": 500, "email": "a@b.c"}` or `{"credits": 500, "all": true}`).
+Granted credits are kept in `credit_grants` and logged as `admin_grant`. They
+expire 30 days later at the next 00:00 UTC, when the daily job takes back
+whatever is left (logged as `expiry`). Monthly renewals don't reset them, and
+spends take the credits that expire first.
 
 ## Setup page
 

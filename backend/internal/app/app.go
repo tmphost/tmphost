@@ -410,10 +410,10 @@ func (a *App) renewCredits() {
 	defer cancel()
 	rs, err := a.credits.RenewDueCredits(ctx)
 	if err != nil {
-		zlog.Error().Err(err).Int("renewed", rs.Renewed).Msg("credit renewal: failed")
+		zlog.Error().Err(err).Int("renewed", rs.Renewed).Int("expired", rs.Expired).Msg("credit renewal: failed")
 		return
 	}
-	zlog.Info().Int("renewed", rs.Renewed).Msg("credit renewal: renewed accounts")
+	zlog.Info().Int("renewed", rs.Renewed).Int("expired", rs.Expired).Msg("credit renewal: renewed accounts")
 }
 
 func (a *App) sweepFolders() {

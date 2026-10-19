@@ -10,13 +10,15 @@ import "time"
 type (
 	// User is an account as the domain sees it.
 	User struct {
-		ID             int64
-		Email          string
-		Name           string
-		Picture        string
-		Provider       string
-		Credits        int
-		CreditsLimit   int
+		ID           int64
+		Email        string
+		Name         string
+		Picture      string
+		Provider     string
+		Credits      int
+		CreditsLimit int
+		// MonthlyGrant is what each renewal resets the balance to.
+		MonthlyGrant   int
 		CreditsRenewAt time.Time
 		CreatedAt      time.Time
 	}

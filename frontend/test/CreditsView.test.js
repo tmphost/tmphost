@@ -16,7 +16,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const ago = (days) => new Date(Date.now() - days * DAY_MS).toISOString()
 const lastToast = () => useToasts().toasts.value.at(-1)
 
-function mountView(user = { credits: 990, creditsLimit: 1000, creditsRenewAt: ago(-3) }) {
+function mountView(user = { credits: 990, creditsLimit: 1000, monthlyGrant: 250, creditsRenewAt: ago(-3) }) {
   return mount(CreditsView, { global: { provide: { currentUser: { user: ref(user) } } } })
 }
 
@@ -38,6 +38,7 @@ describe('CreditsView', () => {
     expect(wrapper.find('[data-test="credits-balance"]').text()).toBe('990')
     expect(wrapper.find('[data-test="credits-used"]').text()).toBe('10')
     expect(wrapper.find('[data-test="credits-renewal"]').text()).toBe('Renews in 3 days')
+    expect(wrapper.find('[data-test="credits-monthly"]').text()).toBe('250')
     expect(wrapper.findAll('[data-test="chart-line"]').map((l) => l.attributes('stroke'))).toEqual(['#aec477', '#a8a3d9'])
 
     const rows = () => wrapper.findAll('[data-test="credits-row"]')
@@ -60,6 +61,7 @@ describe('CreditsView', () => {
     expect(wrapper.find('[data-test="credits-empty"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="credits-balance"]').text()).toBe('0')
     expect(wrapper.find('[data-test="credits-renewal"]').text()).toBe('')
+    expect(wrapper.find('[data-test="credits-monthly"]').text()).toBe('0')
   })
 
   it('reports load errors', async () => {
@@ -78,5 +80,21 @@ describe('CreditsView', () => {
     await flushPromises()
     expect(lastToast()).toMatchObject({ type: 'error', message: 'offline' })
     expect(again.find('[data-test="credits-older"]').attributes('disabled')).toBeUndefined()
+  })
+})
+
+describe('CreditsView admin grants', () => {
+  it('labels admin grants and their expiry', async () => {
+    listCreditActivities.mockResolvedValueOnce({
+      activities: [
+        { id: 'b', ops: 'expiry', change: -40, current: 250, createdAt: new Date().toISOString() },
+        { id: 'a', ops: 'admin_grant', change: 50, current: 290, createdAt: new Date().toISOString() },
+      ],
+      next: '',
+    })
+    const wrapper = mount(CreditsView)
+    await flushPromises()
+    const labels = wrapper.findAll('[data-test="credits-row"]').map((r) => r.find('p').text())
+    expect(labels).toEqual(['Admin grant expired', 'Admin grant'])
   })
 })
