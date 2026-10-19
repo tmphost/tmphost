@@ -32,6 +32,8 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
 
 - `/mcp` is a stateless MCP server with one tool, `file` (actions `upload`,
   `download`, `get`, `url`). The `tmphost` CLI in [cli/](cli/) mirrors it.
+  File content travels as `base64Content` (the default) or, when the
+  `format` argument asks for it, as UTF-8 `textContent`.
 - Both sign in with tmphost's own OAuth 2.1 server: dynamic client
   registration (`/oauth2/register`), PKCE S256, a consent page
   (`/oauth2/authorize`) and refresh tokens (`/oauth2/token`), discovered via

@@ -115,6 +115,7 @@ func TestListTools(t *testing.T) {
 	assert.Equal(t, "file", rs.Tools[0].Name)
 	schema, _ := json.Marshal(rs.Tools[0].InputSchema)
 	assert.Contains(t, string(schema), `"enum":["upload","download","get","url"]`)
+	assert.Contains(t, string(schema), `"enum":["base64Content","textContent"]`)
 }
 
 func TestUnknownAction(t *testing.T) {
@@ -128,6 +129,17 @@ func TestUnknownAction(t *testing.T) {
 	assert.EqualError(t, err, `unknown action "rm": use upload, download, get or url`)
 }
 
+func TestContentFormat(t *testing.T) {
+	// The schema rejects unknown formats; the handler checks too.
+	_, err := contentFormat("hex")
+	assert.EqualError(t, err, `unknown format "hex": use base64Content or textContent`)
+	_, err = uploadContent(FileInput{Format: "hex"})
+	assert.Error(t, err)
+	req := &mcp.CallToolRequest{Extra: &mcp.RequestExtra{TokenInfo: &auth.TokenInfo{UserID: "7"}}}
+	_, _, err = (&tool{}).handle(context.Background(), req, FileInput{Action: ActionDownload, Format: "hex"})
+	assert.EqualError(t, err, `unknown format "hex": use base64Content or textContent`)
+}
+
 func TestUpload_NewFolder(t *testing.T) {
 	e := newEnv(t)
 	gomock.InOrder(
@@ -138,7 +150,7 @@ func TestUpload_NewFolder(t *testing.T) {
 	)
 	out, msg := e.call(t, map[string]any{
 		"action": "upload", "ttl": "2h", "path": "/site/", "fileName": "index.html",
-		"content": base64.StdEncoding.EncodeToString([]byte("<p>")),
+		"base64Content": base64.StdEncoding.EncodeToString([]byte("<p>")),
 	})
 	require.Empty(t, msg)
 	assert.Equal(t, FileOutput{
@@ -151,26 +163,46 @@ func TestUpload_ExistingFolder(t *testing.T) {
 	e := newEnv(t)
 	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "a.txt", Data: []byte{}}}}).
 		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "a.txt", URL: "https://f000000000rs.tmp.host/a.txt"}}, CreditsSpent: 1}, nil)
-	out, msg := e.call(t, map[string]any{"action": "upload", "id": "000000000rs", "fileName": "a.txt", "content": ""})
+	out, msg := e.call(t, map[string]any{"action": "upload", "id": "000000000rs", "fileName": "a.txt", "base64Content": ""})
 	require.Empty(t, msg)
 	assert.Equal(t, FileOutput{ID: "000000000rs", URL: "https://f000000000rs.tmp.host/a.txt", FileName: "a.txt", CreditsSpent: 1}, out)
+}
+
+func TestUpload_TextContent(t *testing.T) {
+	e := newEnv(t)
+	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "index.html", Data: []byte("<p>héllo</p>")}}}).
+		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "index.html", Size: 13, URL: "https://f000000000rs.tmp.host/index.html"}}, CreditsSpent: 1}, nil)
+	out, msg := e.call(t, map[string]any{"action": "upload", "id": "000000000rs", "fileName": "index.html", "format": "textContent", "textContent": "<p>héllo</p>"})
+	require.Empty(t, msg)
+	assert.Equal(t, FileOutput{ID: "000000000rs", URL: "https://f000000000rs.tmp.host/index.html", FileName: "index.html", Size: 13, CreditsSpent: 1}, out)
+
+	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "empty.txt", Data: []byte{}}}}).
+		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "empty.txt", URL: "https://f000000000rs.tmp.host/empty.txt"}}, CreditsSpent: 1}, nil)
+	_, msg = e.call(t, map[string]any{"action": "upload", "id": "000000000rs", "fileName": "empty.txt", "format": "textContent", "textContent": ""})
+	require.Empty(t, msg, "an empty text file")
 }
 
 func TestUpload_Errors(t *testing.T) {
 	e := newEnv(t)
 	content := base64.StdEncoding.EncodeToString([]byte("x"))
+	text := "textContent"
 	for name, tc := range map[string]struct {
 		args map[string]any
 		msg  string
 	}{
-		"no file name":   {map[string]any{"content": content}, "fileName is required"},
-		"slash in name":  {map[string]any{"fileName": "a/b", "content": content}, "fileName is required"},
-		"bad path":       {map[string]any{"fileName": "a", "path": "x/../y", "content": content}, "invalid file path"},
-		"not base64":     {map[string]any{"fileName": "a", "content": "!!"}, "content must be base64"},
-		"ttl with id":    {map[string]any{"fileName": "a", "content": content, "id": "000000000rs", "ttl": "1h"}, "ttl only applies"},
-		"bad id":         {map[string]any{"fileName": "a", "content": content, "id": "RS"}, "id must be a folder id"},
-		"bad ttl":        {map[string]any{"fileName": "a", "content": content, "ttl": "soon"}, "whole minutes"},
-		"fractional ttl": {map[string]any{"fileName": "a", "content": content, "ttl": "90s"}, "whole minutes"},
+		"no file name":   {map[string]any{"base64Content": content}, "fileName is required"},
+		"slash in name":  {map[string]any{"fileName": "a/b", "base64Content": content}, "fileName is required"},
+		"bad path":       {map[string]any{"fileName": "a", "path": "x/../y", "base64Content": content}, "invalid file path"},
+		"not base64":     {map[string]any{"fileName": "a", "base64Content": "!!"}, "base64Content must be base64"},
+		"no content":     {map[string]any{"fileName": "a"}, "base64Content is required with format base64Content"},
+		"text as base64": {map[string]any{"fileName": "a", "textContent": "x"}, "textContent needs format textContent"},
+		"no text":        {map[string]any{"fileName": "a", "format": text}, "textContent is required with format textContent"},
+		"base64 as text": {map[string]any{"fileName": "a", "format": text, "textContent": "x", "base64Content": content}, "base64Content needs format base64Content"},
+		"bad format":     {map[string]any{"fileName": "a", "format": "hex", "base64Content": content}, "enum"},
+		"ttl with id":    {map[string]any{"fileName": "a", "base64Content": content, "id": "000000000rs", "ttl": "1h"}, "ttl only applies"},
+		"bad id":         {map[string]any{"fileName": "a", "base64Content": content, "id": "RS"}, "id must be a folder id"},
+		"bad ttl":        {map[string]any{"fileName": "a", "base64Content": content, "ttl": "soon"}, "whole minutes"},
+		"fractional ttl": {map[string]any{"fileName": "a", "base64Content": content, "ttl": "90s"}, "whole minutes"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			tc.args["action"] = "upload"
@@ -182,7 +214,7 @@ func TestUpload_Errors(t *testing.T) {
 
 func TestUpload_ControllerErrors(t *testing.T) {
 	args := func() map[string]any {
-		return map[string]any{"action": "upload", "fileName": "a", "content": ""}
+		return map[string]any{"action": "upload", "fileName": "a", "base64Content": ""}
 	}
 
 	t.Run("create fails", func(t *testing.T) {
@@ -221,8 +253,28 @@ func TestDownload(t *testing.T) {
 		Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader("hi"))}, nil)
 	out, msg := e.call(t, map[string]any{"action": "download", "id": "000000000rs", "path": "site", "fileName": "a.bin"})
 	require.Empty(t, msg)
-	assert.Equal(t, FileOutput{ID: "000000000rs", FileName: "a.bin", Path: "site", Size: 2, Content: base64.StdEncoding.EncodeToString([]byte("hi"))}, out)
+	assert.Equal(t, FileOutput{ID: "000000000rs", FileName: "a.bin", Path: "site", Size: 2, Base64Content: ptr(base64.StdEncoding.EncodeToString([]byte("hi")))}, out)
 }
+
+func TestDownload_TextContent(t *testing.T) {
+	e := newEnv(t)
+	e.folders.EXPECT().OpenFile(gomock.Any(), &entity.OpenFileRequest{UserID: 7, FolderID: 1000, Path: "a.txt"}).
+		Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader("héllo"))}, nil)
+	out, msg := e.call(t, map[string]any{"action": "download", "id": "000000000rs", "fileName": "a.txt", "format": "textContent"})
+	require.Empty(t, msg)
+	assert.Equal(t, FileOutput{ID: "000000000rs", FileName: "a.txt", Size: 6, TextContent: ptr("héllo")}, out)
+
+	e.folders.EXPECT().OpenFile(gomock.Any(), gomock.Any()).Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader(""))}, nil)
+	out, msg = e.call(t, map[string]any{"action": "download", "id": "000000000rs", "fileName": "a.txt", "format": "textContent"})
+	require.Empty(t, msg)
+	assert.Equal(t, ptr(""), out.TextContent, "an empty file still carries its content field")
+
+	e.folders.EXPECT().OpenFile(gomock.Any(), gomock.Any()).Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader("\xff\xfe"))}, nil)
+	_, msg = e.call(t, map[string]any{"action": "download", "id": "000000000rs", "fileName": "a.bin", "format": "textContent"})
+	assert.Contains(t, msg, "not UTF-8 text: download it with format base64Content")
+}
+
+func ptr(s string) *string { return &s }
 
 func TestDownload_Errors(t *testing.T) {
 	e := newEnv(t)
@@ -231,6 +283,9 @@ func TestDownload_Errors(t *testing.T) {
 
 	_, msg = e.call(t, map[string]any{"action": "download", "id": "000000000rs"})
 	assert.Contains(t, msg, "fileName is required")
+
+	_, msg = e.call(t, map[string]any{"action": "download", "id": "000000000rs", "fileName": "a", "format": "hex"})
+	assert.Contains(t, msg, "enum", "the schema rejects an unknown format")
 
 	e.folders.EXPECT().OpenFile(gomock.Any(), gomock.Any()).Return(nil, folderctrl.ErrNotFound)
 	_, msg = e.call(t, map[string]any{"action": "download", "id": "000000000rs", "fileName": "a"})

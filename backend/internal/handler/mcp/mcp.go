@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -36,13 +37,20 @@ const (
 	ActionURL      = "url"
 )
 
+// The content formats: which field carries a file's content.
+const (
+	FormatBase64 = "base64Content"
+	FormatText   = "textContent"
+)
+
 const _toolDescription = `Temporary file hosting on tmphost.io. Files live in folders that expire after a TTL; each file is served at a public URL until then.
 Actions:
-- upload: store a file (fileName, content as base64, optional path inside the folder). Without id a new folder is created with ttl (default 30m); with id the file goes into that folder. Returns id and url. Costs 1 credit per file per started 30 minutes of the folder's remaining lifetime.
-- download: read a file (id, fileName, optional path). Returns its content as base64.
+- upload: store a file (fileName, its content in base64Content or textContent as format says, optional path inside the folder). Without id a new folder is created with ttl (default 30m); with id the file goes into that folder. Returns id and url. Costs 1 credit per file per started 30 minutes of the folder's remaining lifetime.
+- download: read a file (id, fileName, optional path). Returns its content in base64Content or, for UTF-8 text, in textContent as format says.
 - get: list a folder's files (id).
 - url: build the public URL of a folder (id), a directory (id, path) or a file (id, fileName, optional path).
-Paths are slash-separated directories inside the folder, at most 5 levels deep.`
+Paths are slash-separated directories inside the folder, at most 5 levels deep.
+format is base64Content (the default, for any file) or textContent (UTF-8 text such as HTML, CSS or JSON, sent as is).`
 
 type (
 	// Params are the transport's dependencies.
@@ -64,20 +72,27 @@ type (
 		TTL      string `json:"ttl,omitempty" jsonschema:"lifetime of a new folder, such as 30m or 2h (default 30m); upload only"`
 		FileName string `json:"fileName,omitempty" jsonschema:"file name, without directories"`
 		Path     string `json:"path,omitempty" jsonschema:"directory inside the folder, such as site/css, at most 5 levels; empty for the folder root"`
-		Content  string `json:"content,omitempty" jsonschema:"base64 file content; upload only"`
+		Format   string `json:"format,omitempty" jsonschema:"which field carries the content: base64Content (default) or textContent; upload and download only"`
+		// Base64Content and TextContent are pointers so an empty file can
+		// be told apart from a missing field.
+		Base64Content *string `json:"base64Content,omitempty" jsonschema:"base64 file content; upload with format base64Content"`
+		TextContent   *string `json:"textContent,omitempty" jsonschema:"UTF-8 text file content; upload with format textContent"`
 	}
 
 	// FileOutput is the file tool's result; each action fills its part.
 	FileOutput struct {
-		ID           string     `json:"id,omitempty"`
-		URL          string     `json:"url,omitempty"`
-		ExpiresAt    string     `json:"expiresAt,omitempty"`
-		FileName     string     `json:"fileName,omitempty"`
-		Path         string     `json:"path,omitempty"`
-		Size         int64      `json:"size,omitempty"`
-		CreditsSpent int        `json:"creditsSpent,omitempty"`
-		Content      string     `json:"content,omitempty"`
-		Files        []FileInfo `json:"files,omitempty"`
+		ID           string `json:"id,omitempty"`
+		URL          string `json:"url,omitempty"`
+		ExpiresAt    string `json:"expiresAt,omitempty"`
+		FileName     string `json:"fileName,omitempty"`
+		Path         string `json:"path,omitempty"`
+		Size         int64  `json:"size,omitempty"`
+		CreditsSpent int    `json:"creditsSpent,omitempty"`
+		// Base64Content and TextContent are pointers so an empty file
+		// still carries its (empty) content field.
+		Base64Content *string    `json:"base64Content,omitempty"`
+		TextContent   *string    `json:"textContent,omitempty"`
+		Files         []FileInfo `json:"files,omitempty"`
 	}
 
 	// FileInfo is a file in a get listing.
@@ -126,6 +141,7 @@ func inputSchema() *jsonschema.Schema {
 	// FileInput is a plain struct, so inference cannot fail.
 	s, _ := jsonschema.For[FileInput](nil)
 	s.Properties["action"].Enum = []any{ActionUpload, ActionDownload, ActionGet, ActionURL}
+	s.Properties["format"].Enum = []any{FormatBase64, FormatText}
 	return s
 }
 
@@ -155,9 +171,9 @@ func (t *tool) upload(ctx context.Context, userID int64, in FileInput) (FileOutp
 	if err != nil {
 		return FileOutput{}, err
 	}
-	data, err := base64.StdEncoding.DecodeString(in.Content)
+	data, err := uploadContent(in)
 	if err != nil {
-		return FileOutput{}, errors.New("content must be base64")
+		return FileOutput{}, err
 	}
 	folderID, created, err := t.uploadFolder(ctx, userID, in)
 	if err != nil {
@@ -183,6 +199,47 @@ func (t *tool) upload(ctx context.Context, userID int64, in FileInput) (FileOutp
 		out.ExpiresAt = formatTime(created.ExpiresAt)
 	}
 	return out, nil
+}
+
+// uploadContent decodes the content field that format names. The other
+// field must be empty, so content is never silently ignored.
+func uploadContent(in FileInput) ([]byte, error) {
+	format, err := contentFormat(in.Format)
+	if err != nil {
+		return nil, err
+	}
+	if format == FormatText {
+		if in.Base64Content != nil {
+			return nil, errors.New("base64Content needs format base64Content")
+		}
+		if in.TextContent == nil {
+			return nil, errors.New("textContent is required with format textContent")
+		}
+		return []byte(*in.TextContent), nil
+	}
+	if in.TextContent != nil {
+		return nil, errors.New("textContent needs format textContent")
+	}
+	if in.Base64Content == nil {
+		return nil, errors.New("base64Content is required with format base64Content")
+	}
+	data, err := base64.StdEncoding.DecodeString(*in.Base64Content)
+	if err != nil {
+		return nil, errors.New("base64Content must be base64")
+	}
+	return data, nil
+}
+
+// contentFormat checks a format, defaulting to base64Content.
+func contentFormat(format string) (string, error) {
+	switch format {
+	case "", FormatBase64:
+		return FormatBase64, nil
+	case FormatText:
+		return FormatText, nil
+	default:
+		return "", fmt.Errorf("unknown format %q: use base64Content or textContent", format)
+	}
 }
 
 // uploadFolder resolves the folder an upload goes to, creating it when no
@@ -211,6 +268,10 @@ func (t *tool) uploadFolder(ctx context.Context, userID int64, in FileInput) (in
 }
 
 func (t *tool) download(ctx context.Context, userID int64, in FileInput) (FileOutput, error) {
+	format, err := contentFormat(in.Format)
+	if err != nil {
+		return FileOutput{}, err
+	}
 	id, err := folderID(in.ID)
 	if err != nil {
 		return FileOutput{}, err
@@ -228,13 +289,18 @@ func (t *tool) download(ctx context.Context, userID int64, in FileInput) (FileOu
 	if err != nil {
 		return FileOutput{}, fmt.Errorf("read file: %w", err)
 	}
-	return FileOutput{
-		ID:       in.ID,
-		FileName: in.FileName,
-		Path:     dirOf(p),
-		Size:     int64(len(data)),
-		Content:  base64.StdEncoding.EncodeToString(data),
-	}, nil
+	out := FileOutput{ID: in.ID, FileName: in.FileName, Path: dirOf(p), Size: int64(len(data))}
+	if format == FormatText {
+		if !utf8.Valid(data) {
+			return FileOutput{}, errors.New("the file is not UTF-8 text: download it with format base64Content")
+		}
+		text := string(data)
+		out.TextContent = &text
+	} else {
+		encoded := base64.StdEncoding.EncodeToString(data)
+		out.Base64Content = &encoded
+	}
+	return out, nil
 }
 
 func (t *tool) get(ctx context.Context, userID int64, in FileInput) (FileOutput, error) {
