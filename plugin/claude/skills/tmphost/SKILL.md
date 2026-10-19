@@ -41,6 +41,13 @@ server; the first call opens the browser so the user can sign in (OAuth).
 3. Give the user the folder URL (`url` with just `id`); `index.html` is served
    for the folder root.
 
+## Sharing Markdown as a page
+
+Upload a `.md` file with `format: "textContent"` and give the user its `url`
+with `?format=html` appended: it opens as a styled reading page (tables, task
+lists, code blocks, light and dark), while the plain `url` serves the raw
+Markdown.
+
 ## Credits
 
 Each file costs 1 credit per started MB of its size per started 30 minutes of

@@ -11,6 +11,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/golang/mock/gomock"
@@ -772,6 +773,43 @@ func TestOpenPublicFile(t *testing.T) {
 		rs, err := e.ctrl.OpenPublicFile(ctx, &entity.OpenPublicFileRequest{FolderID: 1000})
 		require.NoError(t, err)
 		assert.Equal(t, body, rs.Body)
+	})
+}
+
+func TestOpenPublicFile_MarkdownAsHTML(t *testing.T) {
+	ctx := context.Background()
+	open := func(t *testing.T, path, format string, body io.ReadCloser) (*entity.OpenFileResponse, error) {
+		e := newEnv(t)
+		e.liveFolder(time.Hour)
+		e.storage.EXPECT().Get(ctx, _prefix+path).Return(body, storage.Object{Size: 9, ModTime: _now}, nil)
+		return e.ctrl.OpenPublicFile(ctx, &entity.OpenPublicFileRequest{FolderID: 1000, Path: path, Format: format})
+	}
+
+	t.Run("rendered", func(t *testing.T) {
+		rs, err := open(t, "docs/README.md", "html", io.NopCloser(strings.NewReader("# Hello\n")))
+		require.NoError(t, err)
+		page, _ := io.ReadAll(rs.Body)
+		assert.NoError(t, rs.Body.Close())
+		assert.Equal(t, "text/html; charset=utf-8", rs.ContentType)
+		assert.Equal(t, int64(len(page)), rs.Size)
+		assert.Equal(t, _now, rs.ModTime)
+		assert.Contains(t, string(page), "<title>Hello</title>")
+	})
+	t.Run("not markdown", func(t *testing.T) {
+		body := io.NopCloser(strings.NewReader("x"))
+		rs, err := open(t, "a.txt", "html", body)
+		require.NoError(t, err)
+		assert.Equal(t, body, rs.Body)
+	})
+	t.Run("raw without the format", func(t *testing.T) {
+		body := io.NopCloser(strings.NewReader("# Hello"))
+		rs, err := open(t, "a.md", "", body)
+		require.NoError(t, err)
+		assert.Equal(t, body, rs.Body)
+	})
+	t.Run("read fails", func(t *testing.T) {
+		_, err := open(t, "a.md", "html", io.NopCloser(iotest.ErrReader(errBoom)))
+		assert.ErrorIs(t, err, errBoom)
 	})
 }
 

@@ -62,7 +62,8 @@ const _instructions = `tmphost.io hosts files for a limited time: use it to shar
 - Uploading to a path that already holds a file replaces it in place, and its URL stays the same.
 - Uploads and extend spend the user's credits by size and lifetime, so pick the shortest ttl that fits and don't re-upload unchanged files.
 - Anything uploaded is public to whoever has the URL until the folder expires: never upload secrets or private data unless the user asks to.
-- Give the user the url from the result; use get to list a folder and url to build links without uploading.`
+- Give the user the url from the result; use get to list a folder and url to build links without uploading.
+- To share a Markdown file (.md) as a readable web page, give its url with ?format=html appended.`
 
 type (
 	// Params are the transport's dependencies.

@@ -22,9 +22,11 @@ package folder
 //go:generate mockgen -source=folder.go -destination=mocks/folder.go -package=mocks
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"mime"
 	"net/url"
 	"path"
@@ -38,6 +40,7 @@ import (
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
 	"github.com/tmphost/tmphost/backend/internal/data/model"
 	mappermodel "github.com/tmphost/tmphost/backend/internal/mapper/model"
+	"github.com/tmphost/tmphost/backend/internal/markdown"
 	"github.com/tmphost/tmphost/backend/internal/repository"
 	"github.com/tmphost/tmphost/backend/internal/service/idgen"
 	"github.com/tmphost/tmphost/backend/internal/service/quota"
@@ -535,7 +538,27 @@ func (c *controller) OpenPublicFile(ctx context.Context, rq *entity.OpenPublicFi
 	if rq.UserID != 0 && f.UserID != rq.UserID {
 		return nil, ErrNotFound
 	}
-	return c.open(ctx, f, p)
+	rs, err := c.open(ctx, f, p)
+	if err != nil || rq.Format != markdown.FormatHTML || !markdown.IsMarkdown(p) {
+		return rs, err
+	}
+	return renderMarkdown(rs, p)
+}
+
+// renderMarkdown replaces the open Markdown file rs with its HTML page.
+func renderMarkdown(rs *entity.OpenFileResponse, p string) (*entity.OpenFileResponse, error) {
+	defer rs.Body.Close()
+	src, err := io.ReadAll(rs.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read markdown: %w", err)
+	}
+	page := markdown.Page(p, src)
+	return &entity.OpenFileResponse{
+		Body:        io.NopCloser(bytes.NewReader(page)),
+		Size:        int64(len(page)),
+		ContentType: markdown.ContentType,
+		ModTime:     rs.ModTime,
+	}, nil
 }
 
 func (c *controller) DeleteExpiredFolders(ctx context.Context) (*entity.DeleteExpiredFoldersResponse, error) {

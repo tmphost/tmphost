@@ -57,6 +57,11 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   to the sites domain; needs wildcard DNS and a certificate, which the
   built-in TLS obtains when it is the sites domain). Both are served with `Content-Security-Policy:
   sandbox`, so hosted pages never run with the app's origin.
+- A Markdown file (`.md`, `.markdown`) is served as is, or with
+  `?format=html` as a reading page: GitHub-flavoured Markdown (tables, task
+  lists, strikethrough, footnotes) in a wide serif column that follows the
+  visitor's light or dark theme, titled after its first `#` heading. Raw
+  HTML and `javascript:` links in the source are left out.
 
 ## MCP, CLI and OAuth
 
