@@ -32,6 +32,14 @@ func TestOAuthMetadataMappers(t *testing.T) {
 		})))
 }
 
+func TestFromHTTPRequestToGetOAuthServerMetadataRequestEntity(t *testing.T) {
+	var got *entity.GetOAuthServerMetadataRequest
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Host = "mcp.t.io:8443"
+	runAs(t, 0, "/", req, func(c fiber.Ctx) { got = FromHTTPRequestToGetOAuthServerMetadataRequestEntity(c) })
+	assert.Equal(t, &entity.GetOAuthServerMetadataRequest{Host: "mcp.t.io:8443"}, got)
+}
+
 func TestFromHTTPRequestToGetProtectedResourceMetadataRequestEntity(t *testing.T) {
 	var got *entity.GetProtectedResourceMetadataRequest
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -78,16 +86,20 @@ func TestFromHTTPRequestToAuthorizeRequestEntity(t *testing.T) {
 }
 
 func TestFromHTTPRequestToConsentRequestEntity(t *testing.T) {
-	form := func(userID int64, body string) *entity.ConsentRequest {
+	formOn := func(route string, userID int64, body string) *entity.ConsentRequest {
 		var got *entity.ConsentRequest
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, route, strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		runAs(t, userID, "/", req, func(c fiber.Ctx) { got = FromHTTPRequestToConsentRequestEntity(c) })
+		runAs(t, userID, route, req, func(c fiber.Ctx) { got = FromHTTPRequestToConsentRequestEntity(c) })
 		return got
+	}
+	form := func(userID int64, body string) *entity.ConsentRequest {
+		return formOn("/oauth2/authorize", userID, body)
 	}
 	assert.Equal(t, &entity.ConsentRequest{UserID: 7, Token: "t", Allow: true}, form(7, "consent=t&decision=allow"))
 	assert.Equal(t, &entity.ConsentRequest{Token: "t"}, form(0, "consent=t&decision=deny"))
 	assert.Nil(t, form(7, "decision=allow"))
+	assert.Equal(t, &entity.ConsentRequest{UserID: 7, Token: "t", Allow: true, MCP: true}, formOn("/oauth2/mcp/authorize", 7, "consent=t&decision=allow"))
 }
 
 func TestTokenMappers(t *testing.T) {

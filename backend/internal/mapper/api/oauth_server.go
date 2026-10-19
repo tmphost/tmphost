@@ -35,6 +35,12 @@ func FromGetOAuthServerMetadataResponseEntityToHTTPResponse(rs *entity.GetOAuthS
 	})
 }
 
+// FromHTTPRequestToGetOAuthServerMetadataRequestEntity reads the host the
+// metadata is asked on.
+func FromHTTPRequestToGetOAuthServerMetadataRequestEntity(c fiber.Ctx) *entity.GetOAuthServerMetadataRequest {
+	return &entity.GetOAuthServerMetadataRequest{Host: string(c.Request().Host())}
+}
+
 // FromHTTPRequestToGetProtectedResourceMetadataRequestEntity reads the
 // host the metadata is asked on.
 func FromHTTPRequestToGetProtectedResourceMetadataRequestEntity(c fiber.Ctx) *entity.GetProtectedResourceMetadataRequest {
@@ -107,7 +113,12 @@ func FromHTTPRequestToConsentRequestEntity(c fiber.Ctx) *entity.ConsentRequest {
 	if consent == "" {
 		return nil
 	}
-	return &entity.ConsentRequest{UserID: localUserID(c), Token: consent, Allow: c.FormValue("decision") == ConsentDecisionAllow}
+	return &entity.ConsentRequest{
+		UserID: localUserID(c),
+		Token:  consent,
+		Allow:  c.FormValue("decision") == ConsentDecisionAllow,
+		MCP:    c.Route().Path == oauthctrl.MCPAuthorizePath,
+	}
 }
 
 // FromHTTPRequestToTokenRequestEntity reads a form-encoded token request.

@@ -57,7 +57,10 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   `/.well-known/oauth-authorization-server` and
   `/.well-known/oauth-protected-resource/mcp`. The CLI uses the built-in
   public client ID `00000000001` with a loopback redirect. Access tokens also
-  work as Bearer tokens on `/api/v1`.
+  work as Bearer tokens on `/api/v1`. The MCP domain is an issuer of its own
+  (`https://<mcp domain>`), with its registration and token endpoints on that
+  host; its users sign in and consent on the app URL at
+  `/oauth2/mcp/authorize`, which answers with the MCP domain's `iss`.
 
 ## Claude Code plugin
 
@@ -115,7 +118,8 @@ can change the sign-up and monthly credit grants, the maximum TTL and the public
   `https://app.tmphost.io`, any domain or subdomain) and the sites domain
   (e.g. `tmphost.io`) whose dynamic subdomains `<8 characters>.<sites domain>`
   the server answers, and an optional MCP domain (e.g. `mcp.tmphost.io`,
-  `TMPHOSTIO_MCP_DOMAIN`) that serves only `/mcp` and its OAuth metadata, so
+  `TMPHOSTIO_MCP_DOMAIN`) that serves only `/mcp`, its OAuth metadata and
+  its OAuth register and token endpoints, so
   MCP clients connect to `https://mcp.tmphost.io/mcp`. Other hosts get a 404;
   localhost always reaches the app.
 - **TLS**: serve HTTPS on its own port (default 443) and redirect the app port

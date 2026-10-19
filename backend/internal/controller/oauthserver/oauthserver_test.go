@@ -111,17 +111,26 @@ func TestMetadata(t *testing.T) {
 		AuthorizationEndpoint: _issuer + "/oauth2/authorize",
 		TokenEndpoint:         _issuer + "/oauth2/token",
 		RegistrationEndpoint:  _issuer + "/oauth2/register",
-	}, e.ctrl.GetServerMetadata(context.Background()))
+	}, e.ctrl.GetServerMetadata(context.Background(), &entity.GetOAuthServerMetadataRequest{Host: "mcp.t.io"}))
 	assert.Equal(t, &entity.GetProtectedResourceMetadataResponse{
 		Resource: _issuer + "/mcp", AuthorizationServers: []string{_issuer},
 	}, e.ctrl.GetProtectedResourceMetadata(context.Background(), &entity.GetProtectedResourceMetadataRequest{Host: "mcp.t.io"}))
 
-	// With an MCP host, it names the endpoint on the host asked.
+	// With an MCP host, it names the endpoint and the issuer on the host
+	// asked. The MCP issuer's users sign in on the app host.
 	ctrl := New(Params{Issuer: _issuer, Resource: _issuer + "/mcp", MCPResource: "https://mcp.t.io/mcp"})
-	for host, want := range map[string]string{"MCP.t.io": "https://mcp.t.io/mcp", "t.io": _issuer + "/mcp", "": _issuer + "/mcp"} {
+	for host, want := range map[string]string{"MCP.t.io": "https://mcp.t.io", "t.io": _issuer, "": _issuer} {
 		rs := ctrl.GetProtectedResourceMetadata(context.Background(), &entity.GetProtectedResourceMetadataRequest{Host: host})
-		assert.Equal(t, want, rs.Resource, host)
+		assert.Equal(t, want+"/mcp", rs.Resource, host)
+		assert.Equal(t, []string{want}, rs.AuthorizationServers, host)
 	}
+	assert.Equal(t, &entity.GetOAuthServerMetadataResponse{
+		Issuer:                "https://mcp.t.io",
+		AuthorizationEndpoint: _issuer + "/oauth2/mcp/authorize",
+		TokenEndpoint:         "https://mcp.t.io/oauth2/token",
+		RegistrationEndpoint:  "https://mcp.t.io/oauth2/register",
+	}, ctrl.GetServerMetadata(context.Background(), &entity.GetOAuthServerMetadataRequest{Host: "mcp.t.io"}))
+	assert.Equal(t, _issuer, ctrl.GetServerMetadata(context.Background(), &entity.GetOAuthServerMetadataRequest{Host: "t.io"}).Issuer)
 }
 
 func TestRegisterClient(t *testing.T) {
@@ -216,6 +225,23 @@ func TestAuthorizeAndConsent(t *testing.T) {
 		out, err := e.ctrl.Consent(ctx, &entity.ConsentRequest{UserID: _userID, Token: rs.Consent.Token})
 		require.NoError(t, err)
 		assert.Equal(t, _redirect+"?error=access_denied&iss=https%3A%2F%2Ftmphost.io&state=xyz", out.RedirectURL)
+	})
+
+	t.Run("mcp issuer", func(t *testing.T) {
+		// Without an MCP host the app issuer answers.
+		out, err := e.ctrl.Consent(ctx, &entity.ConsentRequest{UserID: _userID, Token: rs.Consent.Token, MCP: true})
+		require.NoError(t, err)
+		assert.Contains(t, out.RedirectURL, "iss=https%3A%2F%2Ftmphost.io&")
+
+		ctrl := New(Params{Token: e.tokens, Users: e.users, Issuer: _issuer, MCPResource: "https://mcp.t.io/mcp"})
+		out, err = ctrl.Consent(ctx, &entity.ConsentRequest{UserID: _userID, Token: rs.Consent.Token, MCP: true})
+		require.NoError(t, err)
+		assert.Equal(t, _redirect+"?error=access_denied&iss=https%3A%2F%2Fmcp.t.io&state=xyz", out.RedirectURL)
+		out, err = ctrl.Consent(ctx, &entity.ConsentRequest{UserID: _userID, Token: rs.Consent.Token, Allow: true, MCP: true})
+		require.NoError(t, err)
+		u, err := url.Parse(out.RedirectURL)
+		require.NoError(t, err)
+		assert.Equal(t, "https://mcp.t.io", u.Query().Get("iss"))
 	})
 
 	t.Run("someone else's consent", func(t *testing.T) {
