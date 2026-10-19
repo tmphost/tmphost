@@ -22,7 +22,7 @@ const user = {
 async function mountSidebar(props = {}) {
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: '/', component: { render: () => null } }, { path: '/other', component: { render: () => null } }, { path: '/files', component: { render: () => null } }, { path: '/connect', component: { render: () => null } }],
+    routes: [{ path: '/', component: { render: () => null } }, { path: '/other', component: { render: () => null } }, { path: '/files', component: { render: () => null } }, { path: '/connect', component: { render: () => null } }, { path: '/credits', component: { render: () => null } }],
   })
   await router.push('/')
   return mount(AppSidebar, {
@@ -39,9 +39,11 @@ describe('AppSidebar', () => {
     expect(wrapper.text()).not.toContain('Home')
     expect(wrapper.findAll('a').find((a) => a.text() === 'Files').attributes('href')).toBe('/')
     expect(wrapper.find('a[href="/connect"]').text()).toBe('Connect')
-    expect(wrapper.find('a[href="/credits"]').text()).toBe('Credits')
+    expect(wrapper.text()).not.toContain('Credits')
     expect(wrapper.find('a[href="/connect"]').classes()).not.toContain('font-semibold')
     const credits = wrapper.find('[data-test="sidebar-credits"]')
+    expect(credits.element.tagName).toBe('A')
+    expect(credits.attributes('href')).toBe('/credits')
     expect(credits.text()).toContain('125')
     expect(credits.text()).toContain('/ 250')
     expect(credits.text()).toContain('Renews in 10 days')
