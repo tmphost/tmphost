@@ -285,8 +285,9 @@ describe('FilesView', () => {
 
   it('uploads into a new folder with progress, then refreshes', async () => {
     const first = deferred()
+    const second = deferred()
     createFolder.mockResolvedValue({ id: 'f9' })
-    uploadFile.mockReturnValueOnce(first.promise).mockResolvedValueOnce({ file: {}, creditsSpent: 1 })
+    uploadFile.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
     const wrapper = await mountView()
     await wrapper.find('[data-test="upload-ttl"]').setValue('1')
     await pick(wrapper, '[data-test="pick-folder"]', [file('index.html', 10, 'site/index.html'), file('a b.txt')])
@@ -296,10 +297,20 @@ describe('FilesView', () => {
     await flushPromises()
     expect(createFolder).toHaveBeenCalledWith(60)
     expect(wrapper.find('[data-test="upload-start"]').text()).toBe('Uploading 0 / 2')
+    const onProgress = uploadFile.mock.calls[0][3]
+    onProgress(5)
+    await flushPromises()
+    expect(wrapper.find('[data-test="upload-progress-percent"]').text()).toBe('25%')
     expect(wrapper.find('[data-test="upload-start"]').attributes('disabled')).toBeDefined()
     expect(wrapper.find('[data-test="upload-clear"]').attributes('disabled')).toBeDefined()
 
     first.resolve({ file: {}, creditsSpent: 1 })
+    await flushPromises()
+    // The second file's progress counts on top of the first file's bytes.
+    uploadFile.mock.calls[1][3](5)
+    await flushPromises()
+    expect(wrapper.find('[data-test="upload-progress-percent"]').text()).toBe('75%')
+    second.resolve({ file: {}, creditsSpent: 1 })
     await flushPromises()
     expect(uploadFile.mock.calls.map((c) => [c[0], c[1]])).toEqual([
       ['f9', 'site/index.html'],

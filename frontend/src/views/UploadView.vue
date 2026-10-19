@@ -7,6 +7,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import BrandLogo from '../components/BrandLogo.vue'
+import UploadProgress from '../components/UploadProgress.vue'
 import { createFolder, fetchLimits, uploadFile } from '../api'
 import { useClipboard } from '../composables/useClipboard'
 import { useToasts } from '../composables/useToasts'
@@ -33,7 +34,8 @@ const limits = ref(null)
 const selected = ref([])
 const dragging = ref(false)
 const uploading = ref(false)
-const progress = ref({ done: 0, total: 0 })
+// Files done of files, and bytes sent of total bytes, while uploading.
+const progress = ref({ done: 0, files: 0, sent: 0, total: 0 })
 // The last upload: { folder, files }.
 const result = ref(null)
 // What to open or share for the result folder, as the API's openUrl: its
@@ -93,16 +95,20 @@ function removeSelected(path) {
 async function upload() {
   const items = selected.value
   uploading.value = true
-  progress.value = { done: 0, total: items.length }
+  progress.value = { done: 0, files: items.length, sent: 0, total: items.reduce((n, item) => n + item.file.size, 0) }
+  // The bytes of the files already uploaded.
+  let sent = 0
   try {
     if (!addToResult.value) result.value = { folder: await createFolder(limits.value.defaultTtlMinutes), files: [] }
     const { folder, files } = result.value
+    const onProgress = (bytes) => (progress.value.sent = sent + bytes)
     for (const item of items) {
-      const { file } = await uploadFile(folder.id, item.path, item.file)
+      const { file } = await uploadFile(folder.id, item.path, item.file, onProgress)
       const i = files.findIndex((f) => f.path === file.path)
       if (i < 0) files.push(file)
       else files[i] = file
-      progress.value = { done: progress.value.done + 1, total: items.length }
+      sent += item.file.size
+      progress.value.done++
     }
     selected.value = []
     addToResult.value = true
@@ -208,12 +214,14 @@ onMounted(async () => {
           Add to the folder below, replacing files with the same path
         </label>
 
+        <UploadProgress v-if="uploading" :sent="progress.sent" :total="progress.total" class="mt-4" />
+
         <div class="mt-4 flex items-center justify-end gap-3">
           <button type="button" :disabled="uploading" :class="SECONDARY" data-test="upload-clear" @click="selected = []">
             Clear
           </button>
           <button type="button" :disabled="!canUpload" :class="PRIMARY" data-test="upload-start" @click="upload">
-            {{ uploading ? `Uploading ${progress.done} / ${progress.total}` : 'Upload' }}
+            {{ uploading ? `Uploading ${progress.done} / ${progress.files}` : 'Upload' }}
           </button>
         </div>
       </div>

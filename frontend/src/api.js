@@ -132,11 +132,9 @@ export async function grantCredits({ credits, email, all }) {
 
 // request sends a JSON request for the signed-in user and returns the parsed
 // body, or null for 204. Failures throw an Error carrying the HTTP status.
-async function request(method, path, { body, raw, fallback } = {}) {
+async function request(method, path, { body, fallback } = {}) {
   const init = { method, credentials: 'same-origin' }
-  if (raw !== undefined) {
-    init.body = raw
-  } else if (body !== undefined) {
+  if (body !== undefined) {
     init.headers = { 'Content-Type': 'application/json' }
     init.body = JSON.stringify(body)
   }
@@ -207,10 +205,31 @@ export async function deleteFolder(id) {
 }
 
 // uploadFile stores one file under path and returns { file, creditsSpent }.
-export function uploadFile(folderId, path, file) {
-  return request('PUT', `/folders/${encodeURIComponent(folderId)}/files/${filePath(path)}`, {
-    raw: file,
-    fallback: `Failed to upload ${path}`,
+// It uses XMLHttpRequest because fetch can't report upload progress:
+// onProgress gets the bytes sent so far.
+export function uploadFile(folderId, path, file, onProgress = () => {}) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', `${API_BASE_URL}/folders/${encodeURIComponent(folderId)}/files/${filePath(path)}`)
+    xhr.upload.onprogress = (e) => onProgress(e.loaded)
+    xhr.onload = () => {
+      let body = null
+      try {
+        body = JSON.parse(xhr.responseText)
+      } catch {
+        // Not JSON; use the fallback.
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(file.size)
+        resolve(body)
+        return
+      }
+      const err = new Error(body?.error || `Failed to upload ${path} (${xhr.status})`)
+      err.status = xhr.status
+      reject(err)
+    }
+    xhr.onerror = () => reject(new Error(`Failed to upload ${path}`))
+    xhr.send(file)
   })
 }
 
