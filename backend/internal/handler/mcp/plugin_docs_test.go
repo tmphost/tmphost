@@ -5,6 +5,9 @@
 package mcp
 
 import (
+	"encoding/json"
+	"image"
+	_ "image/png"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -78,4 +81,36 @@ func TestPluginDocsNameEveryAction(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The plugin directory lists the plugin with .claude-plugin/icon.png: a
+// square PNG, 512 to 2048 px a side, under 2 MB.
+func TestPluginIcon(t *testing.T) {
+	path := filepath.Join(repoRoot(t), "plugin", "claude", ".claude-plugin", "icon.png")
+	f, err := os.Open(path)
+	require.NoError(t, err)
+	defer func() { _ = f.Close() }()
+	cfg, format, err := image.DecodeConfig(f)
+	require.NoError(t, err)
+	assert.Equal(t, "png", format)
+	assert.Equal(t, cfg.Width, cfg.Height, "square")
+	assert.GreaterOrEqual(t, cfg.Width, 512)
+	assert.LessOrEqual(t, cfg.Width, 2048)
+	info, err := f.Stat()
+	require.NoError(t, err)
+	assert.Less(t, info.Size(), int64(2<<20))
+}
+
+// The plugin directory shows its privacy policy, from the manifest and the
+// plugin's README.
+func TestPluginPrivacyPolicy(t *testing.T) {
+	dir := filepath.Join(repoRoot(t), "plugin", "claude")
+	var manifest struct {
+		Icon             string `json:"icon"`
+		PrivacyPolicyURL string `json:"privacyPolicyUrl"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(readFile(t, filepath.Join(dir, ".claude-plugin", "plugin.json"))), &manifest))
+	assert.Equal(t, "https://tmphost.io/privacy", manifest.PrivacyPolicyURL)
+	assert.Equal(t, "./.claude-plugin/icon.png", manifest.Icon)
+	assert.Contains(t, readFile(t, filepath.Join(dir, "README.md")), "[Privacy Policy](https://tmphost.io/privacy)")
 }
