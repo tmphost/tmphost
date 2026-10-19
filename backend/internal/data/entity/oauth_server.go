@@ -16,6 +16,12 @@ type (
 		RegistrationEndpoint  string
 	}
 
+	// GetOAuthServerMetadataRequest asks for the metadata as seen on Host
+	// (the Host header, port included).
+	GetOAuthServerMetadataRequest struct {
+		Host string
+	}
+
 	// GetProtectedResourceMetadataRequest asks for the metadata as seen
 	// on Host (the Host header, port included).
 	GetProtectedResourceMetadataRequest struct {
@@ -83,6 +89,9 @@ type (
 		UserID int64
 		Token  string
 		Allow  bool
+		// MCP is set for an answer to the MCP host issuer's authorization
+		// endpoint, so it goes back with that issuer.
+		MCP bool
 	}
 
 	// ConsentResponse sends the browser back to the client.

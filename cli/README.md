@@ -91,14 +91,15 @@ Folder URLs come from the server and may look like
 ## MCP
 
 The server offers the same `file` tool (actions `upload`, `download`, `get`
-and `url`) at `<server>/mcp`, for AI agents:
+and `url`) at `<server>/mcp` (and on its MCP domain, `https://mcp.tmphost.io/mcp` for
+tmphost.io), for AI agents:
 
 ```json
 {
   "mcpServers": {
     "tmphost": {
       "type": "http",
-      "url": "https://tmphost.io/mcp"
+      "url": "https://mcp.tmphost.io/mcp"
     }
   }
 }
