@@ -18,6 +18,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/mustafaturan/monoflake v1.2.0
 	github.com/robfig/cron/v3 v3.0.1
+	github.com/rs/zerolog v1.35.1
 	github.com/stretchr/testify v1.12.1
 	github.com/valyala/fasthttp v1.75.0
 	golang.org/x/oauth2 v0.37.0

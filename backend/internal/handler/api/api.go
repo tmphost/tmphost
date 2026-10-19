@@ -6,13 +6,13 @@
 package api
 
 import (
-	"log"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/limiter"
+	zlog "github.com/rs/zerolog/log"
 
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
 	folderctrl "github.com/tmphost/tmphost/backend/internal/controller/folder"
@@ -129,5 +129,5 @@ func sendError(c fiber.Ctx, status int, msg string) error {
 
 // logServerError logs the cause of a 500, which the response hides.
 func logServerError(c fiber.Ctx, err error) {
-	log.Printf("%s %s%s: %v", c.Method(), c.Hostname(), c.Path(), err)
+	zlog.Error().Err(err).Str("method", c.Method()).Str("host", c.Hostname()).Str("path", c.Path()).Msg("server error")
 }

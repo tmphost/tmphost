@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"log"
 	"net"
 	"strconv"
 	"strings"
@@ -19,6 +18,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
 	"github.com/gofiber/fiber/v3/middleware/recover"
+	zlog "github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
@@ -369,10 +369,10 @@ func (a *App) renewCredits() {
 	defer cancel()
 	rs, err := a.credits.RenewDueCredits(ctx)
 	if err != nil {
-		log.Printf("credit renewal: renewed %d before failing: %v", rs.Renewed, err)
+		zlog.Error().Err(err).Int("renewed", rs.Renewed).Msg("credit renewal: failed")
 		return
 	}
-	log.Printf("credit renewal: renewed %d accounts", rs.Renewed)
+	zlog.Info().Int("renewed", rs.Renewed).Msg("credit renewal: renewed accounts")
 }
 
 func (a *App) sweepFolders() {
@@ -380,11 +380,11 @@ func (a *App) sweepFolders() {
 	defer cancel()
 	rs, err := a.folders.DeleteExpiredFolders(ctx)
 	if err != nil {
-		log.Printf("folder sweep: deleted %d, failed: %v", rs.Deleted, err)
+		zlog.Error().Err(err).Int("deleted", rs.Deleted).Msg("folder sweep: failed")
 		return
 	}
 	if rs.Deleted > 0 {
-		log.Printf("folder sweep: deleted %d expired folders", rs.Deleted)
+		zlog.Info().Int("deleted", rs.Deleted).Msg("folder sweep: deleted expired folders")
 	}
 }
 

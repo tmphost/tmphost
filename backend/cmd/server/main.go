@@ -9,12 +9,12 @@ import (
 	"context"
 	"embed"
 	"io/fs"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	zlog "github.com/rs/zerolog/log"
 	"github.com/tmphost/tmphost/backend/internal/app"
 	"github.com/tmphost/tmphost/backend/internal/service/config"
 	"github.com/tmphost/tmphost/backend/internal/service/encryption"
@@ -28,13 +28,13 @@ var bundled embed.FS
 const _shutdownTimeout = 10 * time.Second
 
 // fatal is swapped out in tests.
-var fatal = log.Fatal
+var fatal = zlog.Fatal
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := run(ctx, os.Getenv); err != nil {
-		fatal(err)
+		fatal().Err(err).Msg("run")
 	}
 }
 
@@ -55,7 +55,7 @@ func run(ctx context.Context, getenv func(string) string) error {
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- a.Listen() }()
-	log.Printf("tmphost.io listening on :%d", cfg.App.Port)
+	zlog.Info().Int("port", cfg.App.Port).Msg("tmphost.io listening")
 
 	select {
 	case err := <-errCh:
