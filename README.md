@@ -40,8 +40,17 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   `u<userId>/<folderId>/<path>`. Paths are at most 5 directories deep and are
   validated server-side, so a file can never leave its folder. The database
   stores only each folder's ID, owner and expiry; a job deletes expired
-  folders every minute. Folder IDs are 11 random lowercase base36
+  folders every minute. Folder IDs are 8 random lowercase base36
   characters, so public URLs can't be guessed.
+- Fresh uploads are also kept in memory and served from there for their
+  first 5 minutes (`TMPHOSTIO_STORAGE_CACHE_TTL`), up to 256 MB in all
+  (`TMPHOSTIO_STORAGE_CACHE_MAX_MB`, least recently used dropped first; 0
+  turns it off). Deleting a file or folder drops it from memory too. With
+  S3, an upload is answered once it is in memory and written to the bucket
+  in the background (`TMPHOSTIO_STORAGE_CACHE_ASYNC`, on by default):
+  writes of a path land in order, are retried 3 times, are listed and
+  served from memory until they land, and finish before shutdown. Past
+  another 256 MB of writes in flight, uploads wait for the bucket again.
 - Public URLs: `<TMPHOSTIO_BASE_URL>/files/<userId>/<folderId>/<path>` by
   default, or `<folderId>.<publicDomain>/<path>` with subdomains on
   (`TMPHOSTIO_FILES_SUBDOMAINS`, `TMPHOSTIO_FILES_PUBLIC_DOMAIN`, which defaults
@@ -87,6 +96,21 @@ self-hosted server, set the plugin's `server` option (default
 `/plugin configure tmphost@tmphost`, or at install time:
 `claude plugin install tmphost --marketplace tmphost/tmphost --config server=https://mcp.example.com`.
 CI runs `claude plugin validate --strict` on both manifests.
+
+## Gemini CLI extension
+
+This repository is also a [Gemini CLI](https://github.com/google-gemini/gemini-cli)
+extension: [gemini-extension.json](gemini-extension.json) adds the MCP server
+at `https://mcp.tmphost.io/mcp` and loads
+[plugin/gemini/GEMINI.md](plugin/gemini/GEMINI.md) (when and how to share
+files with it) into every session.
+
+```sh
+gemini extensions install https://github.com/tmphost/tmphost
+```
+
+Gemini CLI signs in through the browser (`/mcp auth tmphost`). For a
+self-hosted server, see [plugin/gemini](plugin/gemini/README.md).
 
 ## Development
 

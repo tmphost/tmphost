@@ -125,7 +125,7 @@ func applySettings(cfg Config, s entity.Settings) Config {
 	cfg.Postgres.Enabled = s.Database.Driver == setupctrl.DriverPostgres
 	cfg.Postgres.DSN = s.Database.Postgres.DSN
 	s3 := s.Storage.S3
-	cfg.Storage = StorageConfig{Driver: s.Storage.Driver, LocalPath: s.Storage.Local.Path}
+	cfg.Storage = StorageConfig{Driver: s.Storage.Driver, LocalPath: s.Storage.Local.Path, Cache: cfg.Storage.Cache}
 	cfg.Files = FilesConfig(s.Files)
 	cfg.S3 = S3Config{
 		Endpoint: s3.Endpoint, Region: s3.Region, Bucket: s3.Bucket,
