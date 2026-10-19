@@ -73,6 +73,7 @@ func (h *Public) send(c fiber.Ctx, rq *entity.OpenPublicFileRequest) error {
 		return notFound(c)
 	}
 	if err != nil {
+		logServerError(c, err)
 		return c.Status(fiber.StatusInternalServerError).SendString("Something went wrong.")
 	}
 	c.Set(fiber.HeaderContentType, rs.ContentType)

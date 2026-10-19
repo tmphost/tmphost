@@ -6,6 +6,7 @@
 package api
 
 import (
+	"log"
 	"strings"
 	"time"
 
@@ -124,4 +125,9 @@ func sendJSON(c fiber.Ctx, status int, payload []byte) error {
 
 func sendError(c fiber.Ctx, status int, msg string) error {
 	return sendJSON(c, status, mapper.FromErrorToHTTPResponse(msg))
+}
+
+// logServerError logs the cause of a 500, which the response hides.
+func logServerError(c fiber.Ctx, err error) {
+	log.Printf("%s %s%s: %v", c.Method(), c.Hostname(), c.Path(), err)
 }
