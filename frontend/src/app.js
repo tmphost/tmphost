@@ -34,6 +34,13 @@ export const routes = [
     meta: { public: true, title: 'Setup' },
   },
   {
+    // Root-only too: shares the root session with /setup.
+    path: '/admin',
+    name: 'admin',
+    component: () => import('./views/AdminView.vue'),
+    meta: { public: true, title: 'Admin' },
+  },
+  {
     // Files is the home page: signed-in users land here.
     path: '/',
     name: 'files',

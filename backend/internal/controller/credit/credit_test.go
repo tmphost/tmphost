@@ -16,6 +16,7 @@ import (
 
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
 	"github.com/tmphost/tmphost/backend/internal/data/model"
+	"github.com/tmphost/tmphost/backend/internal/repository"
 	mockrepo "github.com/tmphost/tmphost/backend/internal/repository/mocks"
 )
 
@@ -41,6 +42,7 @@ func TestRenewDueCredits_UsesCurrentGrant(t *testing.T) {
 	ctx := context.Background()
 	users := mockrepo.NewMockUserRepository(gomock.NewController(t))
 	c := New(Params{Users: users, Grant: func() int { return 400 }, Now: func() time.Time { return _now }})
+	users.EXPECT().ListExpiredCreditGrants(ctx, _now, _batchSize).Return(nil, nil)
 	users.EXPECT().ListUsersDueForCreditRenewal(ctx, _now, _batchSize).Return([]model.User{{ID: 1, CreditsRenewAt: _now}}, nil)
 	users.EXPECT().RenewUserCredits(ctx, int64(1), 400, _now.Add(Period)).Return(nil)
 	_, err := c.RenewDueCredits(ctx)
@@ -63,6 +65,11 @@ func TestRenewDueCredits_Batches(t *testing.T) {
 	ctx := context.Background()
 	c, users := newController(t, 2)
 	gomock.InOrder(
+		users.EXPECT().ListExpiredCreditGrants(ctx, _now, 2).Return([]model.CreditGrant{{ID: 7}, {ID: 8}}, nil),
+		users.EXPECT().ExpireCreditGrant(ctx, model.CreditGrant{ID: 7}).Return(nil),
+		users.EXPECT().ExpireCreditGrant(ctx, model.CreditGrant{ID: 8}).Return(nil),
+		users.EXPECT().ListExpiredCreditGrants(ctx, _now, 2).Return([]model.CreditGrant{{ID: 9}}, nil),
+		users.EXPECT().ExpireCreditGrant(ctx, model.CreditGrant{ID: 9}).Return(nil),
 		users.EXPECT().ListUsersDueForCreditRenewal(ctx, _now, 2).Return([]model.User{
 			{ID: 1, CreditsRenewAt: _now}, {ID: 2, CreditsRenewAt: _now.Add(-24 * time.Hour)},
 		}, nil),
@@ -74,11 +81,13 @@ func TestRenewDueCredits_Batches(t *testing.T) {
 	rs, err := c.RenewDueCredits(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 3, rs.Renewed)
+	assert.Equal(t, 3, rs.Expired)
 }
 
 func TestRenewDueCredits_NothingDue(t *testing.T) {
 	ctx := context.Background()
 	c, users := newController(t, 2)
+	users.EXPECT().ListExpiredCreditGrants(ctx, _now, 2).Return(nil, nil)
 	users.EXPECT().ListUsersDueForCreditRenewal(ctx, _now, 2).Return(nil, nil)
 	rs, err := c.RenewDueCredits(ctx)
 	require.NoError(t, err)
@@ -88,8 +97,27 @@ func TestRenewDueCredits_NothingDue(t *testing.T) {
 func TestRenewDueCredits_Errors(t *testing.T) {
 	ctx := context.Background()
 
+	t.Run("list expired grants", func(t *testing.T) {
+		c, users := newController(t, 2)
+		users.EXPECT().ListExpiredCreditGrants(ctx, _now, 2).Return(nil, errBoom)
+		rs, err := c.RenewDueCredits(ctx)
+		assert.ErrorIs(t, err, errBoom)
+		assert.Equal(t, 0, rs.Expired)
+	})
+
+	t.Run("expire grant", func(t *testing.T) {
+		c, users := newController(t, 2)
+		users.EXPECT().ListExpiredCreditGrants(ctx, _now, 2).Return([]model.CreditGrant{{ID: 7}, {ID: 8}}, nil)
+		users.EXPECT().ExpireCreditGrant(ctx, model.CreditGrant{ID: 7}).Return(nil)
+		users.EXPECT().ExpireCreditGrant(ctx, model.CreditGrant{ID: 8}).Return(errBoom)
+		rs, err := c.RenewDueCredits(ctx)
+		assert.ErrorIs(t, err, errBoom)
+		assert.Equal(t, 1, rs.Expired)
+	})
+
 	t.Run("list", func(t *testing.T) {
 		c, users := newController(t, 2)
+		users.EXPECT().ListExpiredCreditGrants(ctx, _now, 2).Return(nil, nil)
 		users.EXPECT().ListUsersDueForCreditRenewal(ctx, _now, 2).Return(nil, errBoom)
 		rs, err := c.RenewDueCredits(ctx)
 		assert.ErrorIs(t, err, errBoom)
@@ -98,6 +126,7 @@ func TestRenewDueCredits_Errors(t *testing.T) {
 
 	t.Run("update", func(t *testing.T) {
 		c, users := newController(t, 2)
+		users.EXPECT().ListExpiredCreditGrants(ctx, _now, 2).Return(nil, nil)
 		users.EXPECT().ListUsersDueForCreditRenewal(ctx, _now, 2).Return([]model.User{{ID: 1, CreditsRenewAt: _now}, {ID: 2, CreditsRenewAt: _now}}, nil)
 		users.EXPECT().RenewUserCredits(ctx, int64(1), DefaultMonthlyGrant, gomock.Any()).Return(nil)
 		users.EXPECT().RenewUserCredits(ctx, int64(2), DefaultMonthlyGrant, gomock.Any()).Return(errBoom)
@@ -157,4 +186,100 @@ func TestListCreditActivities(t *testing.T) {
 func TestSignupGrantOrDefault(t *testing.T) {
 	assert.Equal(t, DefaultSignupGrant, SignupGrantOrDefault(nil)())
 	assert.Equal(t, 5, SignupGrantOrDefault(func() int { return 5 })())
+}
+
+func TestGrantExpiry(t *testing.T) {
+	assert.Equal(t, time.Date(2026, 11, 17, 0, 0, 0, 0, time.UTC), GrantExpiry(_now), "midnight stays midnight")
+	grantedAt := time.Date(2026, 10, 19, 6, 30, 0, 0, time.FixedZone("x", 3*3600)) // 03:30 UTC
+	assert.Equal(t, time.Date(2026, 11, 19, 0, 0, 0, 0, time.UTC), GrantExpiry(grantedAt), "rounds up to the next 00:00 UTC")
+}
+
+func TestGrantCredits_Invalid(t *testing.T) {
+	ctx := context.Background()
+	c, _ := newController(t, 2)
+	for name, rq := range map[string]entity.GrantCreditsRequest{
+		"zero credits":     {Credits: 0, All: true},
+		"negative credits": {Credits: -1, All: true},
+		"too many credits": {Credits: MaxAdminGrant + 1, All: true},
+		"no target":        {Credits: 1, Email: "  "},
+		"both targets":     {Credits: 1, Email: "a@b.c", All: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := c.GrantCredits(ctx, &rq)
+			assert.ErrorIs(t, err, ErrInvalidGrant)
+		})
+	}
+}
+
+func TestGrantCredits_OneUser(t *testing.T) {
+	ctx := context.Background()
+	expires := GrantExpiry(_now)
+
+	t.Run("ok", func(t *testing.T) {
+		c, users := newController(t, 2)
+		users.EXPECT().FindUserByEmail(ctx, "a@b.c").Return(model.User{ID: 4}, nil)
+		users.EXPECT().GrantCredits(ctx, int64(4), MaxAdminGrant, expires).Return(nil)
+		rs, err := c.GrantCredits(ctx, &entity.GrantCreditsRequest{Credits: MaxAdminGrant, Email: " a@b.c "})
+		require.NoError(t, err)
+		assert.Equal(t, &entity.GrantCreditsResponse{Users: 1, ExpiresAt: expires}, rs)
+	})
+
+	t.Run("unknown user", func(t *testing.T) {
+		c, users := newController(t, 2)
+		users.EXPECT().FindUserByEmail(ctx, "a@b.c").Return(model.User{}, repository.ErrNotFound)
+		_, err := c.GrantCredits(ctx, &entity.GrantCreditsRequest{Credits: 1, Email: "a@b.c"})
+		assert.ErrorIs(t, err, ErrUserNotFound)
+	})
+
+	t.Run("find fails", func(t *testing.T) {
+		c, users := newController(t, 2)
+		users.EXPECT().FindUserByEmail(ctx, "a@b.c").Return(model.User{}, errBoom)
+		_, err := c.GrantCredits(ctx, &entity.GrantCreditsRequest{Credits: 1, Email: "a@b.c"})
+		assert.ErrorIs(t, err, errBoom)
+	})
+
+	t.Run("grant fails", func(t *testing.T) {
+		c, users := newController(t, 2)
+		users.EXPECT().FindUserByEmail(ctx, "a@b.c").Return(model.User{ID: 4}, nil)
+		users.EXPECT().GrantCredits(ctx, int64(4), 1, expires).Return(errBoom)
+		_, err := c.GrantCredits(ctx, &entity.GrantCreditsRequest{Credits: 1, Email: "a@b.c"})
+		assert.ErrorIs(t, err, errBoom)
+	})
+}
+
+func TestGrantCredits_AllUsers(t *testing.T) {
+	ctx := context.Background()
+	expires := GrantExpiry(_now)
+	all := &entity.GrantCreditsRequest{Credits: 5, All: true}
+
+	t.Run("pages through every user", func(t *testing.T) {
+		c, users := newController(t, 2)
+		gomock.InOrder(
+			users.EXPECT().ListUserIDs(ctx, int64(0), 2).Return([]int64{1, 2}, nil),
+			users.EXPECT().GrantCredits(ctx, int64(1), 5, expires).Return(nil),
+			users.EXPECT().GrantCredits(ctx, int64(2), 5, expires).Return(repository.ErrNotFound),
+			users.EXPECT().ListUserIDs(ctx, int64(2), 2).Return([]int64{3}, nil),
+			users.EXPECT().GrantCredits(ctx, int64(3), 5, expires).Return(nil),
+		)
+		rs, err := c.GrantCredits(ctx, all)
+		require.NoError(t, err)
+		assert.Equal(t, 2, rs.Users, "a user deleted since the listing is skipped")
+	})
+
+	t.Run("list fails", func(t *testing.T) {
+		c, users := newController(t, 2)
+		users.EXPECT().ListUserIDs(ctx, int64(0), 2).Return(nil, errBoom)
+		_, err := c.GrantCredits(ctx, all)
+		assert.ErrorIs(t, err, errBoom)
+	})
+
+	t.Run("grant fails", func(t *testing.T) {
+		c, users := newController(t, 2)
+		users.EXPECT().ListUserIDs(ctx, int64(0), 2).Return([]int64{1, 2}, nil)
+		users.EXPECT().GrantCredits(ctx, int64(1), 5, expires).Return(nil)
+		users.EXPECT().GrantCredits(ctx, int64(2), 5, expires).Return(errBoom)
+		rs, err := c.GrantCredits(ctx, all)
+		assert.ErrorIs(t, err, errBoom)
+		assert.Equal(t, 1, rs.Users)
+	})
 }

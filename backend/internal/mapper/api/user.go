@@ -38,6 +38,7 @@ func FromUserEntityToUserView(e entity.User) view.User {
 		Provider:       e.Provider,
 		Credits:        e.Credits,
 		CreditsLimit:   e.CreditsLimit,
+		MonthlyGrant:   e.MonthlyGrant,
 		CreditsRenewAt: e.CreditsRenewAt.UTC().Format(time.RFC3339),
 		CreatedAt:      e.CreatedAt.UTC().Format(time.RFC3339),
 	}

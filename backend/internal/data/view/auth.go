@@ -29,6 +29,7 @@ type (
 		Provider       string `json:"provider"`
 		Credits        int    `json:"credits"`
 		CreditsLimit   int    `json:"creditsLimit"`
+		MonthlyGrant   int    `json:"monthlyGrant"`
 		CreditsRenewAt string `json:"creditsRenewAt"`
 		CreatedAt      string `json:"createdAt"`
 	}

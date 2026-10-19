@@ -26,7 +26,7 @@ func newDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Folder{}, &model.CreditActivity{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Folder{}, &model.CreditActivity{}, &model.CreditGrant{}))
 	return db
 }
 

@@ -18,6 +18,8 @@ const OPS_LABELS = {
   renewal: 'Renewal',
   spend: 'Upload',
   refund: 'Refund',
+  admin_grant: 'Admin grant',
+  expiry: 'Admin grant expired',
 }
 
 const CARD = 'bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl'
@@ -86,7 +88,7 @@ onMounted(loadRange)
     <header class="px-4 pb-4 border-b border-gray-100 dark:border-zinc-800">
       <h1 class="text-lg font-bold text-gray-900 dark:text-zinc-100 tracking-tight">Credits</h1>
       <p class="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">
-        Every change to your operation credits: the sign-up grant, renewals, uploads and refunds.
+        Every change to your operation credits: the sign-up grant, renewals, uploads, refunds and admin grants.
       </p>
     </header>
 
@@ -113,7 +115,9 @@ onMounted(loadRange)
         </div>
         <div :class="[CARD, 'p-4 flex flex-col gap-1.5 col-span-2 md:col-span-1']">
           <span :class="CARD_LABEL">Monthly grant</span>
-          <span class="text-2xl font-black text-gray-900 dark:text-zinc-100 tabular-nums leading-none">{{ user?.creditsLimit ?? 0 }}</span>
+          <span class="text-2xl font-black text-gray-900 dark:text-zinc-100 tabular-nums leading-none" data-test="credits-monthly">{{
+            user?.monthlyGrant ?? 0
+          }}</span>
           <span class="text-[10px] text-gray-400 dark:text-zinc-500" data-test="credits-renewal">{{ renewal }}</span>
         </div>
       </div>

@@ -72,6 +72,7 @@ func New(p Params) {
 	}
 	user := &User{controller: p.Auth}
 	credit := &Credit{controller: p.Credits}
+	admin := &Admin{credits: p.Credits}
 	setup := &Setup{controller: p.Setup, basePath: basePath, cookieSecure: p.CookieSecure}
 	folder := &Folder{controller: p.Folders}
 	public := &Public{controller: p.Folders, settings: p.FileSettings}
@@ -134,6 +135,7 @@ func New(p Params) {
 	r.Post("/setup/logout", setup.Logout)
 	r.Get("/setup/settings", AuthenticateRoot(p.Setup), setup.Get)
 	r.Put("/setup/settings", AuthenticateRoot(p.Setup), setup.Update)
+	r.Post("/admin/credits/grants", AuthenticateRoot(p.Setup), admin.CreateCreditGrant)
 }
 
 // allowedOriginsCORS lets the allowed origins call the API from a browser,

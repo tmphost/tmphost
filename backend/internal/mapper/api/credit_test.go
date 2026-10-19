@@ -7,11 +7,13 @@ package api
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
 )
@@ -53,4 +55,28 @@ func TestFromListCreditActivitiesResponseEntityToHTTPResponse(t *testing.T) {
 
 	got = FromListCreditActivitiesResponseEntityToHTTPResponse(&entity.ListCreditActivitiesResponse{})
 	assert.JSONEq(t, `{"activities":[],"next":""}`, string(got))
+}
+
+func TestFromHTTPRequestToGrantCreditsRequestEntity(t *testing.T) {
+	app := fiber.New()
+	var got *entity.GrantCreditsRequest
+	app.Post("/", func(c fiber.Ctx) error {
+		got = FromHTTPRequestToGrantCreditsRequestEntity(c)
+		return nil
+	})
+	for body, want := range map[string]*entity.GrantCreditsRequest{
+		`{"credits":5,"email":"a@b.c"}`: {Credits: 5, Email: "a@b.c"},
+		`{"credits":5,"all":true}`:      {Credits: 5, All: true},
+		`nope`:                          nil,
+	} {
+		_, err := app.Test(httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body)))
+		require.NoError(t, err)
+		assert.Equal(t, want, got, body)
+	}
+}
+
+func TestFromGrantCreditsResponseEntityToHTTPResponse(t *testing.T) {
+	at := time.Date(2026, 11, 18, 1, 0, 0, 0, time.FixedZone("x", 3600))
+	got := FromGrantCreditsResponseEntityToHTTPResponse(&entity.GrantCreditsResponse{Users: 2, ExpiresAt: at})
+	assert.JSONEq(t, `{"users":2,"expiresAt":"2026-11-18T00:00:00Z"}`, string(got))
 }

@@ -51,6 +51,20 @@ func (mr *MockUserRepositoryMockRecorder) CreateUser(ctx, u interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUser", reflect.TypeOf((*MockUserRepository)(nil).CreateUser), ctx, u)
 }
 
+// ExpireCreditGrant mocks base method.
+func (m *MockUserRepository) ExpireCreditGrant(ctx context.Context, g model.CreditGrant) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExpireCreditGrant", ctx, g)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ExpireCreditGrant indicates an expected call of ExpireCreditGrant.
+func (mr *MockUserRepositoryMockRecorder) ExpireCreditGrant(ctx, g interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExpireCreditGrant", reflect.TypeOf((*MockUserRepository)(nil).ExpireCreditGrant), ctx, g)
+}
+
 // FindUserByEmail mocks base method.
 func (m *MockUserRepository) FindUserByEmail(ctx context.Context, email string) (model.User, error) {
 	m.ctrl.T.Helper()
@@ -81,6 +95,20 @@ func (mr *MockUserRepositoryMockRecorder) FindUserByID(ctx, id interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUserByID", reflect.TypeOf((*MockUserRepository)(nil).FindUserByID), ctx, id)
 }
 
+// GrantCredits mocks base method.
+func (m *MockUserRepository) GrantCredits(ctx context.Context, id int64, n int, expiresAt time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GrantCredits", ctx, id, n, expiresAt)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// GrantCredits indicates an expected call of GrantCredits.
+func (mr *MockUserRepositoryMockRecorder) GrantCredits(ctx, id, n, expiresAt interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GrantCredits", reflect.TypeOf((*MockUserRepository)(nil).GrantCredits), ctx, id, n, expiresAt)
+}
+
 // ListCreditActivities mocks base method.
 func (m *MockUserRepository) ListCreditActivities(ctx context.Context, userID, before int64, limit int) ([]model.CreditActivity, error) {
 	m.ctrl.T.Helper()
@@ -94,6 +122,36 @@ func (m *MockUserRepository) ListCreditActivities(ctx context.Context, userID, b
 func (mr *MockUserRepositoryMockRecorder) ListCreditActivities(ctx, userID, before, limit interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCreditActivities", reflect.TypeOf((*MockUserRepository)(nil).ListCreditActivities), ctx, userID, before, limit)
+}
+
+// ListExpiredCreditGrants mocks base method.
+func (m *MockUserRepository) ListExpiredCreditGrants(ctx context.Context, now time.Time, limit int) ([]model.CreditGrant, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListExpiredCreditGrants", ctx, now, limit)
+	ret0, _ := ret[0].([]model.CreditGrant)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListExpiredCreditGrants indicates an expected call of ListExpiredCreditGrants.
+func (mr *MockUserRepositoryMockRecorder) ListExpiredCreditGrants(ctx, now, limit interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListExpiredCreditGrants", reflect.TypeOf((*MockUserRepository)(nil).ListExpiredCreditGrants), ctx, now, limit)
+}
+
+// ListUserIDs mocks base method.
+func (m *MockUserRepository) ListUserIDs(ctx context.Context, after int64, limit int) ([]int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListUserIDs", ctx, after, limit)
+	ret0, _ := ret[0].([]int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListUserIDs indicates an expected call of ListUserIDs.
+func (mr *MockUserRepositoryMockRecorder) ListUserIDs(ctx, after, limit interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserIDs", reflect.TypeOf((*MockUserRepository)(nil).ListUserIDs), ctx, after, limit)
 }
 
 // ListUsersDueForCreditRenewal mocks base method.

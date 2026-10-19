@@ -108,9 +108,9 @@ func TestFromGetCurrentUserResponseEntityToHTTPResponse(t *testing.T) {
 	ts := time.Date(2026, 10, 18, 12, 0, 0, 0, time.FixedZone("x", 3600))
 	got := FromGetCurrentUserResponseEntityToHTTPResponse(&entity.GetCurrentUserResponse{User: entity.User{
 		ID: 42, Email: "a@b.c", Name: "A", Picture: "p", Provider: "google",
-		Credits: 10, CreditsLimit: 250, CreditsRenewAt: ts, CreatedAt: ts,
+		Credits: 10, CreditsLimit: 250, MonthlyGrant: 250, CreditsRenewAt: ts, CreatedAt: ts,
 	}})
 	assert.JSONEq(t, `{"user":{
 		"id":"`+monoflake.ID(42).String()+`","email":"a@b.c","name":"A","picture":"p","provider":"google",
-		"credits":10,"creditsLimit":250,"creditsRenewAt":"2026-10-18T11:00:00Z","createdAt":"2026-10-18T11:00:00Z"}}`, string(got))
+		"credits":10,"creditsLimit":250,"monthlyGrant":250,"creditsRenewAt":"2026-10-18T11:00:00Z","createdAt":"2026-10-18T11:00:00Z"}}`, string(got))
 }

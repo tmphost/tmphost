@@ -124,6 +124,28 @@ describe('setup api', () => {
     await expect(api.setupLogin('x')).rejects.toThrow('Sign-in failed (500)')
   })
 
+  it('grantCredits posts one target and surfaces API errors', async () => {
+    const api = await loadApi('')
+    fetch.mockResolvedValueOnce(json({ users: 3, expiresAt: '2026-11-18T00:00:00Z' }, 201))
+    expect(await api.grantCredits({ credits: 5, email: 'ignored', all: true })).toEqual({ users: 3, expiresAt: '2026-11-18T00:00:00Z' })
+    expect(fetch).toHaveBeenCalledWith('/api/v1/admin/credits/grants', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"credits":5,"all":true}',
+    })
+
+    fetch.mockResolvedValueOnce(json({ users: 1, expiresAt: '2026-11-18T00:00:00Z' }, 201))
+    await api.grantCredits({ credits: 5, email: 'a@b.c', all: false })
+    expect(fetch.mock.calls[1][1].body).toBe('{"credits":5,"email":"a@b.c"}')
+
+    fetch.mockResolvedValueOnce(json({ error: 'user not found' }, 404))
+    await expect(api.grantCredits({ credits: 5, email: 'x@y.z' })).rejects.toMatchObject({ message: 'user not found', status: 404 })
+
+    fetch.mockResolvedValueOnce(json({}, 500))
+    await expect(api.grantCredits({ credits: 5, all: true })).rejects.toThrow('Failed to grant credits (500)')
+  })
+
   it('setupLogout posts', async () => {
     const api = await loadApi('')
     fetch.mockResolvedValueOnce(json(null, 204))

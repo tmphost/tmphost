@@ -5,6 +5,7 @@
 package api
 
 import (
+	"encoding/json"
 	"strconv"
 	"time"
 
@@ -63,4 +64,20 @@ func FromCreditActivityEntitiesToCreditActivityViews(es []entity.CreditActivity)
 		}
 	}
 	return vs
+}
+
+// FromHTTPRequestToGrantCreditsRequestEntity reads POST
+// /admin/credits/grants. Checking the amount and target is the
+// controller's job.
+func FromHTTPRequestToGrantCreditsRequestEntity(c fiber.Ctx) *entity.GrantCreditsRequest {
+	var rq view.GrantCreditsRequest
+	if err := json.Unmarshal(c.Body(), &rq); err != nil {
+		return nil
+	}
+	return &entity.GrantCreditsRequest{Credits: rq.Credits, Email: rq.Email, All: rq.All}
+}
+
+// FromGrantCreditsResponseEntityToHTTPResponse renders a credit grant.
+func FromGrantCreditsResponseEntityToHTTPResponse(rs *entity.GrantCreditsResponse) []byte {
+	return marshal(view.GrantCreditsResponse{Users: rs.Users, ExpiresAt: rs.ExpiresAt.UTC().Format(time.RFC3339)})
 }

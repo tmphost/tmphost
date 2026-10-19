@@ -16,6 +16,10 @@ const (
 	CreditOpSpend
 	// CreditOpRefund gives back what failed file writes were paid with.
 	CreditOpRefund
+	// CreditOpAdminGrant adds credits root granted; they expire.
+	CreditOpAdminGrant
+	// CreditOpExpiry takes away what is left of an expired admin grant.
+	CreditOpExpiry
 )
 
 // CreditActivity is one change to a user's credit balance. It is written
