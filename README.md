@@ -16,6 +16,10 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   `files.maxTtlMinutes`, 7200 hours by default). Each file written costs 1
   credit per started MB (1 MiB) of its size per started 30 minutes of the
   folder's remaining lifetime: a 1.01 MB file kept for an hour costs 2 x 2 = 4.
+- Files can be added to an existing folder (web app, MCP `upload` with `id`,
+  CLI `--id`). Uploading to a path that is already there replaces the file
+  in place, an update: its URL stays the same and the folder keeps its
+  expiry. The write is charged like any other.
 - Without signing in, the web app's Upload page makes folders that live at
   most `files.anonymousMaxTtlMinutes` (`TMPHOSTIO_FILES_ANONYMOUS_MAX_TTL_MINUTES`,
   10 minutes by default; root can change it on /setup).

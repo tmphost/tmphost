@@ -36,7 +36,8 @@ files are followed; other non-regular files are skipped. --path puts
 everything under a directory inside the folder.
 
 Without --id a new folder is created that expires after --ttl. With --id the
-files are added to that folder and keep its expiry.
+files are added to that folder and keep its expiry; a file already at the same
+path is replaced and keeps its URL, so re-uploading updates it.
 
 Each file costs one credit per started MB of its size per started billing
 block of the folder's remaining lifetime; the total is checked against your credits up front.`,
@@ -50,7 +51,7 @@ block of the folder's remaining lifetime; the total is checked against your cred
 			return a.upload(cmd.Context(), args, o)
 		},
 	}
-	c.Flags().StringVar(&o.id, "id", "", "upload into this existing folder instead of creating one")
+	c.Flags().StringVar(&o.id, "id", "", "upload into this existing folder instead of creating one, replacing files at the same paths")
 	c.Flags().DurationVar(&o.ttl, "ttl", 30*time.Minute, "lifetime of a new folder, in whole minutes (e.g. 30m, 2h, 72h)")
 	c.Flags().StringVar(&o.dir, "path", "", "directory inside the folder, such as site/css")
 	c.Flags().StringVar(&o.name, "name", "", "upload a single local file under this file name")

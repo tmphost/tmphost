@@ -439,6 +439,38 @@ func TestPutFiles(t *testing.T) {
 	}, rs.Files)
 }
 
+// An upload to a path already in the folder is an update: the file is
+// replaced and keeps its URL.
+func TestPutFiles_ReplacesAFile(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	local, err := storage.NewLocal(t.TempDir())
+	require.NoError(t, err)
+	ctrl := New(Params{Folders: e.folders, Users: e.users, Storage: local, Limits: func() entity.FileSettings { return e.limits }, Now: func() time.Time { return _now }})
+	e.folders.EXPECT().FindFolderByID(gomock.Any(), int64(1000)).Return(model.Folder{ID: 1000, UserID: 7, ExpiresAt: _now.Add(time.Hour)}, nil).Times(4)
+	e.users.EXPECT().SpendCredits(ctx, int64(7), 2).Return(nil).Times(2)
+
+	put := func(data string) entity.File {
+		rs, err := ctrl.PutFiles(ctx, &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "site/index.html", Data: []byte(data)}}})
+		require.NoError(t, err)
+		return rs.Files[0]
+	}
+	first, second := put("v1"), put("version 2")
+	assert.Equal(t, first.URL, second.URL)
+	assert.Equal(t, int64(9), second.Size)
+
+	rs, err := ctrl.GetFolder(ctx, &entity.GetFolderRequest{UserID: 7, FolderID: 1000})
+	require.NoError(t, err)
+	require.Len(t, rs.Files, 1)
+	assert.Equal(t, "site/index.html", rs.Files[0].Path)
+	file, err := ctrl.OpenFile(ctx, &entity.OpenFileRequest{UserID: 7, FolderID: 1000, Path: "site/index.html"})
+	require.NoError(t, err)
+	defer func() { _ = file.Body.Close() }()
+	body, err := io.ReadAll(file.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "version 2", string(body))
+}
+
 func TestPutFiles_Validation(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)

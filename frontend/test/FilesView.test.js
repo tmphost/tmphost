@@ -72,6 +72,7 @@ describe('FilesView', () => {
     listFolders.mockResolvedValue(folders)
     writeText = vi.fn().mockResolvedValue()
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    Element.prototype.scrollIntoView = vi.fn()
   })
   afterEach(() => {
     vi.useRealTimers()
@@ -328,6 +329,140 @@ describe('FilesView', () => {
     await wrapper.find('[data-test="upload-start"]').trigger('click')
     await flushPromises()
     expect(lastToast().type).toBe('success')
+  })
+
+  it('uploads into an existing folder, marking the files it replaces', async () => {
+    fetchFolder.mockResolvedValue({ folder: folders[1], files })
+    uploadFile.mockResolvedValue({ file: {}, creditsSpent: 1 })
+    const wrapper = await mountView()
+    await wrapper.find('[data-test="folder-new"] [data-test="folder-toggle"]').trigger('click')
+    await flushPromises()
+    await pick(wrapper, '[data-test="pick-files"]', [file('a.txt'), file('b.txt')])
+    expect(wrapper.find('[data-test="selected-replaces"]').exists()).toBe(false)
+
+    await wrapper.find('[data-test="folder-new"] [data-test="folder-upload"]').trigger('click')
+    await flushPromises()
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled()
+    expect(wrapper.find('[data-test="upload-target"]').text()).toContain('Upload to new')
+    expect(wrapper.find('[data-test="upload-ttl"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="upload-target-expires"]').text()).toBe('6d 23h')
+    expect(wrapper.find('[data-test="folder-new"]').classes()).toContain('border-gray-900')
+    expect(wrapper.find('[data-test="folder-old"]').classes()).not.toContain('border-gray-900')
+    expect(wrapper.find('[data-test="selected-a.txt"] [data-test="selected-replaces"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="selected-b.txt"] [data-test="selected-replaces"]').exists()).toBe(false)
+    // 6 days 23 hours left are 334 billing blocks, per file.
+    expect(wrapper.find('[data-test="upload-cost"]').text()).toBe('2 files · 1 replaced · 668 credits')
+
+    await wrapper.find('[data-test="files-page"]').trigger('dragenter', { dataTransfer: { types: ['Files'] } })
+    expect(wrapper.find('[data-test="drop-overlay"]').text()).toContain('They go into new, replacing files with the same path.')
+    await wrapper.find('[data-test="files-page"]').trigger('dragleave', { dataTransfer: { types: ['Files'] } })
+
+    await wrapper.find('[data-test="upload-start"]').trigger('click')
+    await flushPromises()
+    expect(createFolder).not.toHaveBeenCalled()
+    expect(uploadFile.mock.calls.map((c) => [c[0], c[1]])).toEqual([
+      ['new', 'a.txt'],
+      ['new', 'b.txt'],
+    ])
+    expect(lastToast()).toMatchObject({ type: 'success', message: 'Uploaded 2 files' })
+    // The expanded listing is reloaded; the card is back to a new folder.
+    expect(fetchFolder).toHaveBeenCalledTimes(3)
+    expect(wrapper.find('[data-test="folder-new"] [data-test="folder-files"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="upload-target"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="upload-ttl"]').exists()).toBe(true)
+  })
+
+  it('targets the last picked folder and switches back to a new one', async () => {
+    const slow = deferred()
+    fetchFolder.mockReturnValueOnce(slow.promise).mockResolvedValueOnce({ folder: folders[1], files })
+    const wrapper = await mountView()
+    await pick(wrapper, '[data-test="pick-files"]', [file('a.txt'), file('b.txt')])
+    await wrapper.find('[data-test="folder-old"] [data-test="folder-upload"]').trigger('click')
+    await wrapper.find('[data-test="folder-new"] [data-test="folder-upload"]').trigger('click')
+    await flushPromises()
+    slow.resolve({ folder: folders[0], files: [{ path: 'b.txt' }] })
+    await flushPromises()
+    expect(wrapper.find('[data-test="upload-target"]').text()).toContain('new')
+    expect(wrapper.find('[data-test="selected-a.txt"] [data-test="selected-replaces"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="selected-b.txt"] [data-test="selected-replaces"]').exists()).toBe(false)
+
+    // The card follows a rename of its folder.
+    renameFolder.mockResolvedValueOnce({ ...folders[1], title: 'Photos', defaultTitle: 'new' })
+    await wrapper.find('[data-test="folder-new"] [data-test="folder-title"]').trigger('click')
+    await wrapper.find('[data-test="folder-title-input"]').setValue('Photos')
+    await wrapper.find('[data-test="folder-title-input"]').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(wrapper.find('[data-test="upload-target"]').text()).toContain('Upload to Photos')
+
+    await wrapper.find('[data-test="upload-new-folder"]').trigger('click')
+    expect(wrapper.find('[data-test="upload-target"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="selected-replaces"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="upload-cost"]').text()).toBe('2 files · 2 credits')
+
+    // Without the folder's listing, nothing is marked but the upload still works.
+    fetchFolder.mockRejectedValueOnce(new Error('Failed to load folder (500)'))
+    await wrapper.find('[data-test="folder-old"] [data-test="folder-upload"]').trigger('click')
+    await flushPromises()
+    expect(lastToast()).toMatchObject({ type: 'error', message: 'Failed to load folder (500)' })
+    expect(wrapper.find('[data-test="upload-target"]').text()).toContain('old')
+    expect(wrapper.find('[data-test="upload-start"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('blocks uploads into a folder that has expired', async () => {
+    fetchFolder.mockResolvedValue({ folder: folders[0], files: [] })
+    const wrapper = await mountView()
+    await wrapper.find('[data-test="folder-old"] [data-test="folder-upload"]').trigger('click')
+    await pick(wrapper, '[data-test="pick-files"]', [file('a.txt')])
+    await flushPromises()
+    expect(wrapper.find('[data-test="upload-cost"]').text()).toBe('1 file · 2 credits')
+    expect(wrapper.find('[data-test="upload-target-expired"]').exists()).toBe(false)
+
+    vi.advanceTimersByTime(45 * 60 * 1000)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-test="upload-target-expires"]').text()).toBe('Expired')
+    expect(wrapper.find('[data-test="upload-target-expired"]').text()).toBe('old has expired. Upload to a new folder instead.')
+    expect(wrapper.find('[data-test="upload-cost"]').text()).toBe('1 file · 1 credits')
+    expect(wrapper.find('[data-test="upload-start"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('reports a folder that cannot be created', async () => {
+    createFolder.mockRejectedValue(new Error('Failed to create folder (500)'))
+    const wrapper = await mountView()
+    await pick(wrapper, '[data-test="pick-files"]', [file('a.txt')])
+    await wrapper.find('[data-test="upload-start"]').trigger('click')
+    await flushPromises()
+    expect(lastToast()).toMatchObject({ type: 'error', message: 'Failed to create folder (500)' })
+    expect(uploadFile).not.toHaveBeenCalled()
+    expect(listFolders).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the upload target in step with deletions', async () => {
+    fetchFolder.mockResolvedValue({ folder: folders[1], files })
+    deleteFile.mockResolvedValue()
+    deleteFolder.mockResolvedValue()
+    const wrapper = await mountView()
+    await pick(wrapper, '[data-test="pick-files"]', [file('a.txt')])
+    await wrapper.find('[data-test="folder-new"] [data-test="folder-toggle"]').trigger('click')
+    await wrapper.find('[data-test="folder-new"] [data-test="folder-upload"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="selected-replaces"]').exists()).toBe(true)
+
+    await wrapper.find('[data-test="file-a.txt"] [data-test="file-delete"]').trigger('click')
+    await wrapper.find('[data-test="delete-modal-confirm"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="selected-replaces"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="upload-target"]').exists()).toBe(true)
+
+    // Deleting another folder keeps the target.
+    await wrapper.find('[data-test="folder-old"] [data-test="folder-delete"]').trigger('click')
+    await wrapper.find('[data-test="delete-modal-confirm"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="upload-target"]').exists()).toBe(true)
+
+    await wrapper.find('[data-test="folder-new"] [data-test="folder-delete"]').trigger('click')
+    await wrapper.find('[data-test="delete-modal-confirm"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="upload-target"]').exists()).toBe(false)
   })
 
   it('expands a folder to its files and collapses it', async () => {
