@@ -69,7 +69,7 @@ func TestNew_WiresProvidersAndRoutes(t *testing.T) {
 	a, err := New(testConfig(t), fstest.MapFS{})
 	require.NoError(t, err)
 
-	res, body := get(t, a, "/api/v1/auth/config")
+	res, body := get(t, a, "/auth/config")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.JSONEq(t, `{"providers":[{"id":"google","name":"Google","icon":""},{"id":"github","name":"GitHub","icon":""}]}`, body)
 
@@ -86,7 +86,7 @@ func TestNew_NoProvidersConfigured(t *testing.T) {
 	cfg.Auth.Google, cfg.Auth.GitHub = OAuthAppConfig{}, OAuthAppConfig{}
 	a, err := New(cfg, fstest.MapFS{})
 	require.NoError(t, err)
-	_, body := get(t, a, "/api/v1/auth/config")
+	_, body := get(t, a, "/auth/config")
 	var got struct{ Providers []any }
 	require.NoError(t, json.Unmarshal([]byte(body), &got))
 	assert.Empty(t, got.Providers)
@@ -226,7 +226,7 @@ func TestSetupFlow_SettingsApplyAndPersist(t *testing.T) {
 	// ...and saved settings override the config on the next start.
 	b, err := New(cfg, fstest.MapFS{})
 	require.NoError(t, err)
-	_, cfgBody := get(t, b, "/api/v1/auth/config")
+	_, cfgBody := get(t, b, "/auth/config")
 	assert.JSONEq(t, `{"providers":[{"id":"github","name":"GitHub","icon":""},{"id":"okta","name":"Okta","icon":"<svg></svg>"}]}`,
 		cfgBody, "google cleared, github secret kept, okta added")
 

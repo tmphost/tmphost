@@ -36,7 +36,7 @@ export function clearUserCache() {
 
 // fetchAuthConfig lists the sign-in providers the server has enabled.
 export async function fetchAuthConfig() {
-  const res = await fetch(`${API_BASE_URL}/auth/config`)
+  const res = await fetch(`${BASE_PATH}/auth/config`)
   if (!res.ok) throw new Error(`Failed to load sign-in options (${res.status})`)
   const body = await res.json()
   return body.providers

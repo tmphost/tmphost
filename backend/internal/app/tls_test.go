@@ -107,7 +107,7 @@ func TestListenTLS(t *testing.T) {
 
 	var res *http.Response
 	require.Eventually(t, func() bool {
-		res, err = client.Get("https://app.example.com/api/v1/auth/config")
+		res, err = client.Get("https://app.example.com/auth/config")
 		return err == nil
 	}, 5*time.Second, 20*time.Millisecond)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
