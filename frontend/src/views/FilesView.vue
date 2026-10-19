@@ -80,8 +80,12 @@ const ttlChoices = computed(() => (limits.value ? ttlOptions(limits.value.maxTtl
 // The slider steps through ttlChoices by index; ttl keeps the minutes. It
 // binds :value rather than v-model so Vue sets max before the value.
 const ttlIndex = computed(() => Math.max(0, ttlChoices.value.indexOf(ttl.value)))
+// sortedFolders leaves out folders that expired since they were loaded; the
+// server deletes them, so they drop off the list as the countdown runs out.
 const sortedFolders = computed(() =>
-  [...folders.value].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
+  folders.value
+    .filter((f) => Date.parse(f.expiresAt) > now.value)
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
 )
 // remainingMinutes is what is left of a folder's lifetime, in started minutes.
 const remainingMinutes = (folder) => Math.max(0, Math.ceil((Date.parse(folder.expiresAt) - now.value) / MINUTE_MS))
@@ -483,7 +487,7 @@ onUnmounted(() => clearInterval(timer))
         </svg>
       </div>
 
-      <div v-else-if="!folders.length" class="rounded-xl border border-gray-100 dark:border-zinc-800 p-8 text-center" data-test="folders-empty">
+      <div v-else-if="!sortedFolders.length" class="rounded-xl border border-gray-100 dark:border-zinc-800 p-8 text-center" data-test="folders-empty">
         <p class="text-sm font-bold text-gray-900 dark:text-zinc-100">No folders yet</p>
         <p class="mt-1 text-xs text-gray-500 dark:text-zinc-400">Uploaded files show up here until they expire.</p>
       </div>
