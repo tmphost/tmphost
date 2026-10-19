@@ -248,7 +248,7 @@ func TestSettingsFromConfig(t *testing.T) {
 	cfg.Credits.SignupGrant = 7
 	cfg.Postgres = PostgresConfig{Enabled: true, DSN: "postgres://u:p@h:1/d"}
 	cfg.S3 = S3Config{Endpoint: "e", Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", UsePathStyle: true}
-	cfg.Storage = StorageConfig{Driver: "s3", LocalPath: "/files"}
+	cfg.Storage = StorageConfig{Driver: "s3", LocalPath: "/files", Cache: StorageCacheConfig{TTL: 5 * time.Minute, MaxMB: 256, Async: true}}
 	cfg.Files = FilesConfig{MaxTTLMinutes: 60, MaxUploadMB: 2, AnonymousMaxTTLMinutes: 15, Subdomains: true, PublicDomain: "tmp.site"}
 	cfg.App.SitesDomain = "tmphost.io"
 	cfg.TLS = TLSConfig{Enabled: true, Email: "e@x.io", Lego: LegoConfig{Enabled: true, CloudflareAPIToken: "cf"}}
@@ -268,7 +268,8 @@ func TestSettingsFromConfig(t *testing.T) {
 	withSites := settingsFromConfig(Config{App: AppConfig{BaseURL: "https://app.tmphost.io", SitesDomain: "Sites.io"}})
 	assert.Equal(t, "sites.io", withSites.Files.PublicDomain, "defaults to the sites domain")
 
-	round := applySettings(Config{}, s)
+	// The upload cache is not a setting: it stays as configured.
+	round := applySettings(Config{Storage: StorageConfig{Cache: cfg.Storage.Cache}}, s)
 	assert.Equal(t, cfg.Postgres.DSN, round.Postgres.DSN)
 	assert.True(t, round.Postgres.Enabled)
 	assert.False(t, round.SQLite.Enabled)
@@ -304,6 +305,17 @@ func TestOpenStorage(t *testing.T) {
 	s, err := openStorage(Config{Storage: StorageConfig{Driver: "s3"}, S3: S3Config{Region: "auto", Bucket: "b", Endpoint: "http://127.0.0.1:1"}})
 	require.NoError(t, err)
 	assert.NotNil(t, s)
+
+	// With the cache on, a fresh upload is served from memory.
+	root := filepath.Join(t.TempDir(), "files")
+	s, err = openStorage(Config{Storage: StorageConfig{Driver: "local", LocalPath: root, Cache: StorageCacheConfig{TTL: time.Minute, MaxMB: 1}}})
+	require.NoError(t, err)
+	require.NoError(t, s.Put(context.Background(), "u1/f1/a.txt", []byte("hi")))
+	require.NoError(t, os.RemoveAll(root))
+	body, _, err := s.Get(context.Background(), "u1/f1/a.txt")
+	require.NoError(t, err)
+	b, _ := io.ReadAll(body)
+	assert.Equal(t, "hi", string(b))
 
 	notADir := filepath.Join(t.TempDir(), "file")
 	require.NoError(t, os.WriteFile(notADir, nil, 0o600))
