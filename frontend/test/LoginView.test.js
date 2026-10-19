@@ -8,7 +8,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 
 vi.mock('../src/api', () => ({
   fetchAuthConfig: vi.fn(),
-  providerLoginUrl: (provider, redirect) => `/api/v1/auth/${provider}/login${redirect ? `?redirect_url=${redirect}` : ''}`,
+  providerLoginUrl: (provider, redirect) => `/auth/${provider}/login${redirect ? `?redirect_url=${redirect}` : ''}`,
 }))
 
 import { fetchAuthConfig } from '../src/api'
@@ -50,12 +50,12 @@ describe('LoginView', () => {
     const google = wrapper.find('[data-test="login-google"]')
     const github = wrapper.find('[data-test="login-github"]')
     expect(google.text()).toContain('Continue with Google')
-    expect(google.attributes('href')).toBe('/api/v1/auth/google/login?redirect_url=/deep')
-    expect(github.attributes('href')).toBe('/api/v1/auth/github/login?redirect_url=/deep')
+    expect(google.attributes('href')).toBe('/auth/google/login?redirect_url=/deep')
+    expect(github.attributes('href')).toBe('/auth/github/login?redirect_url=/deep')
     expect(github.find('svg').exists()).toBe(true)
     const custom = wrapper.find('[data-test="login-okta"]')
     expect(custom.text()).toContain('Continue with Okta')
-    expect(custom.attributes('href')).toBe('/api/v1/auth/okta/login?redirect_url=/deep')
+    expect(custom.attributes('href')).toBe('/auth/okta/login?redirect_url=/deep')
     // The SVG is an <img> source, never markup in the page.
     expect(custom.find('script').exists()).toBe(false)
     expect(custom.find('[data-test="login-icon"]').attributes('src')).toBe(
@@ -73,7 +73,7 @@ describe('LoginView', () => {
     fetchAuthConfig.mockResolvedValue([GOOGLE])
     const wrapper = await mountAt('/login?redirect=a&redirect=b')
     await flushPromises()
-    expect(wrapper.find('[data-test="login-google"]').attributes('href')).toBe('/api/v1/auth/google/login')
+    expect(wrapper.find('[data-test="login-google"]').attributes('href')).toBe('/auth/google/login')
   })
 
   it('explains when no provider is configured', async () => {

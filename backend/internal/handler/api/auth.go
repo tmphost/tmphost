@@ -101,7 +101,7 @@ func (h *Auth) loginError(c fiber.Ctx, code string) error {
 
 func (h *Auth) sessionCookiePath() string { return h.basePath + "/" }
 
-func (h *Auth) stateCookiePath() string { return h.basePath + RoutePrefix + "/auth" }
+func (h *Auth) stateCookiePath() string { return h.basePath + AuthPrefix }
 
 // cookie builds an HttpOnly, SameSite=Lax cookie. Lax still sends the
 // cookie on the provider's top-level redirect back to the callback. A

@@ -91,7 +91,7 @@ func TestRun_ServesUntilCancelled(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- run(ctx, func(k string) string { return env[k] }) }()
 
-	url := "http://127.0.0.1:" + strconv.Itoa(port) + "/api/v1/auth/config"
+	url := "http://127.0.0.1:" + strconv.Itoa(port) + "/auth/config"
 	require.Eventually(t, func() bool {
 		res, err := http.Get(url)
 		if err != nil {
