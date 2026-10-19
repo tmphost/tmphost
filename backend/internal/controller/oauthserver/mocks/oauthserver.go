@@ -66,17 +66,17 @@ func (mr *MockControllerMockRecorder) Consent(ctx, rq interface{}) *gomock.Call 
 }
 
 // GetProtectedResourceMetadata mocks base method.
-func (m *MockController) GetProtectedResourceMetadata(ctx context.Context) *entity.GetProtectedResourceMetadataResponse {
+func (m *MockController) GetProtectedResourceMetadata(ctx context.Context, rq *entity.GetProtectedResourceMetadataRequest) *entity.GetProtectedResourceMetadataResponse {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetProtectedResourceMetadata", ctx)
+	ret := m.ctrl.Call(m, "GetProtectedResourceMetadata", ctx, rq)
 	ret0, _ := ret[0].(*entity.GetProtectedResourceMetadataResponse)
 	return ret0
 }
 
 // GetProtectedResourceMetadata indicates an expected call of GetProtectedResourceMetadata.
-func (mr *MockControllerMockRecorder) GetProtectedResourceMetadata(ctx interface{}) *gomock.Call {
+func (mr *MockControllerMockRecorder) GetProtectedResourceMetadata(ctx, rq interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProtectedResourceMetadata", reflect.TypeOf((*MockController)(nil).GetProtectedResourceMetadata), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProtectedResourceMetadata", reflect.TypeOf((*MockController)(nil).GetProtectedResourceMetadata), ctx, rq)
 }
 
 // GetServerMetadata mocks base method.

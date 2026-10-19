@@ -53,7 +53,7 @@ func TestFromHTTPRequestToAuthenticateRootRequestEntity(t *testing.T) {
 }
 
 const _settingsJSON = `{
-	"domain": {"appUrl": "https://app.tmphost.io", "sitesDomain": "tmphost.io", "allowedOrigins": ["https://tmphost.io"]},
+	"domain": {"appUrl": "https://app.tmphost.io", "sitesDomain": "tmphost.io", "mcpDomain": "mcp.tmphost.io", "allowedOrigins": ["https://tmphost.io"]},
 	"tls": {"enabled": true, "port": 8443, "email": "ops@tmphost.io",
 		"lego": {"enabled": true, "cloudflareApiToken": "cf"}},
 	"credits": {"monthlyGrant": 300, "signupGrant": 900},
@@ -75,7 +75,7 @@ func TestSettingsMapping(t *testing.T) {
 	assert.Equal(t, "postgres://u:p@h/d", got.Settings.Database.Postgres.DSN)
 	assert.Equal(t, "hs", got.Settings.Auth.GitHub.ClientSecret)
 	assert.Equal(t, entity.FileSettings{MaxTTLMinutes: 60, MaxUploadMB: 2, AnonymousMaxTTLMinutes: 7, Subdomains: true, PublicDomain: "x.io"}, got.Settings.Files)
-	assert.Equal(t, entity.DomainSettings{AppURL: "https://app.tmphost.io", SitesDomain: "tmphost.io", AllowedOrigins: []string{"https://tmphost.io"}}, got.Settings.Domain)
+	assert.Equal(t, entity.DomainSettings{AppURL: "https://app.tmphost.io", SitesDomain: "tmphost.io", MCPDomain: "mcp.tmphost.io", AllowedOrigins: []string{"https://tmphost.io"}}, got.Settings.Domain)
 	assert.Equal(t, entity.TLSSettings{
 		Enabled: true, Port: 8443, Email: "ops@tmphost.io",
 		Lego: entity.LegoSettings{Enabled: true, CloudflareAPIToken: "cf"},

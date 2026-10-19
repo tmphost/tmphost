@@ -6,9 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
-vi.mock('../src/api', () => ({ BASE_PATH: '/base' }))
+vi.mock('../src/api', () => ({ BASE_PATH: '/base', fetchMcpUrl: vi.fn() }))
 
 import ConnectView from '../src/views/ConnectView.vue'
+import { fetchMcpUrl } from '../src/api'
 import { useToasts } from '../src/composables/useToasts'
 
 const lastToast = () => useToasts().toasts.value.at(-1)
@@ -17,6 +18,7 @@ async function mountView(path = '/connect') {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/connect', component: ConnectView }] })
   await router.push(path)
   const wrapper = mount(ConnectView, { global: { plugins: [router] } })
+  await flushPromises()
   return { wrapper, router }
 }
 
@@ -25,6 +27,7 @@ describe('ConnectView', () => {
   beforeEach(() => {
     useToasts().toasts.value = []
     writeText = vi.fn().mockResolvedValue()
+    fetchMcpUrl.mockReset().mockResolvedValue('')
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
   })
   afterEach(() => {
@@ -49,6 +52,19 @@ describe('ConnectView', () => {
     for (const word of ['file', 'upload', 'download', 'get', 'url']) expect(tool).toContain(word)
     expect(wrapper.find('[data-test="connect-mcp"]').attributes('aria-labelledby')).toBe('connect-mcp-title')
     expect(wrapper.find('#connect-mcp-title').text()).toBe('MCP clients')
+  })
+
+  it('shows the MCP domain URL the server names', async () => {
+    fetchMcpUrl.mockResolvedValue('https://mcp.tmphost.io/mcp')
+    const { wrapper } = await mountView()
+    expect(wrapper.find('[data-test="snippet-mcp-url"]').text()).toBe('https://mcp.tmphost.io/mcp')
+    expect(wrapper.find('[data-test="snippet-mcp-claude"]').text()).toBe('claude mcp add --transport http tmphost https://mcp.tmphost.io/mcp')
+  })
+
+  it('keeps the app URL endpoint when the server config fails to load', async () => {
+    fetchMcpUrl.mockRejectedValue(new Error('down'))
+    const { wrapper } = await mountView()
+    expect(wrapper.find('[data-test="snippet-mcp-url"]').text()).toBe(mcpUrl())
   })
 
   it('explains CLI install, login and usage', async () => {

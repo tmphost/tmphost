@@ -5,9 +5,11 @@
 package entity
 
 type (
-	// GetAuthConfigResponse lists the sign-in providers that are configured.
+	// GetAuthConfigResponse lists the sign-in providers that are
+	// configured, and where the MCP endpoint is.
 	GetAuthConfigResponse struct {
 		Providers []AuthProvider
+		MCPURL    string
 	}
 
 	// AuthProvider is a sign-in button.

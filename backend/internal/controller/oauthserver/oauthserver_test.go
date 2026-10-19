@@ -114,7 +114,14 @@ func TestMetadata(t *testing.T) {
 	}, e.ctrl.GetServerMetadata(context.Background()))
 	assert.Equal(t, &entity.GetProtectedResourceMetadataResponse{
 		Resource: _issuer + "/mcp", AuthorizationServers: []string{_issuer},
-	}, e.ctrl.GetProtectedResourceMetadata(context.Background()))
+	}, e.ctrl.GetProtectedResourceMetadata(context.Background(), &entity.GetProtectedResourceMetadataRequest{Host: "mcp.t.io"}))
+
+	// With an MCP host, it names the endpoint on the host asked.
+	ctrl := New(Params{Issuer: _issuer, Resource: _issuer + "/mcp", MCPResource: "https://mcp.t.io/mcp"})
+	for host, want := range map[string]string{"MCP.t.io": "https://mcp.t.io/mcp", "t.io": _issuer + "/mcp", "": _issuer + "/mcp"} {
+		rs := ctrl.GetProtectedResourceMetadata(context.Background(), &entity.GetProtectedResourceMetadataRequest{Host: host})
+		assert.Equal(t, want, rs.Resource, host)
+	}
 }
 
 func TestRegisterClient(t *testing.T) {

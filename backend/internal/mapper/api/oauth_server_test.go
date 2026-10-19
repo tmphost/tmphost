@@ -32,6 +32,14 @@ func TestOAuthMetadataMappers(t *testing.T) {
 		})))
 }
 
+func TestFromHTTPRequestToGetProtectedResourceMetadataRequestEntity(t *testing.T) {
+	var got *entity.GetProtectedResourceMetadataRequest
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Host = "mcp.t.io:8443"
+	runAs(t, 0, "/", req, func(c fiber.Ctx) { got = FromHTTPRequestToGetProtectedResourceMetadataRequestEntity(c) })
+	assert.Equal(t, &entity.GetProtectedResourceMetadataRequest{Host: "mcp.t.io:8443"}, got)
+}
+
 func TestRegisterClientMappers(t *testing.T) {
 	var got *entity.RegisterClientRequest
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"client_name":"CLI","redirect_uris":["http://127.0.0.1/cb"],

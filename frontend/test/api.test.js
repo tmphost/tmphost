@@ -64,6 +64,16 @@ describe('api', () => {
     await expect(api.fetchAuthConfig()).rejects.toThrow('Failed to load sign-in options (503)')
   })
 
+  it('fetchMcpUrl returns the MCP domain URL, or empty', async () => {
+    const api = await loadApi('')
+    fetch.mockResolvedValue(json({ providers: [], mcpUrl: 'https://mcp.tmphost.io/mcp' }))
+    expect(await api.fetchMcpUrl()).toBe('https://mcp.tmphost.io/mcp')
+    fetch.mockResolvedValue(json({ providers: [] }))
+    expect(await api.fetchMcpUrl()).toBe('')
+    fetch.mockResolvedValue(json({}, 503))
+    await expect(api.fetchMcpUrl()).rejects.toThrow('Failed to load the server config (503)')
+  })
+
   it('providerLoginUrl encodes the redirect', async () => {
     const api = await loadApi('')
     expect(api.providerLoginUrl('github')).toBe('/auth/github/login')

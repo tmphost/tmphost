@@ -16,6 +16,12 @@ type (
 		RegistrationEndpoint  string
 	}
 
+	// GetProtectedResourceMetadataRequest asks for the metadata as seen
+	// on Host (the Host header, port included).
+	GetProtectedResourceMetadataRequest struct {
+		Host string
+	}
+
 	// GetProtectedResourceMetadataResponse is the protected resource
 	// metadata (RFC 9728).
 	GetProtectedResourceMetadataResponse struct {

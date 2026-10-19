@@ -38,7 +38,7 @@ func (h *OAuth) ServerMetadata(c fiber.Ctx) error {
 
 // ResourceMetadata returns the MCP endpoint's protected resource metadata.
 func (h *OAuth) ResourceMetadata(c fiber.Ctx) error {
-	return sendJSON(c, fiber.StatusOK, mapper.FromGetProtectedResourceMetadataResponseEntityToHTTPResponse(h.controller.GetProtectedResourceMetadata(c.Context())))
+	return sendJSON(c, fiber.StatusOK, mapper.FromGetProtectedResourceMetadataResponseEntityToHTTPResponse(h.controller.GetProtectedResourceMetadata(c.Context(), mapper.FromHTTPRequestToGetProtectedResourceMetadataRequestEntity(c))))
 }
 
 // Register registers a client (RFC 7591).

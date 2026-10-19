@@ -114,7 +114,7 @@ type (
 	// Controller is the authorization server's business logic.
 	Controller interface {
 		GetServerMetadata(ctx context.Context) *entity.GetOAuthServerMetadataResponse
-		GetProtectedResourceMetadata(ctx context.Context) *entity.GetProtectedResourceMetadataResponse
+		GetProtectedResourceMetadata(ctx context.Context, rq *entity.GetProtectedResourceMetadataRequest) *entity.GetProtectedResourceMetadataResponse
 		RegisterClient(ctx context.Context, rq *entity.RegisterClientRequest) (*entity.RegisterClientResponse, error)
 		// Authorize checks an authorization request and prepares the
 		// consent page. Errors are for the user's eyes: the client and
@@ -134,7 +134,10 @@ type (
 		Issuer string
 		// Resource is the protected resource's URL, the MCP endpoint.
 		Resource string
-		Now      func() time.Time
+		// MCPResource is the MCP endpoint's URL on the MCP host; requests
+		// to that host get it as the resource. Empty when there is none.
+		MCPResource string
+		Now         func() time.Time
 	}
 
 	controller struct {
@@ -142,7 +145,10 @@ type (
 		users    repository.UserRepository
 		issuer   string
 		resource string
-		now      func() time.Time
+		// mcpHost is MCPResource's host, which gets mcpResource.
+		mcpHost     string
+		mcpResource string
+		now         func() time.Time
 	}
 )
 
@@ -154,6 +160,9 @@ func New(p Params) Controller {
 		issuer:   strings.TrimRight(p.Issuer, "/"),
 		resource: p.Resource,
 		now:      p.Now,
+	}
+	if u, err := url.Parse(p.MCPResource); err == nil && u.Host != "" {
+		c.mcpHost, c.mcpResource = strings.ToLower(u.Host), p.MCPResource
 	}
 	if c.now == nil {
 		c.now = time.Now
@@ -170,8 +179,14 @@ func (c *controller) GetServerMetadata(_ context.Context) *entity.GetOAuthServer
 	}
 }
 
-func (c *controller) GetProtectedResourceMetadata(_ context.Context) *entity.GetProtectedResourceMetadataResponse {
-	return &entity.GetProtectedResourceMetadataResponse{Resource: c.resource, AuthorizationServers: []string{c.issuer}}
+// GetProtectedResourceMetadata names the MCP endpoint on the host asked, so
+// the resource always matches the URL a client connected to.
+func (c *controller) GetProtectedResourceMetadata(_ context.Context, rq *entity.GetProtectedResourceMetadataRequest) *entity.GetProtectedResourceMetadataResponse {
+	resource := c.resource
+	if c.mcpHost != "" && strings.EqualFold(rq.Host, c.mcpHost) {
+		resource = c.mcpResource
+	}
+	return &entity.GetProtectedResourceMetadataResponse{Resource: resource, AuthorizationServers: []string{c.issuer}}
 }
 
 func (c *controller) RegisterClient(_ context.Context, rq *entity.RegisterClientRequest) (*entity.RegisterClientResponse, error) {

@@ -25,6 +25,10 @@ type (
 		// SitesDomain is the parent domain of the dynamic subdomains, e.g.
 		// tmphost.io for <8 characters>.tmphost.io. Empty disables them.
 		SitesDomain string
+		// MCPDomain is a host that serves only the MCP endpoint, e.g.
+		// mcp.tmphost.io for https://mcp.tmphost.io/mcp. Empty serves it
+		// only below the app URL.
+		MCPDomain string
 		// AllowedOrigins are other web origins, e.g. https://tmphost.io,
 		// that may call the API from a browser (CORS, with credentials) and
 		// upload without signing in. They apply without a restart.

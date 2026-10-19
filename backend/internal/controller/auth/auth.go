@@ -78,7 +78,9 @@ type (
 		// AllowedOrigins returns the other origins anonymous requests are
 		// accepted from. It may be nil.
 		AllowedOrigins func() []string
-		Now            func() time.Time
+		// MCPURL is the MCP endpoint's URL that clients are shown.
+		MCPURL string
+		Now    func() time.Time
 	}
 
 	controller struct {
@@ -92,6 +94,7 @@ type (
 		basePath  string
 		webOrigin string
 		allowed   func() []string
+		mcpURL    string
 		now       func() time.Time
 	}
 )
@@ -108,6 +111,7 @@ func New(p Params) Controller {
 		basePath:  strings.TrimRight(p.BasePath, "/"),
 		webOrigin: origin(p.BaseURL),
 		allowed:   p.AllowedOrigins,
+		mcpURL:    p.MCPURL,
 		now:       p.Now,
 	}
 	if c.now == nil {
@@ -126,7 +130,7 @@ func (c *controller) GetAuthConfig(_ context.Context) *entity.GetAuthConfigRespo
 		p := c.providers[name]
 		providers[i] = entity.AuthProvider{ID: name, Name: p.Label(), Icon: p.Icon()}
 	}
-	return &entity.GetAuthConfigResponse{Providers: providers}
+	return &entity.GetAuthConfigResponse{Providers: providers, MCPURL: c.mcpURL}
 }
 
 func (c *controller) StartLogin(ctx context.Context, rq *entity.StartLoginRequest) (*entity.StartLoginResponse, error) {

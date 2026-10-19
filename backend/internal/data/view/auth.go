@@ -6,9 +6,11 @@
 package view
 
 type (
-	// AuthConfig lists the enabled sign-in providers.
+	// AuthConfig lists the enabled sign-in providers, and the MCP
+	// endpoint's URL.
 	AuthConfig struct {
 		Providers []AuthProvider `json:"providers"`
+		MCPURL    string         `json:"mcpUrl,omitempty"`
 	}
 
 	// AuthProvider is a sign-in button.
