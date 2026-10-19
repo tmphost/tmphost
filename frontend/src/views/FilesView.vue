@@ -7,7 +7,17 @@
 <script setup>
 import { computed, inject, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import DeleteModal from '../components/DeleteModal.vue'
-import { createFolder, deleteFile, deleteFolder, fetchFolder, fetchLimits, listFolders, renameFolder, uploadFile } from '../api'
+import ExtendModal from '../components/ExtendModal.vue'
+import {
+  createFolder,
+  deleteFile,
+  deleteFolder,
+  fetchFolder,
+  fetchLimits,
+  listFolders,
+  renameFolder,
+  uploadFile,
+} from '../api'
 import { useClipboard } from '../composables/useClipboard'
 import { useToasts } from '../composables/useToasts'
 import {
@@ -35,6 +45,7 @@ const ICONS = {
   open: 'M14 4h6v6m0-6L10 14M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5',
   upload: 'M12 16V4m0 0L7 9m5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3',
   trash: 'M4 7h16M10 11v6m4-6v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V4h6v3',
+  clock: 'M12 7v5l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
 }
 
 const { notifyError, notifySuccess } = useToasts()
@@ -71,6 +82,9 @@ const expanded = ref({})
 const editing = ref(null)
 // The title input; a ref inside v-for is an array, of one input here.
 const titleInput = ref([])
+
+// The ID of the folder being extended, shown in ExtendModal.
+const extendingId = ref(null)
 
 // The pending deletion: { folder } or { folder, file }.
 const pendingDelete = ref(null)
@@ -116,6 +130,8 @@ const canUpload = computed(
     !targetExpired.value &&
     !uploading.value,
 )
+
+const extendingFolder = computed(() => folders.value.find((f) => f.id === extendingId.value) ?? null)
 
 // folderTitle is what a folder is called: its title, else the name of its
 // only file, else its ID.
@@ -256,6 +272,13 @@ async function loadFiles(id) {
     notifyError(err.message)
     collapse(id)
   }
+}
+
+async function onExtended({ folder, creditsSpent, minutes }) {
+  folders.value = folders.value.map((f) => (f.id === folder.id ? { ...f, ...folder } : f))
+  extendingId.value = null
+  notifySuccess(`Folder extended by ${formatMinutes(minutes)} · ${creditsSpent} credits`)
+  await currentUser.refreshUser()
 }
 
 async function startRename(folder) {
@@ -548,12 +571,23 @@ onUnmounted(() => clearInterval(timer))
               {{ folderTitle(folder) }}
             </button>
           </div>
-          <div class="flex items-center gap-1 pl-11 pr-2 pb-1.5">
-            <span class="grow min-w-0 truncate text-[11px] text-gray-400 dark:text-zinc-500">
-              <template v-if="folderTitle(folder) !== folder.id">
-                <span class="font-mono" data-test="folder-id">{{ folder.id }}</span> ·
-              </template>
-              <span class="tabular-nums" :title="folder.expiresAt" data-test="folder-expires">{{ expiresIn(folder.expiresAt, now) }}</span>
+          <div class="flex items-center gap-1 pl-2 pr-2 pb-1.5">
+            <!-- The countdown doubles as the way to extend it. -->
+            <button
+              type="button"
+              class="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg px-1.5 text-[11px] tabular-nums text-gray-400 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-zinc-100 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
+              :title="`Expires ${folder.expiresAt} · click to extend`"
+              aria-haspopup="dialog"
+              data-test="folder-extend"
+              @click="extendingId = folder.id"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" :d="ICONS.clock" />
+              </svg>
+              <span data-test="folder-expires">{{ expiresIn(folder.expiresAt, now) }}</span>
+            </button>
+            <span class="grow min-w-0 truncate px-1 font-mono text-[11px] text-gray-400 dark:text-zinc-500">
+              <span v-if="folderTitle(folder) !== folder.id" data-test="folder-id">{{ folder.id }}</span>
             </span>
             <button
               type="button"
@@ -631,6 +665,15 @@ onUnmounted(() => clearInterval(timer))
       </ul>
     </section>
 
+    <ExtendModal
+      :folder="extendingFolder"
+      :title="extendingFolder ? folderTitle(extendingFolder) : ''"
+      :limits="limits"
+      :credits="credits"
+      :now="now"
+      @extended="onExtended"
+      @cancel="extendingId = null"
+    />
     <DeleteModal
       :open="Boolean(pendingDelete)"
       :title="deleteTitle"

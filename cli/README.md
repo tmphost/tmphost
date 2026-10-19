@@ -54,6 +54,8 @@ tmphost file url --id rs --path docs readme.txt
 tmphost file download --id rs --path docs readme.txt -o readme.txt
 tmphost file download --id rs a.txt -o -       # to stdout
 
+tmphost file extend --id rs --ttl 2h           # expire 2 hours later
+
 tmphost file ls                                # your live folders
 tmphost file rm --id rs docs/readme.txt        # one file
 tmphost file rm --id rs                        # the whole folder
@@ -69,6 +71,7 @@ tmphost whoami
 | `tmphost file download --id ID [--path DIR] <fileName> [-o OUT] [--force] [--format FORMAT]` | Download a file (`-o -` for stdout) |
 | `tmphost file get --id ID` | List a folder's files |
 | `tmphost file url --id ID [--path DIR] [fileName]` | Print a folder, directory or file URL |
+| `tmphost file extend --id ID --ttl DURATION` | Make a folder expire later, for credits |
 | `tmphost file ls` | List your live folders |
 | `tmphost file rm --id ID [path]` | Delete a folder, or one file |
 
@@ -84,15 +87,16 @@ rsync. Paths follow the server's rules (at most 5 directories deep, no `.` or
 `..` segments, no backslashes) and are checked before anything is sent. Each
 file costs one credit per started MB of its size per started billing block of
 the folder's lifetime; the cost is checked against your credits before anything is uploaded.
+Extending a folder charges the same for the added time, per file in it.
 
 Folder URLs come from the server and may look like
 `https://<folder>.<domain>/` or `<server>/files/<user>/<folder>/`.
 
 ## MCP
 
-The server offers the same `file` tool (actions `upload`, `download`, `get`
-and `url`) at `<server>/mcp` (and on its MCP domain, `https://mcp.tmphost.io/mcp` for
-tmphost.io), for AI agents:
+The server offers the same `file` tool (actions `upload`, `download`, `get`,
+`url` and `extend`) at `<server>/mcp` (and on its MCP domain,
+`https://mcp.tmphost.io/mcp` for tmphost.io), for AI agents:
 
 ```json
 {

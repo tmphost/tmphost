@@ -225,6 +225,17 @@ describe('files api', () => {
     fetch.mockResolvedValueOnce(json({}, 400))
     await expect(api.renameFolder('f2', 'x')).rejects.toThrow('Failed to rename folder (400)')
 
+    fetch.mockResolvedValueOnce(json({ folder: { id: 'f2' }, creditsSpent: 3 }))
+    expect(await api.extendFolder('f2', 60)).toEqual({ folder: { id: 'f2' }, creditsSpent: 3 })
+    expect(fetch).toHaveBeenLastCalledWith('/api/v1/folders/f2/extend', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"minutes":60}',
+    })
+    fetch.mockResolvedValueOnce(json({}, 500))
+    await expect(api.extendFolder('f2', 60)).rejects.toThrow('Failed to extend folder (500)')
+
     fetch.mockResolvedValueOnce(json(null, 204))
     expect(await api.deleteFolder('f2')).toBeUndefined()
     expect(fetch).toHaveBeenLastCalledWith('/api/v1/folders/f2', { method: 'DELETE', credentials: 'same-origin' })

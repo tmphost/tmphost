@@ -20,6 +20,8 @@ server; the first call opens the browser so the user can sign in (OAuth).
 - `get`: `id`. Lists the folder's files with their URLs.
 - `url`: the public URL of a folder (`id`), a directory (`id`, `path`) or a
   file (`id`, `fileName`, optional `path`).
+- `extend`: `id` and `ttl` (the time to add, e.g. `1h`). Returns the new
+  `expiresAt` and `creditsSpent`.
 
 ## Content
 
@@ -44,5 +46,6 @@ server; the first call opens the browser so the user can sign in (OAuth).
 Each file costs 1 credit per started MB of its size per started 30 minutes of
 the folder's remaining lifetime, so pick the shortest TTL that fits the
 request and say how long the link will work. Uploading into a folder that
-expires sooner costs less. If an upload fails for lack of credits, tell the
+expires sooner costs less. Extending a folder costs the same per file, for the
+added time, so extend only when the user wants the link to last longer. If an upload fails for lack of credits, tell the
 user rather than retrying.

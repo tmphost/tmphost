@@ -15,9 +15,20 @@ vi.mock('../src/api', () => ({
   uploadFile: vi.fn(),
   deleteFile: vi.fn(),
   renameFolder: vi.fn(),
+  extendFolder: vi.fn(),
 }))
 
-import { createFolder, deleteFile, deleteFolder, fetchFolder, fetchLimits, listFolders, renameFolder, uploadFile } from '../src/api'
+import {
+  createFolder,
+  deleteFile,
+  deleteFolder,
+  extendFolder,
+  fetchFolder,
+  fetchLimits,
+  listFolders,
+  renameFolder,
+  uploadFile,
+} from '../src/api'
 import FilesView from '../src/views/FilesView.vue'
 import { useToasts } from '../src/composables/useToasts'
 import { dataTransfer, dirEntry, fileEntry } from './dropEntries'
@@ -612,6 +623,42 @@ describe('FilesView', () => {
     await wrapper.find('[data-test="file-a.txt"] [data-test="file-copy"]').trigger('click')
     await flushPromises()
     expect(lastToast()).toMatchObject({ type: 'success', message: 'File URL copied' })
+  })
+
+  it('extends a folder from its countdown in a modal', async () => {
+    fetchFolder.mockResolvedValue({ folder: folders[0], files })
+    extendFolder.mockResolvedValueOnce({ folder: { ...folders[0], title: 'Report', expiresAt: '2026-10-18T13:45:00Z' }, creditsSpent: 44 })
+    const wrapper = await mountView()
+    const card = () => wrapper.find('[data-test="folder-old"]')
+    expect(wrapper.find('[data-test="extend-modal"]').exists()).toBe(false)
+
+    await card().find('[data-test="folder-extend"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('#extend-modal-title').text()).toBe('Extend old')
+    // 21 + 1 billing units, one started block of 30 minutes.
+    expect(wrapper.find('[data-test="extend-cost"]').text()).toBe('New expiry in 1h 15m · 22 credits')
+
+    await wrapper.find('[data-test="extend-slider"]').setValue(1)
+    await wrapper.find('[data-test="extend-confirm"]').trigger('click')
+    await flushPromises()
+    expect(extendFolder).toHaveBeenCalledWith('old', 60)
+    expect(wrapper.find('[data-test="extend-modal"]').exists()).toBe(false)
+    expect(card().find('[data-test="folder-expires"]').text()).toBe('1h 45m')
+    expect(card().find('[data-test="folder-title"]').text()).toBe('Report')
+    expect(lastToast()).toMatchObject({ type: 'success', message: 'Folder extended by 1 h · 44 credits' })
+    expect(currentUser.refreshUser).toHaveBeenCalled()
+  })
+
+  it('closes the extend modal on cancel and passes the credits left', async () => {
+    fetchFolder.mockResolvedValue({ folder: folders[1], files })
+    currentUser.user.value = { credits: 10 }
+    const wrapper = await mountView()
+    await wrapper.find('[data-test="folder-new"] [data-test="folder-extend"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('#extend-modal-title').text()).toBe('Extend new')
+    expect(wrapper.find('[data-test="extend-credits-warning"]').text()).toBe('This costs 22 credits but you have 10 left.')
+    await wrapper.find('[data-test="extend-cancel"]').trigger('click')
+    expect(wrapper.find('[data-test="extend-modal"]').exists()).toBe(false)
   })
 
   it('deletes a folder after confirmation', async () => {

@@ -124,6 +124,7 @@ func TestFolder_Anonymous(t *testing.T) {
 		{http.MethodGet, "/api/v1/folders"},
 		{http.MethodGet, "/api/v1/folders/000000rs"},
 		{http.MethodDelete, "/api/v1/folders/000000rs"},
+		{http.MethodPost, "/api/v1/folders/000000rs/extend"},
 		{http.MethodGet, "/api/v1/folders/000000rs/files/a"},
 		{http.MethodDelete, "/api/v1/folders/000000rs/files/a"},
 		{http.MethodGet, "/api/v1/users/me"},
@@ -255,6 +256,23 @@ func TestFolder_Update(t *testing.T) {
 	e.folders.EXPECT().UpdateFolder(gomock.Any(), gomock.Any()).Return(nil, folderctrl.ErrNotFound)
 	res, _ = e.do(t, http.MethodPatch, "/api/v1/folders/000000rs", `{"title":"x"}`)
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
+}
+
+func TestFolder_Extend(t *testing.T) {
+	e := newFilesApp(t)
+	e.folders.EXPECT().ExtendFolder(gomock.Any(), &entity.ExtendFolderRequest{UserID: 7, FolderID: 1000, Minutes: 60}).
+		Return(&entity.ExtendFolderResponse{Folder: entity.Folder{ID: 1000, CreatedAt: _at, ExpiresAt: _at.Add(time.Hour), URL: "u", DefaultTitle: "a.jpg"}, CreditsSpent: 2}, nil)
+	res, body := e.do(t, http.MethodPost, "/api/v1/folders/000000rs/extend", `{"minutes":60}`)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.JSONEq(t, `{"folder":{"id":"000000rs","createdAt":"2026-10-18T12:00:00Z","expiresAt":"2026-10-18T13:00:00Z","url":"u","title":"","defaultTitle":"a.jpg"},"creditsSpent":2}`, body)
+
+	res, _ = e.do(t, http.MethodPost, "/api/v1/folders/000000rs/extend", `{`)
+	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+	e.folders.EXPECT().ExtendFolder(gomock.Any(), gomock.Any()).Return(nil, folderctrl.ErrInsufficientCredits)
+	res, body = e.do(t, http.MethodPost, "/api/v1/folders/000000rs/extend", `{"minutes":60}`)
+	assert.Equal(t, http.StatusPaymentRequired, res.StatusCode)
+	assert.JSONEq(t, `{"error":"insufficient credits"}`, body)
 }
 
 func TestFolder_PutFile(t *testing.T) {

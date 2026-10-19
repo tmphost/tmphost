@@ -65,6 +65,20 @@ func (mr *MockFolderRepositoryMockRecorder) DeleteFolder(ctx, id interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFolder", reflect.TypeOf((*MockFolderRepository)(nil).DeleteFolder), ctx, id)
 }
 
+// ExtendFolder mocks base method.
+func (m *MockFolderRepository) ExtendFolder(ctx context.Context, id int64, now, expiresAt time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExtendFolder", ctx, id, now, expiresAt)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ExtendFolder indicates an expected call of ExtendFolder.
+func (mr *MockFolderRepositoryMockRecorder) ExtendFolder(ctx, id, now, expiresAt interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExtendFolder", reflect.TypeOf((*MockFolderRepository)(nil).ExtendFolder), ctx, id, now, expiresAt)
+}
+
 // FindFolderByID mocks base method.
 func (m *MockFolderRepository) FindFolderByID(ctx context.Context, id int64) (model.Folder, error) {
 	m.ctrl.T.Helper()

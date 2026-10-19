@@ -5,6 +5,8 @@
 package cmd
 
 import (
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -164,4 +166,32 @@ func TestFileRm(t *testing.T) {
 
 	assert.Equal(t, 1, h.run("file", "rm", "--id", "rs", "a/../b"))
 	assert.Contains(t, h.stderr.String(), `".." segment`)
+}
+
+func TestFileExtend(t *testing.T) {
+	h := newHarness(t)
+	var body []byte
+	h.mux.HandleFunc("POST /api/v1/folders/rs/extend", func(w http.ResponseWriter, r *http.Request) {
+		body, _ = io.ReadAll(r.Body)
+		_, _ = io.WriteString(w, `{"folder":{"id":"rs","expiresAt":"2026-10-18T14:30:00Z","url":"https://rs.tmphost.test/"},"creditsSpent":5}`)
+	})
+	h.reply("POST /api/v1/folders/zz/extend", 402, `{"error":"insufficient credits: 9 needed"}`)
+
+	assert.Equal(t, 0, h.run("file", "extend", "--id", "rs", "--ttl", "2h"))
+	assert.JSONEq(t, `{"minutes":120}`, string(body))
+	assert.Equal(t, "id:      rs\nurl:     https://rs.tmphost.test/\nexpires: "+formatTime(now.Add(150*60e9))+" (in 2h30m)\ncost:    5 credits\n", h.stdout.String())
+
+	assert.Equal(t, 0, h.run("file", "extend", "--id", "rs", "--ttl", "2h", "--json"))
+	assert.Equal(t, map[string]any{"id": "rs", "url": "https://rs.tmphost.test/", "expiresAt": "2026-10-18T14:30:00Z", "creditsSpent": float64(5)}, h.decode())
+
+	assert.Equal(t, 1, h.run("file", "extend", "--id", "zz", "--ttl", "1h"))
+	assert.Equal(t, "error: insufficient credits: 9 needed\n", h.stderr.String())
+
+	for _, ttl := range []string{"90s", "0s", "-1h"} {
+		assert.Equal(t, 1, h.run("file", "extend", "--id", "rs", "--ttl", ttl), ttl)
+		assert.Contains(t, h.stderr.String(), "not a positive whole number of minutes", ttl)
+	}
+
+	assert.Equal(t, 1, h.run("file", "extend", "--ttl", "1h"))
+	assert.Contains(t, h.stderr.String(), `required flag(s) "id" not set`)
 }

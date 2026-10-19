@@ -136,6 +136,21 @@ func TestFromHTTPRequestToUpdateFolderRequestEntity(t *testing.T) {
 	assert.Nil(t, run(0, "/folders/000000rs", `{"title":"x"}`))
 }
 
+func TestFromHTTPRequestToExtendFolderRequestEntity(t *testing.T) {
+	run := func(userID int64, target, body string) *entity.ExtendFolderRequest {
+		var rq *entity.ExtendFolderRequest
+		runAs(t, userID, "/folders/:id/extend", httptest.NewRequest(http.MethodPost, target, strings.NewReader(body)), func(c fiber.Ctx) {
+			rq = FromHTTPRequestToExtendFolderRequestEntity(c)
+		})
+		return rq
+	}
+	assert.Equal(t, &entity.ExtendFolderRequest{UserID: 7, FolderID: 1000, Minutes: 60}, run(7, "/folders/000000rs/extend", `{"minutes":60}`))
+	assert.Equal(t, &entity.ExtendFolderRequest{UserID: 7, FolderID: 1000}, run(7, "/folders/000000rs/extend", `{}`), "the controller rejects 0")
+	assert.Nil(t, run(7, "/folders/000000rs/extend", `{"minutes":"1h"}`))
+	assert.Nil(t, run(7, "/folders/-/extend", `{"minutes":1}`))
+	assert.Nil(t, run(0, "/folders/000000rs/extend", `{"minutes":1}`))
+}
+
 func TestFromHTTPRequestToFileRequestEntities(t *testing.T) {
 	var (
 		put  *entity.PutFilesRequest
@@ -253,6 +268,8 @@ func TestFolderResponses(t *testing.T) {
 		string(FromGetLimitsResponseEntityToHTTPResponse(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 30, MaxUploadBytes: 5, BillingBlockMinutes: 30, BillingUnitBytes: 1 << 20, Anonymous: true, FileOps: 5, FileOpsWindowMinutes: 30})))
 	assert.JSONEq(t, `{"folder":`+folderJSON+`}`, string(FromCreateFolderResponseEntityToHTTPResponse(&entity.CreateFolderResponse{Folder: folder})))
 	assert.JSONEq(t, `{"folder":`+folderJSON+`}`, string(FromUpdateFolderResponseEntityToHTTPResponse(&entity.UpdateFolderResponse{Folder: folder})))
+	assert.JSONEq(t, `{"folder":`+folderJSON+`,"creditsSpent":6}`,
+		string(FromExtendFolderResponseEntityToHTTPResponse(&entity.ExtendFolderResponse{Folder: folder, CreditsSpent: 6})))
 	assert.JSONEq(t, `{"folders":[`+folderJSON+`]}`, string(FromListFoldersResponseEntityToHTTPResponse(&entity.ListFoldersResponse{Folders: []entity.Folder{folder}})))
 	assert.JSONEq(t, `{"folders":[]}`, string(FromListFoldersResponseEntityToHTTPResponse(&entity.ListFoldersResponse{})))
 	assert.JSONEq(t, `{"folder":`+folderJSON+`,"files":[`+fileJSON+`]}`,

@@ -71,6 +71,17 @@ func FromHTTPRequestToUpdateFolderRequestEntity(c fiber.Ctx) *entity.UpdateFolde
 	return &entity.UpdateFolderRequest{UserID: rq.UserID, FolderID: rq.FolderID, Title: *body.Title}
 }
 
+// FromHTTPRequestToExtendFolderRequestEntity reads POST
+// /folders/:id/extend.
+func FromHTTPRequestToExtendFolderRequestEntity(c fiber.Ctx) *entity.ExtendFolderRequest {
+	rq := FromHTTPRequestToGetFolderRequestEntity(c)
+	var body view.ExtendFolderRequest
+	if rq == nil || json.Unmarshal(c.Body(), &body) != nil {
+		return nil
+	}
+	return &entity.ExtendFolderRequest{UserID: rq.UserID, FolderID: rq.FolderID, Minutes: body.Minutes}
+}
+
 // FromHTTPRequestToDeleteFolderRequestEntity reads DELETE /folders/:id.
 func FromHTTPRequestToDeleteFolderRequestEntity(c fiber.Ctx) *entity.DeleteFolderRequest {
 	rq := FromHTTPRequestToGetFolderRequestEntity(c)
@@ -181,6 +192,12 @@ func FromGetFolderResponseEntityToHTTPResponse(rs *entity.GetFolderResponse) []b
 // FromUpdateFolderResponseEntityToHTTPResponse renders PATCH /folders/:id.
 func FromUpdateFolderResponseEntityToHTTPResponse(rs *entity.UpdateFolderResponse) []byte {
 	return marshal(view.FolderResponse{Folder: FromFolderEntityToFolderView(rs.Folder)})
+}
+
+// FromExtendFolderResponseEntityToHTTPResponse renders POST
+// /folders/:id/extend.
+func FromExtendFolderResponseEntityToHTTPResponse(rs *entity.ExtendFolderResponse) []byte {
+	return marshal(view.ExtendFolderResponse{Folder: FromFolderEntityToFolderView(rs.Folder), CreditsSpent: rs.CreditsSpent})
 }
 
 // FromPutFilesResponseEntityToHTTPResponse renders PUT /folders/:id/files/*,

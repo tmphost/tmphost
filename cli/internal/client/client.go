@@ -67,6 +67,12 @@ type PutFileResult struct {
 	CreditsSpent int  `json:"creditsSpent"`
 }
 
+// ExtendFolderResult is the response to extending a folder.
+type ExtendFolderResult struct {
+	Folder       Folder `json:"folder"`
+	CreditsSpent int    `json:"creditsSpent"`
+}
+
 // APIError is a non-2xx response; Message is the server's "error" field.
 type APIError struct {
 	Status  int
@@ -148,6 +154,18 @@ func (c *Client) ListFolders(ctx context.Context) ([]Folder, error) {
 func (c *Client) GetFolder(ctx context.Context, id string) (*FolderDetail, error) {
 	var out FolderDetail
 	if err := c.doJSON(ctx, http.MethodGet, "/folders/"+url.PathEscape(id), nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ExtendFolder makes a folder expire minutes later, for credits.
+func (c *Client) ExtendFolder(ctx context.Context, id string, minutes int) (*ExtendFolderResult, error) {
+	in := struct {
+		Minutes int `json:"minutes"`
+	}{minutes}
+	var out ExtendFolderResult
+	if err := c.doJSON(ctx, http.MethodPost, "/folders/"+url.PathEscape(id)+"/extend", in, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

@@ -121,6 +121,7 @@ func New(p Params) {
 	r.Get("/folders/:id", authn, folder.Get)
 	r.Patch("/folders/:id", authn, folder.Update)
 	r.Delete("/folders/:id", authn, folder.Delete)
+	r.Post("/folders/:id/extend", authn, folder.Extend)
 	r.Put("/folders/:id/files/*", anyone, folder.PutFile)
 	r.Get("/folders/:id/files/*", authn, folder.GetFile)
 	r.Delete("/folders/:id/files/*", authn, folder.DeleteFile)

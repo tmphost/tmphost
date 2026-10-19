@@ -119,6 +119,9 @@ type (
 		GetFolder(ctx context.Context, rq *entity.GetFolderRequest) (*entity.GetFolderResponse, error)
 		// UpdateFolder renames a folder; an empty title clears it.
 		UpdateFolder(ctx context.Context, rq *entity.UpdateFolderRequest) (*entity.UpdateFolderResponse, error)
+		// ExtendFolder makes a folder expire later, charging each of its
+		// files Cost for the added time.
+		ExtendFolder(ctx context.Context, rq *entity.ExtendFolderRequest) (*entity.ExtendFolderResponse, error)
 		DeleteFolder(ctx context.Context, rq *entity.DeleteFolderRequest) error
 		PutFiles(ctx context.Context, rq *entity.PutFilesRequest) (*entity.PutFilesResponse, error)
 		DeleteFile(ctx context.Context, rq *entity.DeleteFileRequest) error
@@ -297,6 +300,52 @@ func (c *controller) UpdateFolder(ctx context.Context, rq *entity.UpdateFolderRe
 	folder := c.folderEntity(f)
 	folder.DefaultTitle = defaultTitle(f, objects)
 	return &entity.UpdateFolderResponse{Folder: folder}, nil
+}
+
+func (c *controller) ExtendFolder(ctx context.Context, rq *entity.ExtendFolderRequest) (*entity.ExtendFolderResponse, error) {
+	f, err := c.ownedFolder(ctx, rq.UserID, rq.FolderID)
+	if err != nil {
+		return nil, err
+	}
+	now := c.now()
+	extension := time.Duration(rq.Minutes) * time.Minute
+	maxTTL := c.maxTTLMinutes(false)
+	if rq.Minutes < 1 || f.ExpiresAt.Add(extension).Sub(now) > time.Duration(maxTTL)*time.Minute {
+		return nil, fmt.Errorf("%w: the folder can live at most %d more minutes", ErrInvalidTTL, maxTTL)
+	}
+	objects, err := c.storage.List(ctx, folderPrefix(f))
+	if err != nil {
+		return nil, fmt.Errorf("list files: %w", err)
+	}
+	total := 0
+	for _, o := range objects {
+		total += Cost(o.Size, extension)
+	}
+	if total > 0 {
+		err = c.users.SpendCredits(ctx, rq.UserID, total)
+		if errors.Is(err, repository.ErrInsufficientCredits) {
+			return nil, fmt.Errorf("%w: %d needed", ErrInsufficientCredits, total)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("spend credits: %w", err)
+		}
+	}
+	f.ExpiresAt = f.ExpiresAt.Add(extension)
+	if err := c.folders.ExtendFolder(ctx, f.ID, now, f.ExpiresAt); err != nil {
+		// The time was not added, so it is not paid for.
+		if total > 0 {
+			if rerr := c.users.RefundCredits(ctx, rq.UserID, total); rerr != nil {
+				err = errors.Join(err, fmt.Errorf("refund credits: %w", rerr))
+			}
+		}
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, errors.Join(ErrNotFound, err)
+		}
+		return nil, fmt.Errorf("extend folder: %w", err)
+	}
+	folder := c.folderEntity(f)
+	folder.DefaultTitle = defaultTitle(f, objects)
+	return &entity.ExtendFolderResponse{Folder: folder, CreditsSpent: total}, nil
 }
 
 // ValidTitle reports whether t can be a folder title: at most

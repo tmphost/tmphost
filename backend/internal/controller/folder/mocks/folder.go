@@ -93,6 +93,21 @@ func (mr *MockControllerMockRecorder) DeleteFolder(ctx, rq interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFolder", reflect.TypeOf((*MockController)(nil).DeleteFolder), ctx, rq)
 }
 
+// ExtendFolder mocks base method.
+func (m *MockController) ExtendFolder(ctx context.Context, rq *entity.ExtendFolderRequest) (*entity.ExtendFolderResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExtendFolder", ctx, rq)
+	ret0, _ := ret[0].(*entity.ExtendFolderResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExtendFolder indicates an expected call of ExtendFolder.
+func (mr *MockControllerMockRecorder) ExtendFolder(ctx, rq interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExtendFolder", reflect.TypeOf((*MockController)(nil).ExtendFolder), ctx, rq)
+}
+
 // GetFolder mocks base method.
 func (m *MockController) GetFolder(ctx context.Context, rq *entity.GetFolderRequest) (*entity.GetFolderResponse, error) {
 	m.ctrl.T.Helper()
