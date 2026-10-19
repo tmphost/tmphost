@@ -102,6 +102,9 @@ type (
 		MaxTTLMinutes int
 		// MaxUploadMB caps the bytes a single upload request carries.
 		MaxUploadMB int
+		// AnonymousMaxTTLMinutes is the longest lifetime of a folder made
+		// without signing in.
+		AnonymousMaxTTLMinutes int
 		// Subdomains serves each folder on its own host,
 		// <folderID>-<userID>.<PublicDomain>; otherwise folders are served
 		// at <base URL>/files/<userID>/<folderID>/.

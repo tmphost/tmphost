@@ -63,6 +63,19 @@ func (h *Folder) Get(c fiber.Ctx) error {
 	return sendJSON(c, fiber.StatusOK, mapper.FromGetFolderResponseEntityToHTTPResponse(rs))
 }
 
+// Update renames a folder.
+func (h *Folder) Update(c fiber.Ctx) error {
+	rq := mapper.FromHTTPRequestToUpdateFolderRequestEntity(c)
+	if rq == nil {
+		return fiber.ErrBadRequest
+	}
+	rs, err := h.controller.UpdateFolder(c.Context(), rq)
+	if err != nil {
+		return sendFolderError(c, err)
+	}
+	return sendJSON(c, fiber.StatusOK, mapper.FromUpdateFolderResponseEntityToHTTPResponse(rs))
+}
+
 // Delete deletes a folder and its files.
 func (h *Folder) Delete(c fiber.Ctx) error {
 	rq := mapper.FromHTTPRequestToDeleteFolderRequestEntity(c)
@@ -122,7 +135,7 @@ func sendFolderError(c fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, folderctrl.ErrNotFound):
 		return sendError(c, fiber.StatusNotFound, "not found")
-	case errors.Is(err, folderctrl.ErrInvalidTTL), errors.Is(err, folderctrl.ErrInvalidPath),
+	case errors.Is(err, folderctrl.ErrInvalidTTL), errors.Is(err, folderctrl.ErrInvalidPath), errors.Is(err, folderctrl.ErrInvalidTitle),
 		errors.Is(err, folderctrl.ErrNoFiles), errors.Is(err, folderctrl.ErrDuplicatePath):
 		return sendError(c, fiber.StatusBadRequest, err.Error())
 	case errors.Is(err, folderctrl.ErrTooLarge):

@@ -77,6 +77,7 @@ files:
   # Longest folder lifetime (7200 hours) and largest upload per request.
   maxTtlMinutes: ${TMPHOSTIO_FILES_MAX_TTL_MINUTES:432000}
   maxUploadMb: ${TMPHOSTIO_FILES_MAX_UPLOAD_MB:16}
+  anonymousMaxTtlMinutes: ${TMPHOSTIO_FILES_ANONYMOUS_MAX_TTL_MINUTES:10}
   # Folders are served at <baseUrl>/files/<userId>/<folderId>/, or with
   # subdomains on, at f<folderId>.<publicDomain> (needs a wildcard DNS record
   # and certificate). publicDomain defaults to the sites domain, else the

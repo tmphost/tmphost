@@ -73,6 +73,9 @@ func settingsFromConfig(cfg Config) entity.Settings {
 	if files.MaxUploadMB == 0 {
 		files.MaxUploadMB = folder.DefaultMaxUploadMB
 	}
+	if files.AnonymousMaxTTLMinutes == 0 {
+		files.AnonymousMaxTTLMinutes = folder.DefaultAnonymousMaxTTLMinutes
+	}
 	if files.PublicDomain == "" {
 		files.PublicDomain = strings.ToLower(cfg.App.SitesDomain)
 	}

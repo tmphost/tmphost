@@ -207,6 +207,9 @@ func withDefaults(s, defaults entity.Settings) entity.Settings {
 	if s.Files.MaxUploadMB == 0 {
 		s.Files.MaxUploadMB = defaults.Files.MaxUploadMB
 	}
+	if s.Files.AnonymousMaxTTLMinutes == 0 {
+		s.Files.AnonymousMaxTTLMinutes = defaults.Files.AnonymousMaxTTLMinutes
+	}
 	if s.Files.PublicDomain == "" {
 		s.Files.PublicDomain = defaults.Files.PublicDomain
 	}
@@ -244,7 +247,7 @@ func (c *controller) response() *entity.GetSettingsResponse {
 }
 
 // restartRequired reports whether anything but the live-applied credit
-// grant, maximum TTL and public URL settings changed since the server
+// grant, maximum TTLs and public URL settings changed since the server
 // started.
 func restartRequired(started, current entity.Settings) bool {
 	for _, s := range []*entity.Settings{&started, &current} {
@@ -381,6 +384,9 @@ func validate(s entity.Settings) error {
 	}
 	if s.Files.MaxTTLMinutes < 1 || s.Files.MaxTTLMinutes > _maxTTLMinutes {
 		return fmt.Errorf("max TTL must be between 1 and %d minutes", _maxTTLMinutes)
+	}
+	if s.Files.AnonymousMaxTTLMinutes < 1 || s.Files.AnonymousMaxTTLMinutes > s.Files.MaxTTLMinutes {
+		return fmt.Errorf("max TTL without sign-in must be between 1 and %d minutes (the max TTL)", s.Files.MaxTTLMinutes)
 	}
 	if s.Files.MaxUploadMB < 1 || s.Files.MaxUploadMB > _maxUploadMB {
 		return fmt.Errorf("max upload size must be between 1 and %d MB", _maxUploadMB)

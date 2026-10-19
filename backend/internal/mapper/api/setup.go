@@ -97,7 +97,8 @@ func FromSettingsViewToSettingsEntity(v view.Settings) entity.Settings {
 		},
 		Files: entity.FileSettings{
 			MaxTTLMinutes: v.Files.MaxTTLMinutes, MaxUploadMB: v.Files.MaxUploadMB,
-			Subdomains: v.Files.Subdomains, PublicDomain: v.Files.PublicDomain,
+			AnonymousMaxTTLMinutes: v.Files.AnonymousMaxTTLMinutes,
+			Subdomains:             v.Files.Subdomains, PublicDomain: v.Files.PublicDomain,
 		},
 		Auth: entity.AuthSettings{
 			Google:    entity.OAuthClientSettings{ClientID: v.Auth.Google.ClientID, ClientSecret: v.Auth.Google.ClientSecret},
@@ -140,7 +141,8 @@ func FromSettingsEntityToSettingsView(e entity.Settings) view.Settings {
 		},
 		Files: view.FileSettings{
 			MaxTTLMinutes: e.Files.MaxTTLMinutes, MaxUploadMB: e.Files.MaxUploadMB,
-			Subdomains: e.Files.Subdomains, PublicDomain: e.Files.PublicDomain,
+			AnonymousMaxTTLMinutes: e.Files.AnonymousMaxTTLMinutes,
+			Subdomains:             e.Files.Subdomains, PublicDomain: e.Files.PublicDomain,
 		},
 		Auth: view.AuthSettings{
 			Google:    view.OAuthClientSettings{ClientID: e.Auth.Google.ClientID, ClientSecret: e.Auth.Google.ClientSecret},

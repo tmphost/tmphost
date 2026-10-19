@@ -178,8 +178,9 @@ type (
 
 	// FilesConfig is the "files" section.
 	FilesConfig struct {
-		MaxTTLMinutes int `yaml:"maxTtlMinutes"`
-		MaxUploadMB   int `yaml:"maxUploadMb"`
+		MaxTTLMinutes          int `yaml:"maxTtlMinutes"`
+		MaxUploadMB            int `yaml:"maxUploadMb"`
+		AnonymousMaxTTLMinutes int `yaml:"anonymousMaxTtlMinutes"`
 		// Subdomains serves each folder on its own host,
 		// <folderID>-<userID>.<PublicDomain>, instead of below BaseURL.
 		Subdomains bool `yaml:"subdomains"`

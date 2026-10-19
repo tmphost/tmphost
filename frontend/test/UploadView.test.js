@@ -18,8 +18,8 @@ import { useToasts } from '../src/composables/useToasts'
 import { dataTransfer, dirEntry, fileEntry } from './dropEntries'
 
 const limits = {
-  defaultTtlMinutes: 30,
-  maxTtlMinutes: 30,
+  defaultTtlMinutes: 10,
+  maxTtlMinutes: 10,
   maxUploadBytes: 4 * 1024 * 1024,
   billingBlockMinutes: 30,
   anonymous: true,
@@ -77,7 +77,7 @@ describe('UploadView', () => {
   it('shows the anonymous limits and links to sign-in', async () => {
     const wrapper = await mountView()
     expect(wrapper.find('[data-test="upload-limits"]').text()).toBe(
-      'Up to 4.0 MB per file and 5 files every 30 min. Links expire after 30 min.',
+      'Up to 4.0 MB per file and 5 files every 30 min. Links expire after 10 min.',
     )
     expect(wrapper.find('[data-test="upload-sign-in"]').attributes('href')).toBe('/login')
     expect(wrapper.find('[data-test="upload-summary"]').exists()).toBe(false)
@@ -100,7 +100,7 @@ describe('UploadView', () => {
 
     await wrapper.find('[data-test="upload-start"]').trigger('click')
     await flushPromises()
-    expect(createFolder).toHaveBeenCalledWith(30)
+    expect(createFolder).toHaveBeenCalledWith(10)
     expect(uploadFile.mock.calls.map((c) => c[1])).toEqual(['a.txt', 'site/index.html'])
     expect(lastToast()).toMatchObject({ type: 'success', message: 'Uploaded 2 files' })
     expect(wrapper.find('[data-test="upload-summary"]').exists()).toBe(false)

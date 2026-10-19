@@ -14,9 +14,10 @@ vi.mock('../src/api', () => ({
   deleteFolder: vi.fn(),
   uploadFile: vi.fn(),
   deleteFile: vi.fn(),
+  renameFolder: vi.fn(),
 }))
 
-import { createFolder, deleteFile, deleteFolder, fetchFolder, fetchLimits, listFolders, uploadFile } from '../src/api'
+import { createFolder, deleteFile, deleteFolder, fetchFolder, fetchLimits, listFolders, renameFolder, uploadFile } from '../src/api'
 import FilesView from '../src/views/FilesView.vue'
 import { useToasts } from '../src/composables/useToasts'
 import { dataTransfer, dirEntry, fileEntry } from './dropEntries'
@@ -137,8 +138,9 @@ describe('FilesView', () => {
 
   it('lists folders newest first with a ticking countdown', async () => {
     const wrapper = await mountView()
-    const ids = wrapper.findAll('[data-test="folder-toggle"]').map((b) => b.text())
+    const ids = wrapper.findAll('[data-test="folder-title"]').map((b) => b.text())
     expect(ids).toEqual(['new', 'old'])
+    expect(wrapper.find('[data-test="folder-id"]').exists()).toBe(false)
     const oldExpires = () => wrapper.find('[data-test="folder-old"] [data-test="folder-expires"]').text()
     expect(wrapper.find('[data-test="folder-new"] [data-test="folder-expires"]').text()).toBe('6d 23h')
     expect(oldExpires()).toBe('45m')
@@ -291,7 +293,7 @@ describe('FilesView', () => {
     expect(lastToast()).toMatchObject({ type: 'success', message: 'Uploaded 2 files' })
     expect(wrapper.find('[data-test="upload-summary"]').exists()).toBe(false)
     expect(currentUser.refreshUser).toHaveBeenCalledTimes(1)
-    expect(wrapper.findAll('[data-test="folder-toggle"]').map((b) => b.text())).toEqual(['f9', 'new', 'old'])
+    expect(wrapper.findAll('[data-test="folder-title"]').map((b) => b.text())).toEqual(['f9', 'new', 'old'])
   })
 
   it('says 1 file for a single upload', async () => {
@@ -341,7 +343,7 @@ describe('FilesView', () => {
     await wrapper.find('[data-test="folder-new"] [data-test="folder-upload"]').trigger('click')
     await flushPromises()
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled()
-    expect(wrapper.find('[data-test="upload-target"]').text()).toContain('Upload to folder new')
+    expect(wrapper.find('[data-test="upload-target"]').text()).toContain('Upload to new')
     expect(wrapper.find('[data-test="upload-ttl"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="upload-target-expires"]').text()).toBe('6d 23h')
     expect(wrapper.find('[data-test="folder-new"]').classes()).toContain('border-gray-900')
@@ -352,7 +354,7 @@ describe('FilesView', () => {
     expect(wrapper.find('[data-test="upload-cost"]').text()).toBe('2 files · 1 replaced · 668 credits')
 
     await wrapper.find('[data-test="files-page"]').trigger('dragenter', { dataTransfer: { types: ['Files'] } })
-    expect(wrapper.find('[data-test="drop-overlay"]').text()).toContain('They go into folder new, replacing files with the same path.')
+    expect(wrapper.find('[data-test="drop-overlay"]').text()).toContain('They go into new, replacing files with the same path.')
     await wrapper.find('[data-test="files-page"]').trigger('dragleave', { dataTransfer: { types: ['Files'] } })
 
     await wrapper.find('[data-test="upload-start"]').trigger('click')
@@ -384,6 +386,14 @@ describe('FilesView', () => {
     expect(wrapper.find('[data-test="selected-a.txt"] [data-test="selected-replaces"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="selected-b.txt"] [data-test="selected-replaces"]').exists()).toBe(false)
 
+    // The card follows a rename of its folder.
+    renameFolder.mockResolvedValueOnce({ ...folders[1], title: 'Photos', defaultTitle: 'new' })
+    await wrapper.find('[data-test="folder-new"] [data-test="folder-title"]').trigger('click')
+    await wrapper.find('[data-test="folder-title-input"]').setValue('Photos')
+    await wrapper.find('[data-test="folder-title-input"]').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(wrapper.find('[data-test="upload-target"]').text()).toContain('Upload to Photos')
+
     await wrapper.find('[data-test="upload-new-folder"]').trigger('click')
     expect(wrapper.find('[data-test="upload-target"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="selected-replaces"]').exists()).toBe(false)
@@ -410,7 +420,7 @@ describe('FilesView', () => {
     vi.advanceTimersByTime(45 * 60 * 1000)
     await wrapper.vm.$nextTick()
     expect(wrapper.find('[data-test="upload-target-expires"]').text()).toBe('Expired')
-    expect(wrapper.find('[data-test="upload-target-expired"]').text()).toBe('Folder old has expired. Upload to a new folder instead.')
+    expect(wrapper.find('[data-test="upload-target-expired"]').text()).toBe('old has expired. Upload to a new folder instead.')
     expect(wrapper.find('[data-test="upload-cost"]').text()).toBe('1 file · 1 credits')
     expect(wrapper.find('[data-test="upload-start"]').attributes('disabled')).toBeDefined()
   })
@@ -462,6 +472,7 @@ describe('FilesView', () => {
     const toggle = wrapper.find('[data-test="folder-new"] [data-test="folder-toggle"]')
     await toggle.trigger('click')
     expect(toggle.attributes('aria-expanded')).toBe('true')
+    expect(toggle.attributes('aria-label')).toBe('Hide files')
     expect(wrapper.find('[data-test="folder-files"]').text()).toContain('Loading files')
 
     pending.resolve({ folder: folders[1], files })
@@ -469,12 +480,90 @@ describe('FilesView', () => {
     expect(fetchFolder).toHaveBeenCalledWith('new')
     const row = wrapper.find('[data-test="file-site/index.html"]')
     expect(row.text()).toContain('2.0 KB')
-    expect(row.find('[data-test="file-open"]').attributes('href')).toBe(files[0].url)
+    const link = row.find('[data-test="file-link"]')
+    expect(link.text()).toBe('site/index.html')
+    expect(link.attributes()).toMatchObject({ href: files[0].url, target: '_blank', rel: 'noopener' })
     expect(wrapper.find('[data-test="file-a.txt"]').text()).toContain('12 B')
 
     await toggle.trigger('click')
     expect(wrapper.find('[data-test="folder-files"]').exists()).toBe(false)
     expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(toggle.attributes('aria-label')).toBe('Show files')
+  })
+
+  it('names folders by title, else their default title', async () => {
+    listFolders.mockResolvedValue([
+      { ...folders[0], title: 'Holiday', defaultTitle: 'old' },
+      { ...folders[1], title: '', defaultTitle: 'report.pdf' },
+    ])
+    const wrapper = await mountView()
+    expect(wrapper.findAll('[data-test="folder-title"]').map((b) => b.text())).toEqual(['report.pdf', 'Holiday'])
+    expect(wrapper.find('[data-test="folder-new"] [data-test="folder-id"]').text()).toBe('new')
+    expect(wrapper.find('[data-test="folder-old"] [data-test="folder-id"]').text()).toBe('old')
+  })
+
+  it('renames a folder inline', async () => {
+    renameFolder.mockResolvedValueOnce({ ...folders[1], title: 'Photos', defaultTitle: 'new' })
+    const wrapper = await mountView()
+    const card = () => wrapper.find('[data-test="folder-new"]')
+    await card().find('[data-test="folder-title"]').trigger('click')
+    await flushPromises()
+    const input = card().find('[data-test="folder-title-input"]')
+    expect(input.element.value).toBe('new')
+    expect(input.attributes('placeholder')).toBe('new')
+    expect(document.activeElement).toBe(input.element)
+    expect(card().find('[data-test="folder-title"]').exists()).toBe(false)
+
+    await input.setValue('  Photos ')
+    await input.trigger('keydown', { key: 'Enter' })
+    await input.trigger('blur')
+    await flushPromises()
+    expect(renameFolder).toHaveBeenCalledTimes(1)
+    expect(renameFolder).toHaveBeenCalledWith('new', 'Photos')
+    expect(card().find('[data-test="folder-title"]').text()).toBe('Photos')
+    expect(card().find('[data-test="folder-id"]').text()).toBe('new')
+    expect(lastToast()).toMatchObject({ type: 'success', message: 'Folder renamed' })
+  })
+
+  it('clears a title to restore the default one', async () => {
+    listFolders.mockResolvedValue([{ ...folders[1], title: 'Photos', defaultTitle: 'a.txt' }])
+    renameFolder.mockResolvedValueOnce({ ...folders[1], title: '', defaultTitle: 'a.txt' })
+    const wrapper = await mountView()
+    await wrapper.find('[data-test="folder-title"]').trigger('click')
+    const input = wrapper.find('[data-test="folder-title-input"]')
+    expect(input.attributes('placeholder')).toBe('a.txt')
+    await input.setValue('')
+    await input.trigger('blur')
+    await flushPromises()
+    expect(renameFolder).toHaveBeenCalledWith('new', '')
+    expect(wrapper.find('[data-test="folder-title"]').text()).toBe('a.txt')
+  })
+
+  it('leaves the title alone when unchanged or cancelled', async () => {
+    const wrapper = await mountView()
+    const card = () => wrapper.find('[data-test="folder-old"]')
+    await card().find('[data-test="folder-title"]').trigger('click')
+    await card().find('[data-test="folder-title-input"]').trigger('keydown', { key: 'Enter' })
+    expect(card().find('[data-test="folder-title-input"]').exists()).toBe(false)
+
+    await card().find('[data-test="folder-title"]').trigger('click')
+    const input = card().find('[data-test="folder-title-input"]')
+    await input.setValue('Something')
+    await input.trigger('keydown', { key: 'Escape' })
+    expect(card().find('[data-test="folder-title"]').text()).toBe('old')
+    expect(renameFolder).not.toHaveBeenCalled()
+  })
+
+  it('toasts rename errors and keeps the old title', async () => {
+    renameFolder.mockRejectedValueOnce(new Error('invalid folder title'))
+    const wrapper = await mountView()
+    await wrapper.find('[data-test="folder-old"] [data-test="folder-title"]').trigger('click')
+    const input = wrapper.find('[data-test="folder-title-input"]')
+    await input.setValue('x')
+    await input.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(lastToast()).toMatchObject({ type: 'error', message: 'invalid folder title' })
+    expect(wrapper.find('[data-test="folder-old"] [data-test="folder-title"]').text()).toBe('old')
   })
 
   it('shows an empty folder and toasts load errors', async () => {
@@ -550,6 +639,7 @@ describe('FilesView', () => {
     pending.resolve()
     await flushPromises()
     expect(deleteFile).toHaveBeenCalledWith('new', 'a.txt')
+    expect(listFolders).toHaveBeenCalledTimes(2)
     expect(wrapper.find('[data-test="file-a.txt"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="file-site/index.html"]').exists()).toBe(true)
     expect(lastToast()).toMatchObject({ type: 'success', message: 'File deleted' })

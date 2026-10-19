@@ -49,7 +49,7 @@ func newEnv(t *testing.T) *env {
 		folders: mockrepo.NewMockFolderRepository(mc),
 		users:   mockrepo.NewMockUserRepository(mc),
 		storage: mockstorage.NewMockService(mc),
-		limits:  entity.FileSettings{MaxTTLMinutes: 120, MaxUploadMB: 1, Subdomains: true, PublicDomain: "tmp.host"},
+		limits:  entity.FileSettings{MaxTTLMinutes: 120, MaxUploadMB: 1, AnonymousMaxTTLMinutes: 10, Subdomains: true, PublicDomain: "tmp.host"},
 	}
 	e.ctrl = New(Params{
 		Folders:   e.folders,
@@ -107,7 +107,7 @@ func TestGetLimits(t *testing.T) {
 		DefaultTTLMinutes: 30, MaxTTLMinutes: 120, MaxUploadBytes: 1 << 20, BillingBlockMinutes: 30, BillingUnitBytes: 1 << 20,
 	}, e.ctrl.GetLimits(context.Background(), &entity.GetLimitsRequest{}))
 	assert.Equal(t, &entity.GetLimitsResponse{
-		DefaultTTLMinutes: 30, MaxTTLMinutes: 30, MaxUploadBytes: 4 << 20, BillingBlockMinutes: 30, BillingUnitBytes: 1 << 20,
+		DefaultTTLMinutes: 10, MaxTTLMinutes: 10, MaxUploadBytes: 4 << 20, BillingBlockMinutes: 30, BillingUnitBytes: 1 << 20,
 		Anonymous: true, FileOps: 5, FileOpsWindowMinutes: 30,
 	}, e.ctrl.GetLimits(context.Background(), &entity.GetLimitsRequest{Anonymous: true}))
 }
@@ -116,15 +116,18 @@ func TestCreateFolder_Anonymous(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
 	e.nextID = 1000
-	_, err := e.ctrl.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: 7, Anonymous: true, TTLMinutes: 31})
-	assert.ErrorIs(t, err, ErrInvalidTTL, "anonymous folders live at most 30 minutes")
+	_, err := e.ctrl.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: 7, Anonymous: true, TTLMinutes: 11})
+	assert.ErrorIs(t, err, ErrInvalidTTL, "anonymous folders live at most 10 minutes")
 
 	e.folders.EXPECT().CreateFolder(ctx, gomock.Any()).Return(model.Folder{}, errBoom)
 	_, err = e.ctrl.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: 7, Anonymous: true})
 	assert.ErrorIs(t, err, errBoom)
 
 	e.folders.EXPECT().CreateFolder(ctx, gomock.Any()).
-		DoAndReturn(func(_ context.Context, f model.Folder) (model.Folder, error) { return f, nil }).Times(AnonymousOps)
+		DoAndReturn(func(_ context.Context, f model.Folder) (model.Folder, error) {
+			assert.Equal(t, 10*time.Minute, f.ExpiresAt.Sub(f.CreatedAt), "no TTL asked: the anonymous max, not DefaultTTL")
+			return f, nil
+		}).Times(AnonymousOps)
 	for range AnonymousOps {
 		_, err = e.ctrl.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: 7, Anonymous: true})
 		require.NoError(t, err, "a failed create gives its folder back")
@@ -201,7 +204,7 @@ func TestCreateFolder(t *testing.T) {
 				DoAndReturn(func(_ context.Context, f model.Folder) (model.Folder, error) { return f, nil })
 			rs, err := e.ctrl.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: 7, TTLMinutes: tc.minutes})
 			require.NoError(t, err)
-			assert.Equal(t, entity.Folder{ID: 1000, UserID: 7, CreatedAt: _now, ExpiresAt: _now.Add(tc.ttl), URL: _host}, rs.Folder)
+			assert.Equal(t, entity.Folder{ID: 1000, UserID: 7, CreatedAt: _now, ExpiresAt: _now.Add(tc.ttl), URL: _host, DefaultTitle: "000000000rs"}, rs.Folder)
 		})
 	}
 }
@@ -222,11 +225,26 @@ func TestCreateFolder_Errors(t *testing.T) {
 func TestListFolders(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
-	e.folders.EXPECT().ListFoldersByUser(ctx, int64(7), _now).Return([]model.Folder{{ID: 1000, UserID: 7, ExpiresAt: _now}}, nil)
+	e.folders.EXPECT().ListFoldersByUser(ctx, int64(7), _now).Return([]model.Folder{
+		{ID: 1000, UserID: 7, ExpiresAt: _now, Title: "Photos"},
+		{ID: 1001, UserID: 7, ExpiresAt: _now},
+		{ID: 1002, UserID: 7, ExpiresAt: _now},
+		{ID: 1003, UserID: 7, ExpiresAt: _now},
+	}, nil)
+	e.storage.EXPECT().List(ctx, _prefix).Return([]storage.Object{{Key: _prefix + "a"}, {Key: _prefix + "b"}}, nil)
+	e.storage.EXPECT().List(ctx, "u7/000000000rt/").Return([]storage.Object{{Key: "u7/000000000rt/site/report.pdf"}}, nil)
+	e.storage.EXPECT().List(ctx, "u7/000000000ru/").Return(nil, nil)
+	e.storage.EXPECT().List(ctx, "u7/000000000rv/").Return(nil, errBoom)
 	rs, err := e.ctrl.ListFolders(ctx, &entity.ListFoldersRequest{UserID: 7})
 	require.NoError(t, err)
-	require.Len(t, rs.Folders, 1)
+	require.Len(t, rs.Folders, 4)
 	assert.Equal(t, _host, rs.Folders[0].URL)
+	assert.Equal(t, "Photos", rs.Folders[0].Title)
+	titles := []string{}
+	for _, f := range rs.Folders {
+		titles = append(titles, f.DefaultTitle)
+	}
+	assert.Equal(t, []string{"000000000rs", "report.pdf", "000000000ru", "000000000rv"}, titles, "only file's name, else the ID")
 
 	e.folders.EXPECT().ListFoldersByUser(ctx, int64(7), _now).Return(nil, errBoom)
 	_, err = e.ctrl.ListFolders(ctx, &entity.ListFoldersRequest{UserID: 7})
@@ -249,6 +267,83 @@ func TestGetFolder(t *testing.T) {
 		{Path: "site/index.html", Size: 5, UpdatedAt: _now, URL: _host + "site/index.html"},
 	}, rs.Files)
 	assert.Equal(t, int64(1000), rs.Folder.ID)
+	assert.Equal(t, "000000000rs", rs.Folder.DefaultTitle)
+}
+
+func TestGetFolder_SingleFileDefaultTitle(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	e.liveFolder(time.Hour)
+	e.storage.EXPECT().List(ctx, _prefix).Return([]storage.Object{{Key: _prefix + "notes.txt"}}, nil)
+	rs, err := e.ctrl.GetFolder(ctx, &entity.GetFolderRequest{UserID: 7, FolderID: 1000})
+	require.NoError(t, err)
+	assert.Equal(t, "notes.txt", rs.Folder.DefaultTitle)
+}
+
+func TestUpdateFolder(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	e.liveFolder(time.Hour)
+	e.folders.EXPECT().UpdateFolderTitle(ctx, int64(1000), "Holiday 🌴").Return(nil)
+	e.storage.EXPECT().List(ctx, _prefix).Return([]storage.Object{{Key: _prefix + "beach.jpg"}}, nil)
+	rs, err := e.ctrl.UpdateFolder(ctx, &entity.UpdateFolderRequest{UserID: 7, FolderID: 1000, Title: "  Holiday 🌴 \t"})
+	require.NoError(t, err)
+	assert.Equal(t, "Holiday 🌴", rs.Folder.Title)
+	assert.Equal(t, "beach.jpg", rs.Folder.DefaultTitle)
+	assert.Equal(t, _host, rs.Folder.URL)
+
+	e.liveFolder(time.Hour)
+	e.folders.EXPECT().UpdateFolderTitle(ctx, int64(1000), "").Return(nil)
+	e.storage.EXPECT().List(ctx, _prefix).Return(nil, nil)
+	rs, err = e.ctrl.UpdateFolder(ctx, &entity.UpdateFolderRequest{UserID: 7, FolderID: 1000, Title: "   "})
+	require.NoError(t, err)
+	assert.Empty(t, rs.Folder.Title, "blank clears the title")
+	assert.Equal(t, "000000000rs", rs.Folder.DefaultTitle)
+}
+
+func TestUpdateFolder_Errors(t *testing.T) {
+	ctx := context.Background()
+	rq := func(title string) *entity.UpdateFolderRequest {
+		return &entity.UpdateFolderRequest{UserID: 7, FolderID: 1000, Title: title}
+	}
+
+	t.Run("invalid", func(t *testing.T) {
+		e := newEnv(t)
+		for _, title := range []string{strings.Repeat("é", MaxTitleLength+1), "a\x00b", "a\nb", "\xff"} {
+			_, err := e.ctrl.UpdateFolder(ctx, rq(title))
+			assert.ErrorIs(t, err, ErrInvalidTitle, title)
+		}
+	})
+	t.Run("not owner", func(t *testing.T) {
+		e := newEnv(t)
+		e.liveFolder(time.Hour)
+		_, err := e.ctrl.UpdateFolder(ctx, &entity.UpdateFolderRequest{UserID: 8, FolderID: 1000, Title: "x"})
+		assert.ErrorIs(t, err, ErrNotFound)
+	})
+	t.Run("update fails", func(t *testing.T) {
+		e := newEnv(t)
+		e.liveFolder(time.Hour)
+		e.folders.EXPECT().UpdateFolderTitle(ctx, int64(1000), "x").Return(errBoom)
+		_, err := e.ctrl.UpdateFolder(ctx, rq("x"))
+		assert.ErrorIs(t, err, errBoom)
+	})
+	t.Run("list fails", func(t *testing.T) {
+		e := newEnv(t)
+		e.liveFolder(time.Hour)
+		e.folders.EXPECT().UpdateFolderTitle(ctx, int64(1000), "x").Return(nil)
+		e.storage.EXPECT().List(ctx, _prefix).Return(nil, errBoom)
+		_, err := e.ctrl.UpdateFolder(ctx, rq("x"))
+		assert.ErrorIs(t, err, errBoom)
+	})
+}
+
+func TestValidTitle(t *testing.T) {
+	assert.True(t, ValidTitle(""))
+	assert.True(t, ValidTitle(strings.Repeat("ü", MaxTitleLength)))
+	assert.False(t, ValidTitle(strings.Repeat("ü", MaxTitleLength+1)))
+	assert.False(t, ValidTitle("tab\there"))
+	assert.False(t, ValidTitle("\u0085"))
+	assert.False(t, ValidTitle("\xc3"))
 }
 
 func TestGetFolder_Errors(t *testing.T) {

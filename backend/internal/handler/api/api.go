@@ -101,6 +101,7 @@ func New(p Params) {
 	r.Post("/folders", anyone, folder.Create)
 	r.Get("/folders", authn, folder.List)
 	r.Get("/folders/:id", authn, folder.Get)
+	r.Patch("/folders/:id", authn, folder.Update)
 	r.Delete("/folders/:id", authn, folder.Delete)
 	r.Put("/folders/:id/files/*", anyone, folder.PutFile)
 	r.Get("/folders/:id/files/*", authn, folder.GetFile)

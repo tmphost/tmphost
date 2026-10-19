@@ -20,6 +20,9 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   CLI `--id`). Uploading to a path that is already there replaces the file
   in place, an update: its URL stays the same and the folder keeps its
   expiry. The write is charged like any other.
+- Without signing in, the web app's Upload page makes folders that live at
+  most `files.anonymousMaxTtlMinutes` (`TMPHOSTIO_FILES_ANONYMOUS_MAX_TTL_MINUTES`,
+  10 minutes by default; root can change it on /setup).
 - Storage is local disk (`TMPHOSTIO_STORAGE_LOCAL_PATH`) or an S3 bucket, under
   `u<userId>/<folderId>/<path>`. Paths are at most 5 directories deep and are
   validated server-side, so a file can never leave its folder. The database

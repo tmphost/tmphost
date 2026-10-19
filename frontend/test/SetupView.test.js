@@ -32,7 +32,7 @@ function state(overrides = {}) {
         local: { path: './_storage/files' },
         s3: { endpoint: '', region: '', bucket: '', accessKeyId: '', secretAccessKey: '', usePathStyle: false },
       },
-      files: { maxTtlMinutes: 432000, maxUploadMb: 16, subdomains: false, publicDomain: '' },
+      files: { maxTtlMinutes: 432000, maxUploadMb: 16, anonymousMaxTtlMinutes: 10, subdomains: false, publicDomain: '' },
       auth: {
         google: { clientId: 'g', clientSecret: '' },
         github: { clientId: '', clientSecret: '' },
@@ -137,6 +137,7 @@ describe('SetupView', () => {
     await wrapper.find('#s3-bucket').setValue('files')
     await wrapper.find('[data-test="setup-max-ttl"]').setValue('1440')
     await wrapper.find('[data-test="setup-max-upload"]').setValue('64')
+    await wrapper.find('[data-test="setup-anonymous-max-ttl"]').setValue('5')
     await wrapper.find('#github-id').setValue('h')
     await wrapper.find('#github-secret').setValue('hsecret')
     await wrapper.find('[data-test="setup-form"]').trigger('submit')
@@ -147,7 +148,7 @@ describe('SetupView', () => {
     expect(sent.storage.driver).toBe('s3')
     expect(sent.storage.s3).toMatchObject({ bucket: 'files' })
     expect(sent.storage.s3).not.toHaveProperty('enabled')
-    expect(sent.files).toEqual({ maxTtlMinutes: 1440, maxUploadMb: 64, subdomains: false, publicDomain: '' })
+    expect(sent.files).toEqual({ maxTtlMinutes: 1440, maxUploadMb: 64, anonymousMaxTtlMinutes: 5, subdomains: false, publicDomain: '' })
     expect(sent.auth.github).toEqual({ clientId: 'h', clientSecret: 'hsecret' })
     expect(wrapper.find('[data-test="setup-restart"]').exists()).toBe(true)
     expect(wrapper.find('#github-secret').element.value).toBe('', 'secret cleared after save')
@@ -217,6 +218,7 @@ describe('SetupView', () => {
     expect(saveSettings.mock.calls.at(-1)[0].files).toEqual({
       maxTtlMinutes: 432000,
       maxUploadMb: 16,
+      anonymousMaxTtlMinutes: 10,
       subdomains: true,
       publicDomain: 'files.example.com',
     })
@@ -263,6 +265,14 @@ describe('SetupView', () => {
     expect(hint()).toMatch(/whole number/)
     await wrapper.find('[data-test="setup-max-ttl"]').setValue('')
     expect(hint()).toMatch(/whole number/)
+
+    const anonymous = wrapper.find('[data-test="setup-anonymous-max-ttl"]')
+    expect(anonymous.element.value).toBe('10')
+    expect(wrapper.find('[data-test="setup-anonymous-max-ttl-hint"]').text()).toBe(
+      '= 10 min, for uploads from the public Upload page. Default 10.',
+    )
+    await wrapper.find('[data-test="setup-max-ttl"]').setValue('60')
+    expect(anonymous.attributes('max')).toBe('60')
     expect(wrapper.find('[data-test="setup-max-upload"]').element.value).toBe('16')
   })
 

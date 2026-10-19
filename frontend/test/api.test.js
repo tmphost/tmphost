@@ -188,6 +188,17 @@ describe('files api', () => {
     expect(await api.fetchFolder('f2')).toEqual({ folder: { id: 'f2' }, files: [] })
     expect(fetch).toHaveBeenLastCalledWith('/api/v1/folders/f2', { method: 'GET', credentials: 'same-origin' })
 
+    fetch.mockResolvedValueOnce(json({ folder: { id: 'f2', title: 'Photos' } }))
+    expect(await api.renameFolder('f2', 'Photos')).toEqual({ id: 'f2', title: 'Photos' })
+    expect(fetch).toHaveBeenLastCalledWith('/api/v1/folders/f2', {
+      method: 'PATCH',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"title":"Photos"}',
+    })
+    fetch.mockResolvedValueOnce(json({}, 400))
+    await expect(api.renameFolder('f2', 'x')).rejects.toThrow('Failed to rename folder (400)')
+
     fetch.mockResolvedValueOnce(json(null, 204))
     expect(await api.deleteFolder('f2')).toBeUndefined()
     expect(fetch).toHaveBeenLastCalledWith('/api/v1/folders/f2', { method: 'DELETE', credentials: 'same-origin' })
