@@ -45,7 +45,7 @@ export async function fetchAuthConfig() {
 // providerLoginUrl is the server route that starts an OAuth round trip.
 // redirect is an in-app path to land on afterwards.
 export function providerLoginUrl(provider, redirect) {
-  const url = `${API_BASE_URL}/auth/${encodeURIComponent(provider)}/login`
+  const url = `${BASE_PATH}/auth/${encodeURIComponent(provider)}/login`
   return redirect ? `${url}?redirect_url=${encodeURIComponent(redirect)}` : url
 }
 

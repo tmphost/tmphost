@@ -338,18 +338,18 @@ describe('SetupView', () => {
     const wrapper = await mountView()
 
     expect(wrapper.find('#cp-0-secret').attributes('placeholder')).toContain('saved')
-    expect(wrapper.find('[data-test="cp-0-callback"]').text()).toContain('https://app.tmphost.io/api/v1/auth/my-okta/callback')
+    expect(wrapper.find('[data-test="cp-0-callback"]').text()).toContain('https://app.tmphost.io/auth/my-okta/callback')
     expect(wrapper.find('[data-test="cp-0-preview"]').attributes('src')).toBe(`data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg></svg>')}`)
 
     await wrapper.find('[data-test="setup-add-provider"]').trigger('click')
     expect(wrapper.find('[data-test="cp-1-preview"]').exists()).toBe(false)
     expect(wrapper.find('#cp-1-secret').attributes('placeholder')).toBe('Not set')
-    expect(wrapper.find('[data-test="cp-1-callback"]').text()).toContain('/api/v1/auth//callback')
+    expect(wrapper.find('[data-test="cp-1-callback"]').text()).toContain('/auth//callback')
     const values = {
       '#cp-1-name': ' Acme  SSO! ', '#cp-1-auth-url': 'https://sso.acme.dev', '#cp-1-id': 'aid', '#cp-1-secret': 'asecret',
     }
     for (const [sel, value] of Object.entries(values)) await wrapper.find(sel).setValue(value)
-    expect(wrapper.find('[data-test="cp-1-callback"]').text()).toContain('/api/v1/auth/acme-sso/callback')
+    expect(wrapper.find('[data-test="cp-1-callback"]').text()).toContain('/auth/acme-sso/callback')
 
     // Upload reads the file into the icon; an empty pick changes nothing.
     const upload = wrapper.find('[data-test="cp-1-upload"]')

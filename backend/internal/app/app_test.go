@@ -73,9 +73,9 @@ func TestNew_WiresProvidersAndRoutes(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.JSONEq(t, `{"providers":[{"id":"google","name":"Google","icon":""},{"id":"github","name":"GitHub","icon":""}]}`, body)
 
-	res, _ = get(t, a, "/api/v1/auth/github/login")
+	res, _ = get(t, a, "/auth/github/login")
 	assert.Equal(t, http.StatusFound, res.StatusCode)
-	assert.Contains(t, res.Header.Get("Location"), "redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fapi%2Fv1%2Fauth%2Fgithub%2Fcallback")
+	assert.Contains(t, res.Header.Get("Location"), "redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fauth%2Fgithub%2Fcallback")
 
 	res, _ = get(t, a, "/api/v1/users/me")
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)

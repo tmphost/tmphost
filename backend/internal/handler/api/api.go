@@ -24,6 +24,10 @@ import (
 // RoutePrefix is where the API is mounted.
 const RoutePrefix = "/api/v1"
 
+// AuthPrefix is where the browser sign-in round trip is mounted, outside the
+// API: /auth/<provider>/login and the provider's /auth/<provider>/callback.
+const AuthPrefix = "/auth"
+
 // Root sign-in attempts allowed per client IP per window, to slow down
 // guessing the root access token.
 const (
@@ -85,10 +89,11 @@ func New(p Params) {
 	p.Router.Post(oauthctrl.AuthorizePath, OptionalAuthenticate(p.Auth), oauth.Consent)
 	p.Router.Post(oauthctrl.TokenPath, oauth.Token)
 
+	p.Router.Get(AuthPrefix+"/:provider/login", auth.Login)
+	p.Router.Get(AuthPrefix+"/:provider/callback", auth.Callback)
+
 	r := p.Router.Group(RoutePrefix)
 	r.Get("/auth/config", auth.Config)
-	r.Get("/auth/:provider/login", auth.Login)
-	r.Get("/auth/:provider/callback", auth.Callback)
 	r.Post("/auth/logout", auth.Logout)
 
 	authn := Authenticate(p.Auth)

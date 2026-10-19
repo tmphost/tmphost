@@ -66,8 +66,8 @@ describe('api', () => {
 
   it('providerLoginUrl encodes the redirect', async () => {
     const api = await loadApi('')
-    expect(api.providerLoginUrl('github')).toBe('/api/v1/auth/github/login')
-    expect(api.providerLoginUrl('google', '/a?b=1')).toBe('/api/v1/auth/google/login?redirect_url=%2Fa%3Fb%3D1')
+    expect(api.providerLoginUrl('github')).toBe('/auth/github/login')
+    expect(api.providerLoginUrl('google', '/a?b=1')).toBe('/auth/google/login?redirect_url=%2Fa%3Fb%3D1')
   })
 
   it('logout posts and clears the cache even on failure', async () => {
