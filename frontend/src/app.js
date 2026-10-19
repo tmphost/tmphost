@@ -33,13 +33,8 @@ export const routes = [
     meta: { public: true, title: 'Setup' },
   },
   {
+    // Files is the home page: signed-in users land here.
     path: '/',
-    name: 'home',
-    component: () => import('./views/HomeView.vue'),
-    meta: { title: 'Home' },
-  },
-  {
-    path: '/files',
     name: 'files',
     component: () => import('./views/FilesView.vue'),
     meta: { title: 'Files' },

@@ -57,3 +57,39 @@ export function expiresIn(expiresAt, now = Date.now()) {
 export function relativePath(file) {
   return file.webkitRelativePath || file.name
 }
+
+// fileItems pairs picked files with their relativePath.
+export function fileItems(fileList) {
+  return [...fileList].map((file) => ({ path: relativePath(file), file }))
+}
+
+// isFileDrag tells a drag of files or folders from one of text or links.
+export function isFileDrag(event) {
+  return [...(event.dataTransfer?.types ?? [])].includes('Files')
+}
+
+// droppedFiles lists a drop as { path, file } items, walking dropped folders
+// so their files keep paths relative to the drop (photos/2026/a.jpg). It reads
+// the entries before its first await: the browser empties the DataTransfer
+// once the drop handler returns.
+export async function droppedFiles(dataTransfer) {
+  const entries = [...(dataTransfer.items ?? [])].map((item) => item.webkitGetAsEntry?.()).filter(Boolean)
+  if (!entries.length) return fileItems(dataTransfer.files)
+  return (await Promise.all(entries.map(readEntry))).flat()
+}
+
+async function readEntry(entry) {
+  if (entry.isFile) {
+    const file = await new Promise((resolve, reject) => entry.file(resolve, reject))
+    return [{ path: entry.fullPath.replace(/^\/+/, ''), file }]
+  }
+  const reader = entry.createReader()
+  const children = []
+  // readEntries hands back a batch at a time (100 in Chrome); empty means done.
+  for (;;) {
+    const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject))
+    if (!batch.length) break
+    children.push(...batch)
+  }
+  return (await Promise.all(children.map(readEntry))).flat()
+}

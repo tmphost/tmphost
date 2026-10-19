@@ -15,6 +15,7 @@ vi.mock('../src/api', () => ({
 import { createFolder, fetchLimits, uploadFile } from '../src/api'
 import UploadView from '../src/views/UploadView.vue'
 import { useToasts } from '../src/composables/useToasts'
+import { dataTransfer, dirEntry, fileEntry } from './dropEntries'
 
 const limits = {
   defaultTtlMinutes: 30,
@@ -169,6 +170,20 @@ describe('UploadView', () => {
     await card.trigger('dragleave')
     expect(card.classes()).not.toContain('border-gray-400')
     await card.trigger('drop', { dataTransfer: { files: [file('d.txt')] } })
+    await flushPromises()
     expect(wrapper.find('[data-test="selected-d.txt"]').exists()).toBe(true)
+
+    await card.trigger('drop', { dataTransfer: dataTransfer([dirEntry('/docs', [fileEntry('/docs/e.txt')])]) })
+    await flushPromises()
+    expect(wrapper.find('[data-test="selected-docs/e.txt"]').exists()).toBe(true)
+  })
+
+  it('toasts when a dropped file cannot be read', async () => {
+    const wrapper = await mountView()
+    await wrapper
+      .find('[data-test="upload-card"]')
+      .trigger('drop', { dataTransfer: dataTransfer([fileEntry('/x.bin', 1, new Error('unreadable'))]) })
+    await flushPromises()
+    expect(useToasts().toasts.value.at(-1)).toMatchObject({ type: 'error', message: 'unreadable' })
   })
 })

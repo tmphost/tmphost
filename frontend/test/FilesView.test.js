@@ -19,6 +19,7 @@ vi.mock('../src/api', () => ({
 import { createFolder, deleteFile, deleteFolder, fetchFolder, fetchLimits, listFolders, uploadFile } from '../src/api'
 import FilesView from '../src/views/FilesView.vue'
 import { useToasts } from '../src/composables/useToasts'
+import { dataTransfer, dirEntry, fileEntry } from './dropEntries'
 
 const NOW = Date.parse('2026-10-18T12:00:00Z')
 const limits = { defaultTtlMinutes: 30, maxTtlMinutes: 432000, maxUploadBytes: 1000, billingBlockMinutes: 30 }
@@ -176,17 +177,62 @@ describe('FilesView', () => {
     expect(wrapper.find('[data-test="upload-summary"]').exists()).toBe(false)
   })
 
-  it('accepts dropped files', async () => {
+  it('accepts files dropped anywhere on the page', async () => {
     const wrapper = await mountView()
-    const card = wrapper.find('[data-test="upload-card"]')
-    await card.trigger('dragover')
-    expect(card.classes()).toContain('border-gray-400')
-    await card.trigger('dragleave')
-    expect(card.classes()).not.toContain('border-gray-400')
-    await card.trigger('dragover')
-    await card.trigger('drop', { dataTransfer: { files: [file('dropped.png')] } })
-    expect(card.classes()).not.toContain('border-gray-400')
+    const page = wrapper.find('[data-test="files-page"]')
+    const overlay = () => wrapper.find('[data-test="drop-overlay"]')
+    const files = { types: ['Files'] }
+
+    // Dragging text or a link is not an upload.
+    await page.trigger('dragenter', { dataTransfer: { types: ['text/plain'] } })
+    expect(overlay().exists()).toBe(false)
+    await page.trigger('dragleave', { dataTransfer: { types: ['text/plain'] } })
+
+    // Crossing a child fires enter/leave pairs; the overlay stays up.
+    await page.trigger('dragenter', { dataTransfer: files })
+    await page.trigger('dragenter', { dataTransfer: files })
+    expect(overlay().text()).toContain('Drop files or folders')
+    expect(overlay().text()).toContain('expires after 30 min')
+    await page.trigger('dragleave', { dataTransfer: files })
+    expect(overlay().exists()).toBe(true)
+    await page.trigger('dragleave', { dataTransfer: files })
+    expect(overlay().exists()).toBe(false)
+    await page.trigger('dragleave', { dataTransfer: files })
+    expect(overlay().exists()).toBe(false)
+
+    await page.trigger('dragenter', { dataTransfer: files })
+    await page.trigger('dragover', { dataTransfer: files })
+    await page.trigger('drop', { dataTransfer: { types: ['Files'], files: [file('dropped.png')] } })
+    await flushPromises()
+    expect(overlay().exists()).toBe(false)
     expect(wrapper.find('[data-test="selected-dropped.png"]').exists()).toBe(true)
+  })
+
+  it('keeps folder paths for dropped folders', async () => {
+    const wrapper = await mountView()
+    const page = wrapper.find('[data-test="files-page"]')
+    const drop = dataTransfer([dirEntry('/site', [fileEntry('/site/index.html'), dirEntry('/site/css', [fileEntry('/site/css/a.css')])])])
+    await page.trigger('drop', { dataTransfer: drop })
+    await flushPromises()
+    expect(wrapper.find('[data-test="selected-site/index.html"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="selected-site/css/a.css"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="upload-cost"]').text()).toContain('2 files')
+
+    uploadFile.mockResolvedValue({})
+    createFolder.mockResolvedValue({ id: 'f1' })
+    await wrapper.find('[data-test="upload-start"]').trigger('click')
+    await flushPromises()
+    expect(uploadFile.mock.calls.map((call) => call[1])).toEqual(['site/index.html', 'site/css/a.css'])
+  })
+
+  it('toasts when a dropped file cannot be read', async () => {
+    const wrapper = await mountView()
+    await wrapper
+      .find('[data-test="files-page"]')
+      .trigger('drop', { dataTransfer: dataTransfer([fileEntry('/x.bin', 1, new Error('unreadable'))]) })
+    await flushPromises()
+    expect(lastToast()).toMatchObject({ type: 'error', message: 'unreadable' })
+    expect(wrapper.find('[data-test="upload-summary"]').exists()).toBe(false)
   })
 
   it('flags oversized files and blocks the upload', async () => {

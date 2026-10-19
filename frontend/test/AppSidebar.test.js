@@ -35,10 +35,10 @@ describe('AppSidebar', () => {
   it('shows brand, nav, credits and the user', async () => {
     const wrapper = await mountSidebar()
     expect(wrapper.find('[data-test="sidebar-brand"]').text()).toBe('tmphost.io')
-    expect(wrapper.text()).toContain('Home')
-    expect(wrapper.find('a[href="/files"]').text()).toBe('Files')
+    expect(wrapper.text()).not.toContain('Home')
+    expect(wrapper.findAll('a').find((a) => a.text() === 'Files').attributes('href')).toBe('/')
     expect(wrapper.find('a[href="/connect"]').text()).toBe('Connect')
-    expect(wrapper.find('a[href="/files"]').classes()).not.toContain('font-semibold')
+    expect(wrapper.find('a[href="/connect"]').classes()).not.toContain('font-semibold')
     const credits = wrapper.find('[data-test="sidebar-credits"]')
     expect(credits.text()).toContain('125')
     expect(credits.text()).toContain('/ 250')
@@ -55,7 +55,7 @@ describe('AppSidebar', () => {
     expect(collapsed.find('[data-test="sidebar-brand"]').exists()).toBe(false)
     expect(collapsed.find('[data-test="sidebar-credits"]').exists()).toBe(false)
     expect(collapsed.find('[data-test="sidebar-toggle"]').attributes('title')).toBe('Expand sidebar')
-    expect(collapsed.find('a[title="Home"]').exists()).toBe(true)
+    expect(collapsed.find('a[title="Files"]').exists()).toBe(true)
     collapsed.unmount()
 
     const drawer = await mountSidebar({ collapsed: true, mobileOpen: true })

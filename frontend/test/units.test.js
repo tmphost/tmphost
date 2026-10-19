@@ -8,7 +8,19 @@ import { usePlatformStore } from '../src/stores/platformStore'
 import { useToasts } from '../src/composables/useToasts'
 import { creditsPercent, renewsIn } from '../src/utils/credits'
 import { loginErrorMessage } from '../src/utils/loginErrors'
-import { expiresIn, formatBytes, formatMinutes, relativePath, TTL_CHOICES, ttlOptions, uploadCost } from '../src/utils/files'
+import {
+  droppedFiles,
+  expiresIn,
+  fileItems,
+  formatBytes,
+  formatMinutes,
+  isFileDrag,
+  relativePath,
+  TTL_CHOICES,
+  ttlOptions,
+  uploadCost,
+} from '../src/utils/files'
+import { dataTransfer, dirEntry, fileEntry } from './dropEntries'
 import { useClipboard } from '../src/composables/useClipboard'
 
 describe('platformStore', () => {
@@ -152,6 +164,48 @@ describe('files utils', () => {
     expect(relativePath({ name: 'a.txt', webkitRelativePath: 'dir/a.txt' })).toBe('dir/a.txt')
     expect(relativePath({ name: 'a.txt', webkitRelativePath: '' })).toBe('a.txt')
     expect(relativePath({ name: 'b.txt' })).toBe('b.txt')
+  })
+
+  it('fileItems pairs files with their paths', () => {
+    const a = { name: 'a.txt', webkitRelativePath: 'dir/a.txt' }
+    const b = { name: 'b.txt', webkitRelativePath: '' }
+    expect(fileItems([a, b])).toEqual([
+      { path: 'dir/a.txt', file: a },
+      { path: 'b.txt', file: b },
+    ])
+  })
+
+  it('isFileDrag only accepts drags that carry files', () => {
+    expect(isFileDrag({ dataTransfer: { types: ['Files'] } })).toBe(true)
+    expect(isFileDrag({ dataTransfer: { types: ['text/plain'] } })).toBe(false)
+    expect(isFileDrag({ dataTransfer: {} })).toBe(false)
+    expect(isFileDrag({})).toBe(false)
+  })
+
+  it('droppedFiles walks dropped folders', async () => {
+    const tree = dataTransfer([
+      fileEntry('/top.txt'),
+      dirEntry(
+        '/site',
+        [fileEntry('/site/index.html'), dirEntry('/site/css', [fileEntry('/site/css/a.css'), fileEntry('/site/css/b.css')], 1)],
+        1,
+      ),
+      dirEntry('/empty', []),
+    ])
+    const items = await droppedFiles(tree)
+    expect(items.map((item) => item.path)).toEqual(['top.txt', 'site/index.html', 'site/css/a.css', 'site/css/b.css'])
+    expect(items[1].file).toMatchObject({ name: 'index.html', size: 10 })
+  })
+
+  it('droppedFiles skips non-file items and falls back to the file list', async () => {
+    const file = { name: 'a.txt', webkitRelativePath: '' }
+    expect(await droppedFiles({ files: [file] })).toEqual([{ path: 'a.txt', file }])
+    const noEntries = { files: [file], items: [{ kind: 'string', webkitGetAsEntry: () => null }, { kind: 'file' }] }
+    expect(await droppedFiles(noEntries)).toEqual([{ path: 'a.txt', file }])
+  })
+
+  it('droppedFiles rejects when a file cannot be read', async () => {
+    await expect(droppedFiles(dataTransfer([fileEntry('/x.bin', 1, new Error('unreadable'))]))).rejects.toThrow('unreadable')
   })
 })
 
