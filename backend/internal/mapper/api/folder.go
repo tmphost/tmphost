@@ -142,6 +142,7 @@ func FromGetLimitsResponseEntityToHTTPResponse(rs *entity.GetLimitsResponse) []b
 		MaxTTLMinutes:        rs.MaxTTLMinutes,
 		MaxUploadBytes:       rs.MaxUploadBytes,
 		BillingBlockMinutes:  rs.BillingBlockMinutes,
+		BillingUnitBytes:     rs.BillingUnitBytes,
 		Anonymous:            rs.Anonymous,
 		FileOps:              rs.FileOps,
 		FileOpsWindowMinutes: rs.FileOpsWindowMinutes,

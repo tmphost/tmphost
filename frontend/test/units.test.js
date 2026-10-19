@@ -120,11 +120,17 @@ describe('files utils', () => {
     expect(formatMinutes(1500)).toBe('25 h')
   })
 
-  it('uploadCost charges per file per started block', () => {
-    expect(uploadCost(3, 30, 30)).toBe(3)
-    expect(uploadCost(3, 31, 30)).toBe(6)
-    expect(uploadCost(2, 10080, 30)).toBe(672)
-    expect(uploadCost(0, 60, 30)).toBe(0)
+  it('uploadCost charges per started MB per started block', () => {
+    const MB = 1 << 20
+    expect(uploadCost([1, 1, 1], 30, 30, MB)).toBe(3)
+    expect(uploadCost([1, 1, 1], 31, 30, MB)).toBe(6)
+    expect(uploadCost([1, 1], 10080, 30, MB)).toBe(672)
+    expect(uploadCost([], 60, 30, MB)).toBe(0)
+    expect(uploadCost([MB], 30, 30, MB)).toBe(1)
+    expect(uploadCost([MB * 1.01], 30, 30, MB)).toBe(2)
+    expect(uploadCost([MB * 2.01], 30, 30, MB)).toBe(3)
+    expect(uploadCost([MB * 2.01], 60, 30, MB)).toBe(6)
+    expect(uploadCost([0], 0, 30, MB)).toBe(1)
   })
 
   it('formatBytes scales units', () => {

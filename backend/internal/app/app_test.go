@@ -579,7 +579,7 @@ func TestAnonymousUploads(t *testing.T) {
 
 	res, body := call(http.MethodGet, "/api/v1/limits", "203.0.113.7", web, "")
 	require.Equal(t, http.StatusOK, res.StatusCode, body)
-	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":30,"maxUploadBytes":4194304,"billingBlockMinutes":30,"anonymous":true,"fileOps":5,"fileOpsWindowMinutes":30}`, body)
+	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":30,"maxUploadBytes":4194304,"billingBlockMinutes":30,"billingUnitBytes":1048576,"anonymous":true,"fileOps":5,"fileOpsWindowMinutes":30}`, body)
 
 	res, body = call(http.MethodPost, "/api/v1/folders", "203.0.113.7", web, `{"ttlMinutes":60}`)
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode, body)

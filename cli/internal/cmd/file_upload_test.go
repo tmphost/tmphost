@@ -129,6 +129,15 @@ func TestBillingBlocks(t *testing.T) {
 	assert.Equal(t, 7, billingBlocks(7, 0), "a zero block size counts minutes")
 }
 
+func TestBillingUnits(t *testing.T) {
+	const mb = 1 << 20
+	assert.Equal(t, 1, billingUnits(mb, mb))
+	assert.Equal(t, 2, billingUnits(mb+mb/100, mb), "1.01 MB")
+	assert.Equal(t, 3, billingUnits(2*mb+mb/100, mb), "2.01 MB")
+	assert.Equal(t, 1, billingUnits(0, mb), "empty files still cost one unit")
+	assert.Equal(t, 5, billingUnits(5, 0), "a zero unit size counts bytes")
+}
+
 // fakeUploads serves the endpoints an upload touches and records the files.
 type fakeUploads struct {
 	ttl      int
