@@ -6,18 +6,18 @@
 
 <template>
   <div class="flex flex-col">
-    <header class="px-4 pb-4 border-b border-gray-100">
-      <h1 class="text-lg font-bold text-gray-900 tracking-tight">Home</h1>
-      <p class="text-xs text-gray-500 mt-0.5">Temporary hosting for your projects.</p>
+    <header class="px-4 pb-4 border-b border-gray-100 dark:border-zinc-800">
+      <h1 class="text-lg font-bold text-gray-900 dark:text-zinc-100 tracking-tight">Home</h1>
+      <p class="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">Temporary hosting for your projects.</p>
     </header>
     <section class="grow flex items-center justify-center px-4 py-16">
-      <div class="w-full max-w-sm text-center rounded-xl border border-gray-100 p-8">
-        <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">tmphost.io</p>
-        <h2 class="mt-2 text-2xl font-bold text-gray-900 tracking-tight">Share files for a while</h2>
-        <p class="mt-2 text-sm text-gray-500">Upload files or a folder and get links that expire on their own.</p>
+      <div class="w-full max-w-sm text-center rounded-xl border border-gray-100 dark:border-zinc-800 p-8">
+        <p class="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-500">tmphost.io</p>
+        <h2 class="mt-2 text-2xl font-bold text-gray-900 dark:text-zinc-100 tracking-tight">Share files for a while</h2>
+        <p class="mt-2 text-sm text-gray-500 dark:text-zinc-400">Upload files or a folder and get links that expire on their own.</p>
         <router-link
           to="/files"
-          class="mt-6 inline-block rounded-lg bg-black px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-white hover:bg-gray-800 transition-colors"
+          class="mt-6 inline-block rounded-lg bg-black dark:bg-white px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-white dark:text-zinc-900 hover:bg-gray-800 dark:hover:bg-zinc-200 transition-colors"
           data-test="home-files"
         >
           Go to Files

@@ -5,6 +5,8 @@
 package api
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -117,6 +119,9 @@ func TestOAuth_Authorize(t *testing.T) {
 		assert.Contains(t, body, "app.example")
 		assert.Contains(t, body, "a@b.c")
 		assert.Contains(t, body, `value="allow"`)
+		assert.Contains(t, body, "<script>"+_themeScript+"</script>", "the script the CSP hash allows, byte for byte")
+		sum := sha256.Sum256([]byte(_themeScript))
+		assert.Contains(t, res.Header.Get("Content-Security-Policy"), "script-src 'sha256-"+base64.StdEncoding.EncodeToString(sum[:])+"';")
 	})
 
 	t.Run("verified, unnamed", func(t *testing.T) {

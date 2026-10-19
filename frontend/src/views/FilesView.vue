@@ -15,11 +15,11 @@ import { expiresIn, formatBytes, formatMinutes, relativePath, ttlOptions, upload
 const TICK_MS = 30 * 1000
 
 const PRIMARY =
-  'rounded-lg bg-black px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-white hover:bg-gray-800 disabled:opacity-50 transition-colors'
+  'rounded-lg bg-black dark:bg-white px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-white dark:text-zinc-900 hover:bg-gray-800 dark:hover:bg-zinc-200 disabled:opacity-50 transition-colors'
 const SECONDARY =
-  'rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-gray-900 hover:border-gray-300 disabled:opacity-50 transition-colors'
+  'rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-gray-900 dark:text-zinc-100 hover:border-gray-300 dark:hover:border-zinc-600 disabled:opacity-50 transition-colors'
 const ICON_BUTTON =
-  'inline-flex items-center justify-center size-7 shrink-0 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors'
+  'inline-flex items-center justify-center size-7 shrink-0 rounded-lg text-gray-400 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-zinc-100 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors'
 const ICONS = {
   copy: 'M8 8V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-3M5 8h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z',
   open: 'M14 4h6v6m0-6L10 14M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5',
@@ -198,9 +198,9 @@ onUnmounted(() => clearInterval(timer))
 
 <template>
   <div class="flex flex-col">
-    <header class="px-4 pb-4 border-b border-gray-100">
-      <h1 class="text-lg font-bold text-gray-900 tracking-tight">Files</h1>
-      <p class="text-xs text-gray-500 mt-0.5">Upload files to a temporary folder and share the links until it expires.</p>
+    <header class="px-4 pb-4 border-b border-gray-100 dark:border-zinc-800">
+      <h1 class="text-lg font-bold text-gray-900 dark:text-zinc-100 tracking-tight">Files</h1>
+      <p class="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">Upload files to a temporary folder and share the links until it expires.</p>
     </header>
 
     <!-- Upload -->
@@ -208,7 +208,7 @@ onUnmounted(() => clearInterval(timer))
       <div
         :class="[
           'rounded-xl border p-5 transition-colors',
-          dragging ? 'border-gray-400 bg-zinc-50' : 'border-gray-100 hover:border-gray-200',
+          dragging ? 'border-gray-400 dark:border-zinc-500 bg-zinc-50 dark:bg-zinc-950' : 'border-gray-100 dark:border-zinc-800 hover:border-gray-200 dark:hover:border-zinc-700',
         ]"
         data-test="upload-card"
         @dragover.prevent="dragging = true"
@@ -217,8 +217,8 @@ onUnmounted(() => clearInterval(timer))
       >
         <div class="flex flex-wrap items-end gap-3">
           <div class="grow min-w-0">
-            <h2 class="text-sm font-bold text-gray-900">New folder</h2>
-            <p class="text-xs text-gray-500">Choose files or a whole folder, or drop files here.</p>
+            <h2 class="text-sm font-bold text-gray-900 dark:text-zinc-100">New folder</h2>
+            <p class="text-xs text-gray-500 dark:text-zinc-400">Choose files or a whole folder, or drop files here.</p>
           </div>
           <label :class="[SECONDARY, 'cursor-pointer']">
             Choose files
@@ -230,8 +230,8 @@ onUnmounted(() => clearInterval(timer))
           </label>
           <div class="w-48">
             <div class="flex items-baseline justify-between mb-1">
-              <label for="upload-ttl" class="text-[11px] font-bold text-gray-500">Expires after</label>
-              <span class="text-xs font-bold tabular-nums text-gray-900" data-test="upload-ttl-value">
+              <label for="upload-ttl" class="text-[11px] font-bold text-gray-500 dark:text-zinc-400">Expires after</label>
+              <span class="text-xs font-bold tabular-nums text-gray-900 dark:text-zinc-100" data-test="upload-ttl-value">
                 {{ formatMinutes(ttl) }}
               </span>
             </div>
@@ -244,24 +244,24 @@ onUnmounted(() => clearInterval(timer))
               :value="ttlIndex"
               :disabled="!limits"
               :aria-valuetext="formatMinutes(ttl)"
-              class="w-full cursor-pointer accent-black focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gray-300 disabled:cursor-not-allowed"
+              class="w-full cursor-pointer accent-black dark:accent-white focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gray-300 dark:focus-visible:outline-zinc-600 disabled:cursor-not-allowed"
               data-test="upload-ttl"
               @input="ttl = ttlChoices[$event.target.valueAsNumber]"
             />
           </div>
         </div>
 
-        <div v-if="selected.length" class="mt-4 border-t border-gray-100 pt-4" data-test="upload-summary">
-          <ul class="max-h-48 overflow-y-auto no-scrollbar divide-y divide-gray-50">
+        <div v-if="selected.length" class="mt-4 border-t border-gray-100 dark:border-zinc-800 pt-4" data-test="upload-summary">
+          <ul class="max-h-48 overflow-y-auto no-scrollbar divide-y divide-gray-50 dark:divide-zinc-800">
             <li
               v-for="item in selected"
               :key="item.path"
               class="flex items-center gap-3 py-1.5 text-xs"
               :data-test="`selected-${item.path}`"
             >
-              <span class="grow min-w-0 truncate font-mono text-gray-900">{{ item.path }}</span>
+              <span class="grow min-w-0 truncate font-mono text-gray-900 dark:text-zinc-100">{{ item.path }}</span>
               <span
-                :class="['tabular-nums', isOversized(item.file) ? 'font-bold text-rose-600' : 'text-gray-400']"
+                :class="['tabular-nums', isOversized(item.file) ? 'font-bold text-rose-600 dark:text-rose-400' : 'text-gray-400 dark:text-zinc-500']"
               >
                 {{ formatBytes(item.file.size) }}
               </span>
@@ -279,18 +279,18 @@ onUnmounted(() => clearInterval(timer))
             </li>
           </ul>
 
-          <p v-if="oversized.length" role="alert" class="mt-3 text-xs font-medium text-rose-600" data-test="upload-oversized">
+          <p v-if="oversized.length" role="alert" class="mt-3 text-xs font-medium text-rose-600 dark:text-rose-400" data-test="upload-oversized">
             {{ oversized.length === 1 ? '1 file is' : `${oversized.length} files are` }} over the
             {{ formatBytes(limits.maxUploadBytes) }} limit. Remove {{ oversized.length === 1 ? 'it' : 'them' }} to upload.
           </p>
-          <p v-if="notEnoughCredits" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800" data-test="upload-credits-warning">
+          <p v-if="notEnoughCredits" class="mt-3 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-800 dark:text-amber-300" data-test="upload-credits-warning">
             This upload costs {{ cost }} credits but you have {{ credits }} left.
           </p>
 
           <div class="mt-4 flex flex-wrap items-center gap-3">
-            <p class="grow text-xs text-gray-500" data-test="upload-cost">
+            <p class="grow text-xs text-gray-500 dark:text-zinc-400" data-test="upload-cost">
               {{ selected.length === 1 ? '1 file' : `${selected.length} files` }} ·
-              <span class="font-bold text-gray-900">{{ cost }} credits</span>
+              <span class="font-bold text-gray-900 dark:text-zinc-100">{{ cost }} credits</span>
             </p>
             <button type="button" :disabled="uploading" :class="SECONDARY" data-test="upload-clear" @click="selected = []">
               Clear
@@ -305,25 +305,25 @@ onUnmounted(() => clearInterval(timer))
 
     <!-- Folders -->
     <section class="px-4 pt-6">
-      <h2 class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Folders</h2>
+      <h2 class="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-500 mb-2">Folders</h2>
 
       <div v-if="loading" class="flex justify-center py-12" data-test="folders-loading">
-        <svg class="animate-spin h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24">
+        <svg class="animate-spin h-5 w-5 text-gray-400 dark:text-zinc-500" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
         </svg>
       </div>
 
-      <div v-else-if="!folders.length" class="rounded-xl border border-gray-100 p-8 text-center" data-test="folders-empty">
-        <p class="text-sm font-bold text-gray-900">No folders yet</p>
-        <p class="mt-1 text-xs text-gray-500">Uploaded files show up here until they expire.</p>
+      <div v-else-if="!folders.length" class="rounded-xl border border-gray-100 dark:border-zinc-800 p-8 text-center" data-test="folders-empty">
+        <p class="text-sm font-bold text-gray-900 dark:text-zinc-100">No folders yet</p>
+        <p class="mt-1 text-xs text-gray-500 dark:text-zinc-400">Uploaded files show up here until they expire.</p>
       </div>
 
       <ul v-else class="space-y-2">
         <li
           v-for="folder in sortedFolders"
           :key="folder.id"
-          class="rounded-xl border border-gray-100 hover:border-gray-200 transition-colors"
+          class="rounded-xl border border-gray-100 dark:border-zinc-800 hover:border-gray-200 dark:hover:border-zinc-700 transition-colors"
           :data-test="`folder-${folder.id}`"
         >
           <div class="flex items-center gap-2 px-3 py-2">
@@ -335,7 +335,7 @@ onUnmounted(() => clearInterval(timer))
               @click="toggleFolder(folder)"
             >
               <svg
-                :class="['w-3.5 h-3.5 shrink-0 text-gray-400 transition-transform', expanded[folder.id] ? 'rotate-90' : '']"
+                :class="['w-3.5 h-3.5 shrink-0 text-gray-400 dark:text-zinc-500 transition-transform', expanded[folder.id] ? 'rotate-90' : '']"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -343,9 +343,9 @@ onUnmounted(() => clearInterval(timer))
               >
                 <path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" />
               </svg>
-              <span class="truncate font-mono text-xs font-bold text-gray-900">{{ folder.id }}</span>
+              <span class="truncate font-mono text-xs font-bold text-gray-900 dark:text-zinc-100">{{ folder.id }}</span>
             </button>
-            <span class="shrink-0 text-[11px] tabular-nums text-gray-400" :title="folder.expiresAt" data-test="folder-expires">
+            <span class="shrink-0 text-[11px] tabular-nums text-gray-400 dark:text-zinc-500" :title="folder.expiresAt" data-test="folder-expires">
               {{ expiresIn(folder.expiresAt, now) }}
             </span>
             <button type="button" :class="ICON_BUTTON" title="Copy folder URL" data-test="folder-copy" @click="copy(folder.url, 'Folder URL copied')">
@@ -360,7 +360,7 @@ onUnmounted(() => clearInterval(timer))
             </a>
             <button
               type="button"
-              :class="[ICON_BUTTON, 'hover:text-rose-600 hover:bg-rose-50']"
+              :class="[ICON_BUTTON, 'hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10']"
               title="Delete folder"
               data-test="folder-delete"
               @click="pendingDelete = { folder }"
@@ -371,18 +371,18 @@ onUnmounted(() => clearInterval(timer))
             </button>
           </div>
 
-          <div v-if="expanded[folder.id]" class="border-t border-gray-100 px-3 py-2" data-test="folder-files">
-            <p v-if="expanded[folder.id].loading" class="py-1 text-xs text-gray-400">Loading files…</p>
-            <p v-else-if="!expanded[folder.id].files.length" class="py-1 text-xs text-gray-400">This folder is empty.</p>
-            <ul v-else class="divide-y divide-gray-50">
+          <div v-if="expanded[folder.id]" class="border-t border-gray-100 dark:border-zinc-800 px-3 py-2" data-test="folder-files">
+            <p v-if="expanded[folder.id].loading" class="py-1 text-xs text-gray-400 dark:text-zinc-500">Loading files…</p>
+            <p v-else-if="!expanded[folder.id].files.length" class="py-1 text-xs text-gray-400 dark:text-zinc-500">This folder is empty.</p>
+            <ul v-else class="divide-y divide-gray-50 dark:divide-zinc-800">
               <li
                 v-for="file in expanded[folder.id].files"
                 :key="file.path"
                 class="flex items-center gap-2 py-1 pl-5"
                 :data-test="`file-${file.path}`"
               >
-                <span class="grow min-w-0 truncate font-mono text-xs text-gray-900">{{ file.path }}</span>
-                <span class="shrink-0 text-[11px] tabular-nums text-gray-400">{{ formatBytes(file.size) }}</span>
+                <span class="grow min-w-0 truncate font-mono text-xs text-gray-900 dark:text-zinc-100">{{ file.path }}</span>
+                <span class="shrink-0 text-[11px] tabular-nums text-gray-400 dark:text-zinc-500">{{ formatBytes(file.size) }}</span>
                 <button type="button" :class="ICON_BUTTON" title="Copy file URL" data-test="file-copy" @click="copy(file.url, 'File URL copied')">
                   <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                     <path stroke-linecap="round" stroke-linejoin="round" :d="ICONS.copy" />
@@ -395,7 +395,7 @@ onUnmounted(() => clearInterval(timer))
                 </a>
                 <button
                   type="button"
-                  :class="[ICON_BUTTON, 'hover:text-rose-600 hover:bg-rose-50']"
+                  :class="[ICON_BUTTON, 'hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10']"
                   title="Delete file"
                   data-test="file-delete"
                   @click="pendingDelete = { folder, file }"

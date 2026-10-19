@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { createPinia } from 'pinia'
 import AppSidebar from '../src/components/AppSidebar.vue'
 import { clickOutside } from '../src/app'
 
@@ -27,7 +28,7 @@ async function mountSidebar(props = {}) {
   return mount(AppSidebar, {
     props: { user, ...props },
     attachTo: document.body,
-    global: { plugins: [router], directives: { 'click-outside': clickOutside } },
+    global: { plugins: [router, createPinia()], directives: { 'click-outside': clickOutside } },
   })
 }
 
@@ -89,6 +90,26 @@ describe('AppSidebar', () => {
     wrapper.unmount()
   })
 
+  it('switches the theme from the user menu', async () => {
+    localStorage.clear()
+    const wrapper = await mountSidebar()
+    await wrapper.find('[data-test="user-menu-toggle"]').trigger('click')
+    expect(wrapper.find('[data-test="theme-system"]').attributes('aria-checked')).toBe('true')
+
+    await wrapper.find('[data-test="theme-dark"]').trigger('click')
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    expect(localStorage.getItem('theme')).toBe('dark')
+    expect(wrapper.find('[data-test="theme-dark"]').attributes('aria-checked')).toBe('true')
+    expect(wrapper.find('[data-test="theme-system"]').attributes('aria-checked')).toBe('false')
+    // Picking a theme keeps the menu open.
+    expect(wrapper.find('[data-test="user-menu"]').exists()).toBe(true)
+
+    await wrapper.find('[data-test="theme-light"]').trigger('click')
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+    localStorage.clear()
+    wrapper.unmount()
+  })
+
   it('positions the menu beside a collapsed sidebar', async () => {
     const wrapper = await mountSidebar({ collapsed: true })
     await wrapper.find('[data-test="user-menu-toggle"]').trigger('click')
@@ -105,7 +126,8 @@ describe('AppSidebar', () => {
     expect(emailOnly.find('[data-test="user-menu-toggle"]').text()).toContain('ada@example.com')
     expect(emailOnly.find('[data-test="sidebar-credits"]').text()).not.toContain('Renews')
     await emailOnly.find('[data-test="user-menu-toggle"]').trigger('click')
-    expect(emailOnly.find('[data-test="user-menu"]').findAll('p')).toHaveLength(2)
+    // The email is the display name, so it is not repeated under it.
+    expect(emailOnly.find('[data-test="user-menu"]').text().split('ada@example.com')).toHaveLength(2)
     emailOnly.unmount()
 
     const none = await mountSidebar({ user: null })
