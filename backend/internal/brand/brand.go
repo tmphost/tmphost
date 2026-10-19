@@ -1,0 +1,35 @@
+// Copyright 2026 Contextual, Inc. https://tmphost.io
+// This notice may not be modified or removed.
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// Package brand holds the tmphost.io icon, built into the binary so every
+// host (app, MCP and folder subdomains) and the MCP server can show it.
+package brand
+
+import (
+	_ "embed"
+	"encoding/base64"
+)
+
+// The icon is favicon-light.svg at the repository root; favicon.ico (16, 32
+// and 48 px) and icon.png (128 px) are rendered from it.
+var (
+	//go:embed favicon.ico
+	Favicon []byte
+	//go:embed icon.svg
+	IconSVG []byte
+	//go:embed icon.png
+	IconPNG []byte
+)
+
+// Media types of the icons.
+const (
+	FaviconType = "image/x-icon"
+	IconSVGType = "image/svg+xml"
+	IconPNGType = "image/png"
+)
+
+// DataURI returns data as a base64 data URI of the given media type.
+func DataURI(mediaType string, data []byte) string {
+	return "data:" + mediaType + ";base64," + base64.StdEncoding.EncodeToString(data)
+}

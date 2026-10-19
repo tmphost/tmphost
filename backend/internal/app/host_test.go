@@ -14,6 +14,9 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tmphost/tmphost/backend/internal/brand"
+	"github.com/tmphost/tmphost/backend/internal/handler/api"
 )
 
 func TestHostsClassify(t *testing.T) {
@@ -107,6 +110,34 @@ func TestHostRouter(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, res.Cookies())
 	assert.True(t, res.Cookies()[0].Secure)
+}
+
+func TestFavicon(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.App.BaseURL = "https://app.example.com"
+	cfg.App.SitesDomain = "example.com"
+	cfg.App.MCPDomain = "mcp.example.com"
+	a, err := New(cfg, fstest.MapFS{})
+	require.NoError(t, err)
+
+	// Every host of ours shows the icon: the app, the MCP host and folder
+	// subdomains, even one with no live folder.
+	for _, host := range []string{"app.example.com", "mcp.example.com", "01234567.example.com"} {
+		req := httptest.NewRequest(http.MethodGet, api.FaviconPath, nil)
+		req.Host = host
+		res, err := a.Handler().Test(req)
+		require.NoError(t, err)
+		body, _ := io.ReadAll(res.Body)
+		assert.Equal(t, http.StatusOK, res.StatusCode, host)
+		assert.Equal(t, brand.FaviconType, res.Header.Get(fiber.HeaderContentType), host)
+		assert.Equal(t, brand.Favicon, body, host)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, api.FaviconPath, nil)
+	req.Host = "evil.com"
+	res, err := a.Handler().Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 }
 
 func TestHTTPSRedirect(t *testing.T) {
