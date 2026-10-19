@@ -88,17 +88,34 @@ describe('FilesView', () => {
     expect(wrapper.find('[data-test="upload-summary"]').exists()).toBe(false)
   })
 
-  it('offers TTLs up to the limit and selects the default', async () => {
+  it('slides through TTLs up to the limit and selects the default', async () => {
     const wrapper = await mountView()
-    const options = wrapper.findAll('[data-test="upload-ttl"] option').map((o) => o.text())
-    expect(options).toEqual(['30 min', '1 h', '2 h', '6 h', '12 h', '1 day', '7 days'])
-    expect(wrapper.find('[data-test="upload-ttl"]').element.value).toBe('30')
+    const slider = () => wrapper.find('[data-test="upload-ttl"]')
+    const shown = () => wrapper.find('[data-test="upload-ttl-value"]').text()
+    expect(slider().attributes('type')).toBe('range')
+    expect(slider().attributes('max')).toBe('6')
+    expect(slider().element.value).toBe('0')
+    expect(shown()).toBe('30 min')
+    const labels = []
+    for (let i = 0; i <= 6; i++) {
+      await slider().setValue(String(i))
+      labels.push(shown())
+    }
+    expect(labels).toEqual(['30 min', '1 h', '2 h', '6 h', '12 h', '1 day', '7 days'])
+    expect(slider().attributes('aria-valuetext')).toBe('7 days')
     wrapper.unmount()
 
     fetchLimits.mockResolvedValue({ ...limits, defaultTtlMinutes: 45, maxTtlMinutes: 120 })
     const capped = await mountView()
-    expect(capped.findAll('[data-test="upload-ttl"] option')).toHaveLength(3)
-    expect(capped.find('[data-test="upload-ttl"]').element.value).toBe('30')
+    expect(capped.find('[data-test="upload-ttl"]').attributes('max')).toBe('2')
+    expect(capped.find('[data-test="upload-ttl"]').element.value).toBe('0')
+    expect(capped.find('[data-test="upload-ttl-value"]').text()).toBe('30 min')
+    capped.unmount()
+
+    fetchLimits.mockResolvedValue({ ...limits, defaultTtlMinutes: 120, maxTtlMinutes: 120 })
+    const atDefault = await mountView()
+    expect(atDefault.find('[data-test="upload-ttl"]').element.value).toBe('2')
+    expect(atDefault.find('[data-test="upload-ttl-value"]').text()).toBe('2 h')
   })
 
   it('toasts load errors and blocks uploads without limits', async () => {
@@ -152,7 +169,7 @@ describe('FilesView', () => {
     await wrapper.find('[data-test="selected-a.txt"] [data-test="selected-remove"]').trigger('click')
     expect(wrapper.find('[data-test="upload-cost"]').text()).toBe('1 file · 1 credits')
 
-    await wrapper.find('[data-test="upload-ttl"]').setValue('1440')
+    await wrapper.find('[data-test="upload-ttl"]').setValue('5')
     expect(wrapper.find('[data-test="upload-cost"]').text()).toContain('48 credits')
 
     await wrapper.find('[data-test="upload-clear"]').trigger('click')
@@ -198,7 +215,7 @@ describe('FilesView', () => {
     createFolder.mockResolvedValue({ id: 'f9' })
     uploadFile.mockReturnValueOnce(first.promise).mockResolvedValueOnce({ file: {}, creditsSpent: 1 })
     const wrapper = await mountView()
-    await wrapper.find('[data-test="upload-ttl"]').setValue('60')
+    await wrapper.find('[data-test="upload-ttl"]').setValue('1')
     await pick(wrapper, '[data-test="pick-folder"]', [file('index.html', 10, 'site/index.html'), file('a b.txt')])
     listFolders.mockResolvedValue([...folders, { id: 'f9', createdAt: '2026-10-18T12:00:00Z', expiresAt: '2026-10-18T13:00:00Z', url: 'u' }])
 

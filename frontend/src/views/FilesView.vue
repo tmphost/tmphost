@@ -51,6 +51,9 @@ const pendingDelete = ref(null)
 const deleting = ref(false)
 
 const ttlChoices = computed(() => (limits.value ? ttlOptions(limits.value.maxTtlMinutes) : []))
+// The slider steps through ttlChoices by index; ttl keeps the minutes. It
+// binds :value rather than v-model so Vue sets max before the value.
+const ttlIndex = computed(() => Math.max(0, ttlChoices.value.indexOf(ttl.value)))
 const sortedFolders = computed(() =>
   [...folders.value].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
 )
@@ -225,17 +228,26 @@ onUnmounted(() => clearInterval(timer))
             Choose folder
             <input type="file" webkitdirectory multiple class="sr-only" data-test="pick-folder" @change="onPick" />
           </label>
-          <div>
-            <label for="upload-ttl" class="block text-[11px] font-bold text-gray-500 mb-1">Expires after</label>
-            <select
+          <div class="w-48">
+            <div class="flex items-baseline justify-between mb-1">
+              <label for="upload-ttl" class="text-[11px] font-bold text-gray-500">Expires after</label>
+              <span class="text-xs font-bold tabular-nums text-gray-900" data-test="upload-ttl-value">
+                {{ formatMinutes(ttl) }}
+              </span>
+            </div>
+            <input
               id="upload-ttl"
-              v-model.number="ttl"
+              type="range"
+              min="0"
+              :max="Math.max(ttlChoices.length - 1, 0)"
+              step="1"
+              :value="ttlIndex"
               :disabled="!limits"
-              class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-400 focus:outline-none"
+              :aria-valuetext="formatMinutes(ttl)"
+              class="w-full cursor-pointer accent-black focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gray-300 disabled:cursor-not-allowed"
               data-test="upload-ttl"
-            >
-              <option v-for="minutes in ttlChoices" :key="minutes" :value="minutes">{{ formatMinutes(minutes) }}</option>
-            </select>
+              @input="ttl = ttlChoices[$event.target.valueAsNumber]"
+            />
           </div>
         </div>
 
