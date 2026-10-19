@@ -95,7 +95,11 @@ self-hosted server, set the plugin's `server` option (default
 `https://mcp.tmphost.io`) to its MCP domain or app URL with
 `/plugin configure tmphost@tmphost`, or at install time:
 `claude plugin install tmphost --marketplace tmphost/tmphost --config server=https://mcp.example.com`.
-CI runs `claude plugin validate --strict` on both manifests.
+Its listing icon is [plugin/claude/.claude-plugin/icon.png](plugin/claude/.claude-plugin/icon.png)
+(1024 px, rendered from favicon-light.svg) and its privacy policy is
+[https://tmphost.io/privacy](https://tmphost.io/privacy).
+CI runs `claude plugin validate --strict` on both manifests and checks the
+icon and privacy policy URL.
 
 ## Gemini CLI extension
 

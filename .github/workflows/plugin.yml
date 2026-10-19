@@ -44,3 +44,20 @@ jobs:
 
       - name: Validate the marketplace
         run: npx -y @anthropic-ai/claude-code@2.1.303 plugin validate --strict .
+
+      # The plugin directory lists the plugin with this icon and privacy
+      # policy; the icon only counts on the first submission.
+      - name: Check the icon and privacy policy
+        run: |
+          node -e '
+            const fs = require("fs");
+            const m = JSON.parse(fs.readFileSync("plugin/claude/.claude-plugin/plugin.json", "utf8"));
+            const fail = (msg) => { console.error(msg); process.exitCode = 1; };
+            if (m.privacyPolicyUrl !== "https://tmphost.io/privacy") fail("plugin.json privacyPolicyUrl must be https://tmphost.io/privacy");
+            if (m.icon !== "./.claude-plugin/icon.png") fail("plugin.json icon must be ./.claude-plugin/icon.png");
+            if (!fs.readFileSync("plugin/claude/README.md", "utf8").includes("[Privacy Policy](https://tmphost.io/privacy)")) fail("plugin/claude/README.md must link [Privacy Policy](https://tmphost.io/privacy)");
+            const png = fs.readFileSync("plugin/claude/.claude-plugin/icon.png");
+            const w = png.readUInt32BE(16), h = png.readUInt32BE(20);
+            if (png.toString("latin1", 1, 4) !== "PNG" || w !== h || w < 512 || w > 2048) fail(`icon.png must be a square PNG of 512-2048 px, is ${w}x${h}`);
+            if (png.length >= 2 << 20) fail("icon.png must be under 2 MB");
+          '
