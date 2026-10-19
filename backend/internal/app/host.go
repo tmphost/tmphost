@@ -12,6 +12,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
+	oauthctrl "github.com/tmphost/tmphost/backend/internal/controller/oauthserver"
 	setupctrl "github.com/tmphost/tmphost/backend/internal/controller/setup"
 	"github.com/tmphost/tmphost/backend/internal/handler/api"
 	mapper "github.com/tmphost/tmphost/backend/internal/mapper/api"
@@ -44,13 +45,17 @@ const (
 	hostMCP
 )
 
-// _mcpHostPaths are the paths the MCP host answers: the endpoint, and the
-// OAuth metadata that MCP clients discover on the endpoint's host.
+// _mcpHostPaths are the paths the MCP host answers: the endpoint, the
+// OAuth metadata that MCP clients discover on the endpoint's host, and the
+// MCP host issuer's registration and token endpoints. Its authorization
+// endpoint is on the app host, where users sign in.
 var _mcpHostPaths = []string{
 	MCPPath,
 	api.ResourceMetadataPath,
 	api.ResourceMetadataPath + MCPPath,
 	api.ServerMetadataPath,
+	oauthctrl.RegisterPath,
+	oauthctrl.TokenPath,
 }
 
 func newHosts(appURL, sitesDomain, mcpDomain string) hosts {

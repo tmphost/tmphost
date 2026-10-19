@@ -33,7 +33,7 @@ type OAuth struct {
 
 // ServerMetadata returns the authorization server metadata.
 func (h *OAuth) ServerMetadata(c fiber.Ctx) error {
-	return sendJSON(c, fiber.StatusOK, mapper.FromGetOAuthServerMetadataResponseEntityToHTTPResponse(h.controller.GetServerMetadata(c.Context())))
+	return sendJSON(c, fiber.StatusOK, mapper.FromGetOAuthServerMetadataResponseEntityToHTTPResponse(h.controller.GetServerMetadata(c.Context(), mapper.FromHTTPRequestToGetOAuthServerMetadataRequestEntity(c))))
 }
 
 // ResourceMetadata returns the MCP endpoint's protected resource metadata.
