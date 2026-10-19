@@ -319,7 +319,7 @@ func TestPublic(t *testing.T) {
 
 	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: "site/a b.html"}).
 		Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader("<p>")), Size: 3, ContentType: "text/html; charset=utf-8", ModTime: _at}, nil)
-	res, body := get(http.MethodGet, "F000000000RS.TMP.HOST", "/site/a%20b.html")
+	res, body := get(http.MethodGet, "000000000RS.TMP.HOST", "/site/a%20b.html")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "<p>", body)
 	assert.Equal(t, "text/html; charset=utf-8", res.Header.Get("Content-Type"))

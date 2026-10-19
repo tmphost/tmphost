@@ -546,8 +546,6 @@ func TestFileHosting_Subdomains(t *testing.T) {
 	res, body = call(http.MethodGet, "/", id+".localhost:3000", "")
 	require.Equal(t, http.StatusOK, res.StatusCode, body)
 	assert.Equal(t, "<p>x</p>", body)
-	_, body = call(http.MethodGet, "/", "f"+id+".localhost:3000", "")
-	assert.Equal(t, "<p>x</p>", body, "legacy f prefix")
 	res, _ = call(http.MethodGet, "/", "00000000001.localhost:3000", "")
 	assert.Equal(t, http.StatusNotFound, res.StatusCode, "no such folder")
 	_, body = call(http.MethodGet, "/files/7/"+id+"/index.html", "localhost:3000", "")

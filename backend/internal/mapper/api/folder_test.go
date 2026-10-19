@@ -194,8 +194,6 @@ func TestFromHTTPRequestToOpenPublicFileRequestEntity(t *testing.T) {
 
 	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "site/a b.html"},
 		read("Tmp.Host:3000", "000000000RS.tmp.host:3000", get("/site/a%20b.html")))
-	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "a.txt"},
-		read("tmp.host", "F000000000RS.tmp.host", get("/a.txt")), "legacy f prefix")
 	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: ""}, read("tmp.host", "000000000rs.tmp.host", get("/")))
 
 	for name, tc := range map[string]struct {
@@ -207,8 +205,7 @@ func TestFromHTTPRequestToOpenPublicFileRequestEntity(t *testing.T) {
 		"no domain":    {"", "000000000rs.", get("/")},
 		"no dash":      {"tmp.host", "rs.tmp.host", get("/")},
 		"bad folder":   {"tmp.host", "frs.tmp.host", get("/")},
-		"not f":        {"tmp.host", "x000000000rs.tmp.host", get("/")},
-		"too long":     {"tmp.host", "ff000000000rs.tmp.host", get("/")},
+		"too long":     {"tmp.host", "f000000000rs.tmp.host", get("/")},
 	} {
 		assert.Nil(t, read(tc.domain, tc.host, tc.req), name)
 	}

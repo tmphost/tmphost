@@ -23,7 +23,7 @@ type (
 		// Its host is the app host, and OAuth callbacks are built on it.
 		AppURL string
 		// SitesDomain is the parent domain of the dynamic subdomains, e.g.
-		// tmphost.io for f<11 characters>.tmphost.io. Empty disables them.
+		// tmphost.io for <11 characters>.tmphost.io. Empty disables them.
 		SitesDomain string
 	}
 
@@ -108,7 +108,7 @@ type (
 		// without signing in.
 		AnonymousMaxTTLMinutes int
 		// Subdomains serves each folder on its own host,
-		// <folderID>-<userID>.<PublicDomain>; otherwise folders are served
+		// <folderID>.<PublicDomain>; otherwise folders are served
 		// at <base URL>/files/<userID>/<folderID>/.
 		Subdomains bool
 		// PublicDomain is the host[:port] folder hosts are subdomains of.

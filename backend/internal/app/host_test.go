@@ -27,8 +27,7 @@ func TestHostsClassify(t *testing.T) {
 		"0123456789a.example.com":      hostSite,
 		"0123456789a.example.com:8443": hostSite,
 		"0123456789A.EXAMPLE.COM":      hostSite,
-		"f0123456789a.example.com":     hostSite, // legacy "f" prefix
-		"F0123456789A.EXAMPLE.COM":     hostSite,
+		"f0123456789a.example.com":     hostUnknown, // 12 characters
 		"0123456789.example.com":       hostUnknown, // 10 characters
 		"g0123456789a.example.com":     hostUnknown,
 		"0123456789a.a.example.com":    hostUnknown,
@@ -82,7 +81,7 @@ func TestHostRouter(t *testing.T) {
 	res, _ := request("app.example.com")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
-	res, body := request("f0123456789a.example.com")
+	res, body := request("0123456789a.example.com")
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 	assert.JSONEq(t, `{"error":"site not found"}`, body)
 
@@ -109,7 +108,7 @@ func TestHTTPSRedirect(t *testing.T) {
 	}{
 		{"app.example.com", 443, "https://app.example.com/x?y=1"},
 		{"app.example.com:2027", 8443, "https://app.example.com:8443/x?y=1"},
-		{"f0123456789a.example.com", 443, "https://f0123456789a.example.com/x?y=1"},
+		{"0123456789a.example.com", 443, "https://0123456789a.example.com/x?y=1"},
 	}
 	for _, tc := range cases {
 		req := httptest.NewRequest(http.MethodGet, "/x?y=1", nil)
