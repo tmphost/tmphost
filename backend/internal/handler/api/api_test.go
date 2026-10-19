@@ -240,3 +240,37 @@ func TestUsersMe(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 }
+
+func TestAllowedOriginsCORS(t *testing.T) {
+	origins := []string{"https://tmphost.io", "https://www.tmphost.io"}
+	newApp := func(allowed func() []string) *fiber.App {
+		app := fiber.New()
+		app.Use(allowedOriginsCORS(allowed))
+		app.Put("/x", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusNoContent) })
+		return app
+	}
+	preflight := func(app *fiber.App, origin string) *http.Response {
+		req := httptest.NewRequest(http.MethodOptions, "/x", nil)
+		req.Header.Set("Origin", origin)
+		req.Header.Set("Access-Control-Request-Method", http.MethodPut)
+		res, err := app.Test(req)
+		require.NoError(t, err)
+		return res
+	}
+
+	app := newApp(func() []string { return origins })
+	res := preflight(app, "https://WWW.tmphost.io")
+	assert.Equal(t, "https://WWW.tmphost.io", res.Header.Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "true", res.Header.Get("Access-Control-Allow-Credentials"))
+	assert.Contains(t, res.Header.Get("Access-Control-Allow-Methods"), http.MethodPut)
+
+	res = preflight(app, "https://evil.example")
+	assert.Empty(t, res.Header.Get("Access-Control-Allow-Origin"))
+
+	origins = nil // changed on /setup, applies right away
+	res = preflight(app, "https://tmphost.io")
+	assert.Empty(t, res.Header.Get("Access-Control-Allow-Origin"))
+
+	res = preflight(newApp(nil), "https://tmphost.io")
+	assert.Empty(t, res.Header.Get("Access-Control-Allow-Origin"), "no allowed origins")
+}

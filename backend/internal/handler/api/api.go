@@ -6,6 +6,7 @@
 package api
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -46,6 +47,9 @@ type Params struct {
 	// FileSettings returns the current file settings, which choose how
 	// folders are served.
 	FileSettings func() entity.FileSettings
+	// AllowedOrigins returns the other web origins that may call the API
+	// from a browser. It may be nil.
+	AllowedOrigins func() []string
 	// BasePath is the path prefix the app is served under ("" or "/x").
 	BasePath string
 	// CookieSecure marks cookies Secure; enable it behind HTTPS.
@@ -89,6 +93,7 @@ func New(p Params) {
 	p.Router.Post(oauthctrl.TokenPath, oauth.Token)
 
 	r := p.Router.Group(RoutePrefix)
+	r.Use(allowedOriginsCORS(p.AllowedOrigins))
 	r.Get("/auth/config", auth.Config)
 	r.Get("/auth/:provider/login", auth.Login)
 	r.Get("/auth/:provider/callback", auth.Callback)
@@ -119,6 +124,18 @@ func New(p Params) {
 	r.Post("/setup/logout", setup.Logout)
 	r.Get("/setup/settings", AuthenticateRoot(p.Setup), setup.Get)
 	r.Put("/setup/settings", AuthenticateRoot(p.Setup), setup.Update)
+}
+
+// allowedOriginsCORS lets the allowed origins call the API from a browser,
+// cookies included. Requests from the app's own origin need no CORS.
+func allowedOriginsCORS(allowed func() []string) fiber.Handler {
+	return cors.New(cors.Config{
+		AllowOriginsFunc: func(origin string) bool {
+			return allowed != nil && slices.ContainsFunc(allowed(), func(o string) bool { return strings.EqualFold(origin, o) })
+		},
+		AllowCredentials: true,
+		AllowHeaders:     []string{fiber.HeaderContentType, fiber.HeaderAuthorization},
+	})
 }
 
 func sendJSON(c fiber.Ctx, status int, payload []byte) error {

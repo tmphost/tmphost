@@ -63,6 +63,8 @@ const loginError = ref('')
 const busy = ref(false)
 
 const form = ref(null)
+// Allowed origins are edited as text, one per line.
+const originsText = ref('')
 const secretsSet = ref({})
 const restartRequired = ref(false)
 const saveError = ref('')
@@ -72,6 +74,7 @@ function load(state) {
   // Work on a copy; secrets always arrive blank.
   form.value = JSON.parse(JSON.stringify(state.settings))
   form.value.auth.providers = form.value.auth.providers || []
+  originsText.value = (form.value.domain.allowedOrigins || []).join('\n')
   secretsSet.value = state.secretsSet
   restartRequired.value = state.restartRequired
   phase.value = 'settings'
@@ -115,6 +118,10 @@ async function logout() {
 async function save() {
   busy.value = true
   saveError.value = ''
+  form.value.domain.allowedOrigins = originsText.value
+    .split('\n')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
   try {
     load(await saveSettings(form.value))
     notifySuccess('Settings saved')
@@ -264,7 +271,7 @@ onMounted(refresh)
           <!-- Domains -->
           <section class="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5" v-show="section === 'domain'" data-test="setup-domain">
             <h2 class="text-sm font-bold text-gray-900 dark:text-zinc-100">Domains</h2>
-            <p class="text-xs text-gray-500 dark:text-zinc-400 mb-4">Requires a restart.</p>
+            <p class="text-xs text-gray-500 dark:text-zinc-400 mb-4">Requires a restart, except allowed origins.</p>
             <div class="space-y-3">
               <div>
                 <label for="app-url" :class="LABEL">App URL</label>
@@ -278,6 +285,22 @@ onMounted(refresh)
                 <input id="sites-domain" v-model="form.domain.sitesDomain" placeholder="tmphost.io" :class="INPUT" />
                 <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500">
                   Dynamic subdomains are served as f + 11 characters under it, e.g. f1a2b3c4d5e6.tmphost.io. Leave blank to disable.
+                </p>
+              </div>
+              <div>
+                <label for="allowed-origins" :class="LABEL">Allowed origins</label>
+                <textarea
+                  id="allowed-origins"
+                  v-model="originsText"
+                  rows="3"
+                  spellcheck="false"
+                  placeholder="https://tmphost.io"
+                  :class="TEXTAREA"
+                  data-test="setup-allowed-origins"
+                />
+                <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500">
+                  One per line, e.g. https://www.tmphost.io. These sites may call the API from the browser, signed-in or not
+                  (uploads without signing in included). The app's own URL always may. Applies right away.
                 </p>
               </div>
             </div>

@@ -345,6 +345,22 @@ func TestAuthenticateAnonymous(t *testing.T) {
 		_, err := New(Params{}).AuthenticateAnonymous(ctx, &entity.AuthenticateAnonymousRequest{IP: "203.0.113.7"})
 		assert.ErrorIs(t, err, ErrUnauthorized)
 	})
+
+	t.Run("allowed origins", func(t *testing.T) {
+		origins := []string{"https://www.tmphost.io"}
+		c := New(Params{BaseURL: "https://app.tmphost.io", AllowedOrigins: func() []string { return origins }})
+		rs, err := c.AuthenticateAnonymous(ctx, &entity.AuthenticateAnonymousRequest{IP: "203.0.113.7", Origin: "https://WWW.tmphost.io"})
+		require.NoError(t, err)
+		assert.Equal(t, want, rs.UserID)
+		_, err = c.AuthenticateAnonymous(ctx, &entity.AuthenticateAnonymousRequest{IP: "203.0.113.7", Referer: "https://app.tmphost.io/upload"})
+		require.NoError(t, err, "the app's own origin still counts")
+		_, err = c.AuthenticateAnonymous(ctx, &entity.AuthenticateAnonymousRequest{IP: "203.0.113.7", Origin: "https://tmphost.io"})
+		assert.ErrorIs(t, err, ErrUnauthorized)
+
+		origins = nil // changed on /setup, applies right away
+		_, err = c.AuthenticateAnonymous(ctx, &entity.AuthenticateAnonymousRequest{IP: "203.0.113.7", Origin: "https://www.tmphost.io"})
+		assert.ErrorIs(t, err, ErrUnauthorized)
+	})
 }
 
 func TestAuthenticate_AccessToken(t *testing.T) {

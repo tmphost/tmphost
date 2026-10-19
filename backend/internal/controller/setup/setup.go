@@ -50,6 +50,7 @@ const (
 	_maxProviders    = 20
 	_maxProviderName = 64
 	_maxIconBytes    = 16 << 10
+	_maxOrigins      = 20
 )
 
 var (
@@ -87,6 +88,8 @@ type (
 		SignupGrant() int
 		// FileLimits returns the current upload limits.
 		FileLimits() entity.FileSettings
+		// AllowedOrigins returns the other web origins the API accepts.
+		AllowedOrigins() []string
 	}
 
 	// Params are the controller's dependencies.
@@ -199,6 +202,12 @@ func (c *controller) FileLimits() entity.FileSettings {
 	return c.current.Files
 }
 
+func (c *controller) AllowedOrigins() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.current.Domain.AllowedOrigins
+}
+
 // withDefaults fills in the sections that settings saved by an older
 // version do not have.
 func withDefaults(s, defaults entity.Settings) entity.Settings {
@@ -255,11 +264,12 @@ func (c *controller) response() *entity.GetSettingsResponse {
 }
 
 // restartRequired reports whether anything but the live-applied credit
-// grant, maximum TTLs and public URL settings changed since the server
-// started.
+// grant, maximum TTLs, public URL settings and allowed origins changed
+// since the server started.
 func restartRequired(started, current entity.Settings) bool {
 	for _, s := range []*entity.Settings{&started, &current} {
 		s.Credits = entity.CreditSettings{}
+		s.Domain.AllowedOrigins = nil
 		s.Files = entity.FileSettings{MaxUploadMB: s.Files.MaxUploadMB}
 	}
 	return !reflect.DeepEqual(started, current)
@@ -311,6 +321,7 @@ func normalize(s entity.Settings) entity.Settings {
 	s.Auth.GitHub.ClientID = t(s.Auth.GitHub.ClientID)
 	s.Domain.AppURL = normalizeAppURL(t(s.Domain.AppURL))
 	s.Domain.SitesDomain = strings.Trim(strings.TrimPrefix(strings.ToLower(t(s.Domain.SitesDomain)), "*."), ".")
+	s.Domain.AllowedOrigins = normalizeOrigins(s.Domain.AllowedOrigins)
 	if s.TLS.Port == 0 {
 		s.TLS.Port = DefaultTLSPort
 	}
@@ -346,6 +357,22 @@ func normalizeAppURL(raw string) string {
 		u.Path = ""
 	}
 	return u.String()
+}
+
+// normalizeOrigins normalizes each origin like the app URL and drops blank
+// and repeated ones. No origins is always nil, so settings compare equal
+// either way.
+func normalizeOrigins(origins []string) []string {
+	var out []string
+	seen := make(map[string]bool, len(origins))
+	for _, o := range origins {
+		o = normalizeAppURL(strings.TrimSpace(o))
+		if o != "" && !seen[o] {
+			seen[o] = true
+			out = append(out, o)
+		}
+	}
+	return out
 }
 
 // AppHost is the host name (no port) of an app URL, or "" when it has none.
@@ -426,7 +453,23 @@ func validateDomain(d entity.DomainSettings) error {
 	if d.SitesDomain != "" && !_hostnameRE.MatchString(d.SitesDomain) {
 		return errors.New("sites domain must be a domain name, e.g. tmphost.io")
 	}
+	if len(d.AllowedOrigins) > _maxOrigins {
+		return fmt.Errorf("at most %d allowed origins", _maxOrigins)
+	}
+	for _, o := range d.AllowedOrigins {
+		if !isOrigin(o) {
+			return fmt.Errorf("allowed origin %q must be an http(s) origin with no path, e.g. https://tmphost.io", o)
+		}
+	}
 	return nil
+}
+
+// isOrigin reports whether raw is a bare http(s) origin: scheme and host,
+// with an optional port.
+func isOrigin(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" &&
+		u.Path == "" && u.RawQuery == "" && u.Fragment == "" && u.User == nil && !u.ForceQuery
 }
 
 func validateTLS(s entity.Settings) error {

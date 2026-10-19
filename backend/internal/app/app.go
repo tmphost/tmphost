@@ -246,14 +246,15 @@ func New(cfg Config, web fs.FS) (*App, error) {
 	basePath := strings.TrimRight(cfg.App.BasePath, "/")
 	baseURL := strings.TrimRight(cfg.App.BaseURL, "/")
 	auth := authctrl.New(authctrl.Params{
-		Providers:   providers(cfg),
-		Token:       tokens,
-		Users:       users,
-		IDGen:       ids,
-		Grant:       setup.MonthlyGrant,
-		SignupGrant: setup.SignupGrant,
-		BasePath:    basePath,
-		BaseURL:     baseURL,
+		Providers:      providers(cfg),
+		Token:          tokens,
+		Users:          users,
+		IDGen:          ids,
+		Grant:          setup.MonthlyGrant,
+		SignupGrant:    setup.SignupGrant,
+		BasePath:       basePath,
+		BaseURL:        baseURL,
+		AllowedOrigins: setup.AllowedOrigins,
 	})
 	folders := folderctrl.New(folderctrl.Params{
 		Folders:   repository.NewFolderRepository(db),
@@ -272,15 +273,16 @@ func New(cfg Config, web fs.FS) (*App, error) {
 	f.Use(recover.New())
 	credits := credit.New(credit.Params{Users: users, Grant: setup.MonthlyGrant})
 	api.New(api.Params{
-		Router:       f,
-		Hosts:        hostRouter(h),
-		Auth:         auth,
-		Setup:        setup,
-		Folders:      folders,
-		OAuth:        oauthctrl.New(oauthctrl.Params{Token: tokens, Users: users, Issuer: baseURL, Resource: baseURL + MCPPath}),
-		Credits:      credits,
-		FileSettings: setup.FileLimits,
-		BasePath:     basePath,
+		Router:         f,
+		Hosts:          hostRouter(h),
+		Auth:           auth,
+		Setup:          setup,
+		Folders:        folders,
+		OAuth:          oauthctrl.New(oauthctrl.Params{Token: tokens, Users: users, Issuer: baseURL, Resource: baseURL + MCPPath}),
+		Credits:        credits,
+		FileSettings:   setup.FileLimits,
+		AllowedOrigins: setup.AllowedOrigins,
+		BasePath:       basePath,
 		// A session cookie for an https app must never travel over plain
 		// http.
 		CookieSecure: cfg.App.CookieSecure || strings.HasPrefix(cfg.App.BaseURL, "https://"),

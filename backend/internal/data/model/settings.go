@@ -27,8 +27,9 @@ type (
 
 	// DomainSettings is the domain section.
 	DomainSettings struct {
-		AppURL      string `json:"appUrl"`
-		SitesDomain string `json:"sitesDomain"`
+		AppURL         string   `json:"appUrl"`
+		SitesDomain    string   `json:"sitesDomain"`
+		AllowedOrigins []string `json:"allowedOrigins"`
 	}
 
 	// TLSSettings is the tls section.
