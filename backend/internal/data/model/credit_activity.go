@@ -20,9 +20,10 @@ const (
 
 // CreditActivity is one change to a user's credit balance. It is written
 // in the same transaction as the change, so a user's history always ends
-// at the current balance.
+// at the current balance. Its ID is a monoflake ID, so IDs follow the
+// order activities happened in.
 type CreditActivity struct {
-	ID        int64     `gorm:"primaryKey"`
+	ID        int64     `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt time.Time `gorm:"not null"`
 	UserID    int64     `gorm:"index;not null"`
 	// Ops is what changed the balance: one of the CreditOp* constants.

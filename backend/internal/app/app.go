@@ -241,8 +241,8 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		return nil, err
 	}
 
-	users := repository.NewUserRepository(db)
 	ids := idgen.New(cfg.IDGen.Node)
+	users := repository.NewUserRepository(db, ids)
 	basePath := strings.TrimRight(cfg.App.BasePath, "/")
 	baseURL := strings.TrimRight(cfg.App.BaseURL, "/")
 	auth := authctrl.New(authctrl.Params{
