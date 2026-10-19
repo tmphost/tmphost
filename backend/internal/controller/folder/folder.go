@@ -33,6 +33,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	zlog "github.com/rs/zerolog/log"
+
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
 	"github.com/tmphost/tmphost/backend/internal/data/model"
 	mappermodel "github.com/tmphost/tmphost/backend/internal/mapper/model"
@@ -243,6 +245,7 @@ func (c *controller) CreateFolder(ctx context.Context, rq *entity.CreateFolderRe
 		CreatedAt: now,
 		UserID:    rq.UserID,
 		ExpiresAt: now.Add(ttl),
+		Agent:     rq.Agent,
 	})
 	if err != nil {
 		if rq.Anonymous {
@@ -279,10 +282,18 @@ func (c *controller) GetFolder(ctx context.Context, rq *entity.GetFolderRequest)
 	if err != nil {
 		return nil, fmt.Errorf("list files: %w", err)
 	}
+	records, err := c.folders.ListFiles(ctx, f.ID)
+	if err != nil {
+		return nil, fmt.Errorf("list file records: %w", err)
+	}
+	agents := make(map[string]string, len(records))
+	for _, r := range records {
+		agents[r.Path] = r.Agent
+	}
 	files := make([]entity.File, len(objects))
 	for i, o := range objects {
 		p := strings.TrimPrefix(o.Key, prefix)
-		files[i] = entity.File{Path: p, Size: o.Size, UpdatedAt: o.ModTime.UTC(), URL: c.fileURL(f, p)}
+		files[i] = entity.File{Path: p, Size: o.Size, UpdatedAt: o.ModTime.UTC(), URL: c.fileURL(f, p), Agent: agents[p]}
 	}
 	folder := c.folderEntity(f)
 	folder.DefaultTitle = defaultTitle(f, objects)
@@ -429,11 +440,26 @@ func (c *controller) PutFiles(ctx context.Context, rq *entity.PutFilesRequest) (
 			if rerr := c.refund(ctx, rq, i, costs[i:]); rerr != nil {
 				err = errors.Join(err, fmt.Errorf("refund credits: %w", rerr))
 			}
+			c.recordFiles(ctx, f.ID, rq.Agent, files)
 			return nil, fmt.Errorf("write %s: %w", u.Path, err)
 		}
-		files = append(files, entity.File{Path: u.Path, Size: int64(len(u.Data)), UpdatedAt: now.UTC(), URL: c.fileURL(f, u.Path)})
+		files = append(files, entity.File{Path: u.Path, Size: int64(len(u.Data)), UpdatedAt: now.UTC(), URL: c.fileURL(f, u.Path), Agent: rq.Agent})
 	}
+	c.recordFiles(ctx, f.ID, rq.Agent, files)
 	return &entity.PutFilesResponse{Files: files, CreditsSpent: total}, nil
+}
+
+// recordFiles records that agent wrote files. The files are stored and
+// paid for by then, so a failure is only logged: they list without an
+// agent.
+func (c *controller) recordFiles(ctx context.Context, folderID int64, agent string, files []entity.File) {
+	records := make([]model.File, len(files))
+	for i, f := range files {
+		records[i] = model.File{FolderID: folderID, Path: f.Path, Agent: agent, UpdatedAt: f.UpdatedAt}
+	}
+	if err := c.folders.SaveFiles(ctx, records); err != nil {
+		zlog.Error().Err(err).Int64("folder", folderID).Msg("record files")
+	}
 }
 
 // refund gives back what the unwritten files of rq, from index from on
@@ -475,6 +501,9 @@ func (c *controller) DeleteFile(ctx context.Context, rq *entity.DeleteFileReques
 	}
 	if err := c.storage.Delete(ctx, folderPrefix(f)+rq.Path); err != nil {
 		return fmt.Errorf("delete file: %w", err)
+	}
+	if err := c.folders.DeleteFile(ctx, f.ID, rq.Path); err != nil {
+		return fmt.Errorf("delete file record: %w", err)
 	}
 	return nil
 }

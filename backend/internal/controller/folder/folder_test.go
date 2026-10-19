@@ -5,6 +5,7 @@
 package folder
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -13,6 +14,8 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -85,6 +88,7 @@ func TestFolderURLs_PathMode(t *testing.T) {
 	e.limits.Subdomains = false
 	f := e.liveFolder(time.Hour)
 	e.storage.EXPECT().List(gomock.Any(), "u7/000000rs/").Return([]storage.Object{{Key: "u7/000000rs/site/a b.html", Size: 1, ModTime: _now}}, nil)
+	e.folders.EXPECT().ListFiles(gomock.Any(), int64(1000)).Return(nil, nil)
 	rs, err := e.ctrl.GetFolder(context.Background(), &entity.GetFolderRequest{UserID: f.UserID, FolderID: f.ID})
 	require.NoError(t, err)
 	assert.Equal(t, "https://tmphost.io/base/files/7/000000rs/", rs.Folder.URL)
@@ -150,6 +154,7 @@ func TestPutFiles_Anonymous(t *testing.T) {
 
 	t.Run("quota, not credits", func(t *testing.T) {
 		e := newEnv(t)
+		e.folders.EXPECT().SaveFiles(ctx, gomock.Any()).Return(nil).AnyTimes()
 		e.liveFolder(30 * time.Minute)
 		e.storage.EXPECT().Put(ctx, _prefix+"a", gomock.Any()).Return(nil)
 		e.storage.EXPECT().Put(ctx, _prefix+"b", gomock.Any()).Return(nil)
@@ -173,12 +178,14 @@ func TestPutFiles_Anonymous(t *testing.T) {
 	})
 	t.Run("too large", func(t *testing.T) {
 		e := newEnv(t)
+		e.folders.EXPECT().SaveFiles(ctx, gomock.Any()).Return(nil).AnyTimes()
 		_, err := put(e, entity.FileUpload{Path: "a"}, entity.FileUpload{Path: "b", Data: make([]byte, 1<<20+1)})
 		assert.ErrorIs(t, err, ErrTooLarge)
 		assert.ErrorContains(t, err, `"b" is over the 1 MB file limit`)
 	})
 	t.Run("bytes quota", func(t *testing.T) {
 		e := newEnv(t)
+		e.folders.EXPECT().SaveFiles(ctx, gomock.Any()).Return(nil).AnyTimes()
 		e.liveFolder(30 * time.Minute)
 		e.storage.EXPECT().Put(ctx, gomock.Any(), gomock.Any()).Return(nil).Times(3)
 		mb := func(p string) entity.FileUpload { return entity.FileUpload{Path: p, Data: make([]byte, 1<<20)} }
@@ -197,6 +204,7 @@ func TestPutFiles_Anonymous(t *testing.T) {
 	})
 	t.Run("write failure gives the rest back", func(t *testing.T) {
 		e := newEnv(t)
+		e.folders.EXPECT().SaveFiles(ctx, gomock.Any()).Return(nil).AnyTimes()
 		mb := func(p string) entity.FileUpload { return entity.FileUpload{Path: p, Data: make([]byte, 1<<20)} }
 		e.liveFolder(30 * time.Minute)
 		e.storage.EXPECT().Put(ctx, _prefix+"a", gomock.Any()).Return(nil)
@@ -221,11 +229,11 @@ func TestCreateFolder(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			e := newEnv(t)
 			e.nextID = 1000
-			e.folders.EXPECT().CreateFolder(ctx, model.Folder{ID: 1000, CreatedAt: _now, UserID: 7, ExpiresAt: _now.Add(tc.ttl)}).
+			e.folders.EXPECT().CreateFolder(ctx, model.Folder{ID: 1000, CreatedAt: _now, UserID: 7, ExpiresAt: _now.Add(tc.ttl), Agent: "Claude Code"}).
 				DoAndReturn(func(_ context.Context, f model.Folder) (model.Folder, error) { return f, nil })
-			rs, err := e.ctrl.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: 7, TTLMinutes: tc.minutes})
+			rs, err := e.ctrl.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: 7, Agent: "Claude Code", TTLMinutes: tc.minutes})
 			require.NoError(t, err)
-			assert.Equal(t, entity.Folder{ID: 1000, UserID: 7, CreatedAt: _now, ExpiresAt: _now.Add(tc.ttl), URL: _host, DefaultTitle: "000000rs"}, rs.Folder)
+			assert.Equal(t, entity.Folder{ID: 1000, UserID: 7, CreatedAt: _now, ExpiresAt: _now.Add(tc.ttl), URL: _host, DefaultTitle: "000000rs", Agent: "Claude Code"}, rs.Folder)
 		})
 	}
 }
@@ -281,14 +289,22 @@ func TestGetFolder(t *testing.T) {
 		{Key: _prefix + "a b.txt", Size: 3, ModTime: mod},
 		{Key: _prefix + "site/index.html", Size: 5, ModTime: mod},
 	}, nil)
+	// A file without a record (e.g. its record failed to save) has no agent.
+	e.folders.EXPECT().ListFiles(ctx, int64(1000)).Return([]model.File{{FolderID: 1000, Path: "site/index.html", Agent: "Claude Code"}}, nil)
 	rs, err := e.ctrl.GetFolder(ctx, &entity.GetFolderRequest{UserID: 7, FolderID: 1000})
 	require.NoError(t, err)
 	assert.Equal(t, []entity.File{
 		{Path: "a b.txt", Size: 3, UpdatedAt: _now, URL: _host + "a%20b.txt"},
-		{Path: "site/index.html", Size: 5, UpdatedAt: _now, URL: _host + "site/index.html"},
+		{Path: "site/index.html", Size: 5, UpdatedAt: _now, URL: _host + "site/index.html", Agent: "Claude Code"},
 	}, rs.Files)
 	assert.Equal(t, int64(1000), rs.Folder.ID)
 	assert.Equal(t, "000000rs", rs.Folder.DefaultTitle)
+
+	e.liveFolder(time.Hour)
+	e.storage.EXPECT().List(ctx, _prefix).Return(nil, nil)
+	e.folders.EXPECT().ListFiles(ctx, int64(1000)).Return(nil, errBoom)
+	_, err = e.ctrl.GetFolder(ctx, &entity.GetFolderRequest{UserID: 7, FolderID: 1000})
+	assert.ErrorIs(t, err, errBoom)
 }
 
 func TestGetFolder_SingleFileDefaultTitle(t *testing.T) {
@@ -296,6 +312,7 @@ func TestGetFolder_SingleFileDefaultTitle(t *testing.T) {
 	e := newEnv(t)
 	e.liveFolder(time.Hour)
 	e.storage.EXPECT().List(ctx, _prefix).Return([]storage.Object{{Key: _prefix + "notes.txt"}}, nil)
+	e.folders.EXPECT().ListFiles(ctx, int64(1000)).Return(nil, nil)
 	rs, err := e.ctrl.GetFolder(ctx, &entity.GetFolderRequest{UserID: 7, FolderID: 1000})
 	require.NoError(t, err)
 	assert.Equal(t, "notes.txt", rs.Folder.DefaultTitle)
@@ -554,6 +571,10 @@ func TestPutFiles(t *testing.T) {
 		e.users.EXPECT().SpendCredits(ctx, int64(7), 8, "tmphost CLI").Return(nil),
 		e.storage.EXPECT().Put(ctx, _prefix+"index.html", []byte("<p>")).Return(nil),
 		e.storage.EXPECT().Put(ctx, _prefix+"css/a.bin", big).Return(nil),
+		e.folders.EXPECT().SaveFiles(ctx, []model.File{
+			{FolderID: 1000, Path: "index.html", Agent: "tmphost CLI", UpdatedAt: _now},
+			{FolderID: 1000, Path: "css/a.bin", Agent: "tmphost CLI", UpdatedAt: _now},
+		}).Return(nil),
 	)
 	rs, err := e.ctrl.PutFiles(ctx, &entity.PutFilesRequest{UserID: 7, Agent: "tmphost CLI", FolderID: 1000, Files: []entity.FileUpload{
 		{Path: "index.html", Data: []byte("<p>")},
@@ -562,9 +583,29 @@ func TestPutFiles(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 8, rs.CreditsSpent, "(1 + 3 MB units) x 2 started blocks")
 	assert.Equal(t, []entity.File{
-		{Path: "index.html", Size: 3, UpdatedAt: _now, URL: _host + "index.html"},
-		{Path: "css/a.bin", Size: 2<<20 + 1, UpdatedAt: _now, URL: _host + "css/a.bin"},
+		{Path: "index.html", Size: 3, UpdatedAt: _now, URL: _host + "index.html", Agent: "tmphost CLI"},
+		{Path: "css/a.bin", Size: 2<<20 + 1, UpdatedAt: _now, URL: _host + "css/a.bin", Agent: "tmphost CLI"},
 	}, rs.Files)
+}
+
+// The files are stored and paid for before their records are saved, so a
+// failing save still answers with the files.
+func TestPutFiles_RecordFails(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	old := zlog.Logger
+	zlog.Logger = zerolog.New(&buf)
+	t.Cleanup(func() { zlog.Logger = old })
+
+	e := newEnv(t)
+	e.liveFolder(time.Hour)
+	e.users.EXPECT().SpendCredits(ctx, int64(7), 2, "Web").Return(nil)
+	e.storage.EXPECT().Put(ctx, _prefix+"a", gomock.Any()).Return(nil)
+	e.folders.EXPECT().SaveFiles(ctx, gomock.Any()).Return(errBoom)
+	rs, err := e.ctrl.PutFiles(ctx, &entity.PutFilesRequest{UserID: 7, Agent: "Web", FolderID: 1000, Files: []entity.FileUpload{{Path: "a"}}})
+	require.NoError(t, err)
+	assert.Len(t, rs.Files, 1)
+	assert.Contains(t, buf.String(), "record files")
 }
 
 // An upload to a path already in the folder is an update: the file is
@@ -577,6 +618,8 @@ func TestPutFiles_ReplacesAFile(t *testing.T) {
 	ctrl := New(Params{Folders: e.folders, Users: e.users, Storage: local, Limits: func() entity.FileSettings { return e.limits }, Now: func() time.Time { return _now }})
 	e.folders.EXPECT().FindFolderByID(gomock.Any(), int64(1000)).Return(model.Folder{ID: 1000, UserID: 7, ExpiresAt: _now.Add(time.Hour)}, nil).Times(4)
 	e.users.EXPECT().SpendCredits(ctx, int64(7), 2, "").Return(nil).Times(2)
+	e.folders.EXPECT().SaveFiles(ctx, gomock.Any()).Return(nil).Times(2)
+	e.folders.EXPECT().ListFiles(ctx, int64(1000)).Return(nil, nil)
 
 	put := func(data string) entity.File {
 		rs, err := ctrl.PutFiles(ctx, &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "site/index.html", Data: []byte(data)}}})
@@ -655,6 +698,8 @@ func TestPutFiles_WriteFailureRefundsTheRest(t *testing.T) {
 			e.storage.EXPECT().Put(ctx, _prefix+"a", gomock.Any()).Return(nil),
 			e.storage.EXPECT().Put(ctx, _prefix+"b", gomock.Any()).Return(errBoom),
 			e.users.EXPECT().RefundCredits(ctx, int64(7), 5, "").Return(nil),
+			// a was written, so it is recorded.
+			e.folders.EXPECT().SaveFiles(ctx, []model.File{{FolderID: 1000, Path: "a", UpdatedAt: _now}}).Return(nil),
 		)
 		_, err := e.ctrl.PutFiles(ctx, rq)
 		assert.ErrorIs(t, err, errBoom)
@@ -668,6 +713,7 @@ func TestPutFiles_WriteFailureRefundsTheRest(t *testing.T) {
 		e.users.EXPECT().SpendCredits(ctx, int64(7), 6, "").Return(nil)
 		e.storage.EXPECT().Put(ctx, _prefix+"a", gomock.Any()).Return(errBoom)
 		e.users.EXPECT().RefundCredits(ctx, int64(7), 6, "").Return(refundErr)
+		e.folders.EXPECT().SaveFiles(ctx, []model.File{}).Return(nil)
 		_, err := e.ctrl.PutFiles(ctx, rq)
 		assert.ErrorIs(t, err, errBoom)
 		assert.ErrorIs(t, err, refundErr)
@@ -683,7 +729,13 @@ func TestDeleteFile(t *testing.T) {
 
 	e.liveFolder(time.Hour)
 	e.storage.EXPECT().Delete(ctx, _prefix+"site/a.txt").Return(nil)
+	e.folders.EXPECT().DeleteFile(ctx, int64(1000), "site/a.txt").Return(nil)
 	require.NoError(t, e.ctrl.DeleteFile(ctx, rq))
+
+	e.liveFolder(time.Hour)
+	e.storage.EXPECT().Delete(ctx, _prefix+"site/a.txt").Return(nil)
+	e.folders.EXPECT().DeleteFile(ctx, int64(1000), "site/a.txt").Return(errBoom)
+	assert.ErrorIs(t, e.ctrl.DeleteFile(ctx, rq), errBoom)
 
 	e.liveFolder(time.Hour)
 	e.storage.EXPECT().Delete(ctx, _prefix+"site/a.txt").Return(errBoom)

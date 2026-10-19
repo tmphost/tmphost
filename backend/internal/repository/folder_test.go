@@ -72,6 +72,55 @@ func TestFolderRepository(t *testing.T) {
 	assert.ErrorIs(t, err, ErrNotFound)
 }
 
+func TestFolderRepository_Files(t *testing.T) {
+	ctx := context.Background()
+	db := newDB(t)
+	repo := NewFolderRepository(db)
+	now := time.Date(2026, 10, 19, 7, 0, 0, 0, time.UTC)
+	_, err := repo.CreateFolder(ctx, model.Folder{ID: 1, UserID: 7, ExpiresAt: now.Add(time.Hour), Agent: "Claude Code"})
+	require.NoError(t, err)
+	got, err := repo.FindFolderByID(ctx, 1)
+	require.NoError(t, err)
+	assert.Equal(t, "Claude Code", got.Agent)
+
+	require.NoError(t, repo.SaveFiles(ctx, nil), "nothing to save")
+	require.NoError(t, repo.SaveFiles(ctx, []model.File{
+		{FolderID: 1, Path: "a.txt", Agent: "Claude Code", UpdatedAt: now},
+		{FolderID: 1, Path: "css/b.css", Agent: "Claude Code", UpdatedAt: now},
+		{FolderID: 2, Path: "a.txt", Agent: "Web", UpdatedAt: now},
+	}))
+	// Writing a path again replaces its record.
+	require.NoError(t, repo.SaveFiles(ctx, []model.File{{FolderID: 1, Path: "a.txt", Agent: "tmphost CLI", UpdatedAt: now.Add(time.Minute)}}))
+	files, err := repo.ListFiles(ctx, 1)
+	require.NoError(t, err)
+	agents := map[string]string{}
+	for _, f := range files {
+		agents[f.Path] = f.Agent
+	}
+	assert.Equal(t, map[string]string{"a.txt": "tmphost CLI", "css/b.css": "Claude Code"}, agents)
+
+	require.NoError(t, repo.DeleteFile(ctx, 1, "css/b.css"))
+	files, err = repo.ListFiles(ctx, 1)
+	require.NoError(t, err)
+	assert.Len(t, files, 1)
+
+	require.NoError(t, repo.DeleteFolder(ctx, 1))
+	files, err = repo.ListFiles(ctx, 1)
+	require.NoError(t, err)
+	assert.Empty(t, files, "a folder takes its file records along")
+	files, err = repo.ListFiles(ctx, 2)
+	require.NoError(t, err)
+	assert.Len(t, files, 1, "other folders keep theirs")
+
+	// A failing file delete keeps the folder.
+	_, err = repo.CreateFolder(ctx, model.Folder{ID: 3, UserID: 7, ExpiresAt: now})
+	require.NoError(t, err)
+	require.NoError(t, db.Migrator().DropTable(&model.File{}))
+	assert.Error(t, repo.DeleteFolder(ctx, 3))
+	_, err = repo.FindFolderByID(ctx, 3)
+	assert.NoError(t, err)
+}
+
 func TestFolderRepository_DBErrors(t *testing.T) {
 	ctx := context.Background()
 	db := newDB(t)
@@ -90,6 +139,10 @@ func TestFolderRepository_DBErrors(t *testing.T) {
 	assert.Error(t, repo.UpdateFolderTitle(ctx, 1, "x"))
 	assert.Error(t, repo.ExtendFolder(ctx, 1, time.Now(), time.Now()))
 	assert.Error(t, repo.DeleteFolder(ctx, 1))
+	assert.Error(t, repo.SaveFiles(ctx, []model.File{{FolderID: 1, Path: "a"}}))
+	_, err = repo.ListFiles(ctx, 1)
+	assert.Error(t, err)
+	assert.Error(t, repo.DeleteFile(ctx, 1, "a"))
 }
 
 func folderIDs(fs []model.Folder) []int64 {

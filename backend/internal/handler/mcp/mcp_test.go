@@ -143,7 +143,7 @@ func TestContentFormat(t *testing.T) {
 func TestUpload_NewFolder(t *testing.T) {
 	e := newEnv(t)
 	gomock.InOrder(
-		e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 7, TTLMinutes: 120}).
+		e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 7, Agent: "Claude Code", TTLMinutes: 120}).
 			Return(&entity.CreateFolderResponse{Folder: _folder}, nil),
 		e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, Agent: "Claude Code", FolderID: 1000, Files: []entity.FileUpload{{Path: "site/index.html", Data: []byte("<p>")}}}).
 			Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "site/index.html", Size: 3, URL: "https://000000rs.tmp.host/site/index.html"}}, CreditsSpent: 4}, nil),
@@ -219,7 +219,7 @@ func TestUpload_ControllerErrors(t *testing.T) {
 
 	t.Run("create fails", func(t *testing.T) {
 		e := newEnv(t)
-		e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 7}).Return(nil, folderctrl.ErrInvalidTTL)
+		e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 7, Agent: "Claude Code"}).Return(nil, folderctrl.ErrInvalidTTL)
 		_, msg := e.call(t, args())
 		assert.Contains(t, msg, "invalid ttl")
 	})
@@ -301,14 +301,14 @@ func TestGet(t *testing.T) {
 	e.folders.EXPECT().GetFolder(gomock.Any(), &entity.GetFolderRequest{UserID: 7, FolderID: 1000}).Return(&entity.GetFolderResponse{
 		Folder: _folder,
 		Files: []entity.File{
-			{Path: "index.html", Size: 1, URL: "https://000000rs.tmp.host/index.html"},
+			{Path: "index.html", Size: 1, URL: "https://000000rs.tmp.host/index.html", Agent: "Claude Code"},
 			{Path: "site/css/a.css", Size: 2, URL: "https://000000rs.tmp.host/site/css/a.css"},
 		},
 	}, nil)
 	out, msg := e.call(t, map[string]any{"action": "get", "id": "000000rs"})
 	require.Empty(t, msg)
 	assert.Equal(t, FileOutput{ID: "000000rs", URL: "https://000000rs.tmp.host/", ExpiresAt: "2026-10-18T12:30:00Z", Files: []FileInfo{
-		{FileName: "index.html", Path: "", Size: 1, URL: "https://000000rs.tmp.host/index.html"},
+		{FileName: "index.html", Path: "", Size: 1, URL: "https://000000rs.tmp.host/index.html", Agent: "Claude Code"},
 		{FileName: "a.css", Path: "site/css", Size: 2, URL: "https://000000rs.tmp.host/site/css/a.css"},
 	}}, out)
 

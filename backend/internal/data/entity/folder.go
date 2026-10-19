@@ -23,6 +23,8 @@ type (
 		// DefaultTitle names a folder without a title: the name of its only
 		// file, else its ID.
 		DefaultTitle string
+		// Agent names what created the folder; empty if unknown.
+		Agent string
 	}
 
 	// File is an uploaded file.
@@ -32,6 +34,8 @@ type (
 		Size      int64
 		UpdatedAt time.Time
 		URL       string
+		// Agent names what last wrote the file; empty if unknown.
+		Agent string
 	}
 
 	// FileUpload is a file to store.
@@ -66,6 +70,8 @@ type (
 		// Anonymous marks a visitor without an account, who has the
 		// anonymous limits.
 		Anonymous bool
+		// Agent names what asked; the folder keeps it.
+		Agent string
 		// TTLMinutes is the folder's lifetime; 0 picks the default.
 		TTLMinutes int
 	}
@@ -139,7 +145,8 @@ type (
 		// Anonymous marks a visitor without an account: the upload spends
 		// their per-IP quota instead of credits.
 		Anonymous bool
-		// Agent names what uploaded, for the credit history.
+		// Agent names what uploaded, for the credit history and the
+		// files.
 		Agent    string
 		FolderID int64
 		Files    []FileUpload

@@ -53,6 +53,8 @@ type File struct {
 	Size      int64     `json:"size"`
 	UpdatedAt time.Time `json:"updatedAt"`
 	URL       string    `json:"url"`
+	// Agent names what last wrote the file, e.g. "tmphost CLI".
+	Agent string `json:"agent,omitempty"`
 }
 
 // FolderDetail is a folder together with its files.

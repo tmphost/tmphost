@@ -110,7 +110,7 @@ func TestFolder_Anonymous(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":30,"maxUploadBytes":1048576,"billingBlockMinutes":30,"billingUnitBytes":1048576,"anonymous":true,"fileOps":5,"fileBytes":4194304,"fileOpsWindowMinutes":30}`, body)
 
-	e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 3, Anonymous: true}).
+	e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 3, Anonymous: true, Agent: "Web"}).
 		Return(&entity.CreateFolderResponse{Folder: entity.Folder{ID: 1000, CreatedAt: _at, ExpiresAt: _at, URL: "u"}}, nil)
 	res, _ = e.anonymous(t, http.MethodPost, "/api/v1/folders", "")
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
@@ -176,7 +176,7 @@ func TestFolder_RequiresAuth(t *testing.T) {
 
 func TestFolder_Create(t *testing.T) {
 	e := newFilesApp(t)
-	e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 7, TTLMinutes: 60}).
+	e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 7, Agent: "tmphost CLI", TTLMinutes: 60}).
 		Return(&entity.CreateFolderResponse{Folder: entity.Folder{ID: 1000, CreatedAt: _at, ExpiresAt: _at, URL: "u"}}, nil)
 	res, body := e.do(t, http.MethodPost, "/api/v1/folders", `{"ttlMinutes":60}`)
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
@@ -185,7 +185,7 @@ func TestFolder_Create(t *testing.T) {
 	res, _ = e.do(t, http.MethodPost, "/api/v1/folders", `{`)
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
 
-	e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 7}).Return(nil, folderctrl.ErrInvalidTTL)
+	e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 7, Agent: "tmphost CLI"}).Return(nil, folderctrl.ErrInvalidTTL)
 	res, body = e.do(t, http.MethodPost, "/api/v1/folders", "")
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
 	assert.JSONEq(t, `{"error":"invalid ttl"}`, body)

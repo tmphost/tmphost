@@ -624,6 +624,9 @@ onUnmounted(() => clearInterval(timer))
           </div>
 
           <div v-if="expanded[folder.id]" class="border-t border-gray-100 dark:border-zinc-800 px-3 py-2" data-test="folder-files">
+            <p v-if="folder.agent" class="pb-1 text-[11px] text-gray-400 dark:text-zinc-500" data-test="folder-agent">
+              Created by <span class="font-semibold text-gray-600 dark:text-zinc-300">{{ folder.agent }}</span>
+            </p>
             <p v-if="expanded[folder.id].loading" class="py-1 text-xs text-gray-400 dark:text-zinc-500">Loading files…</p>
             <p v-else-if="!expanded[folder.id].files.length" class="py-1 text-xs text-gray-400 dark:text-zinc-500">This folder is empty.</p>
             <ul v-else class="divide-y divide-gray-50 dark:divide-zinc-800">
@@ -633,14 +636,24 @@ onUnmounted(() => clearInterval(timer))
                 class="flex items-center gap-2 py-1"
                 :data-test="`file-${file.path}`"
               >
-                <a
-                  :href="file.url"
-                  target="_blank"
-                  rel="noopener"
-                  class="grow min-w-0 truncate font-mono text-xs text-gray-900 dark:text-zinc-100 hover:underline"
-                  :title="`Open ${file.path}`"
-                  data-test="file-link"
-                >{{ file.path }}</a>
+                <div class="grow min-w-0">
+                  <a
+                    :href="file.url"
+                    target="_blank"
+                    rel="noopener"
+                    class="block truncate font-mono text-xs text-gray-900 dark:text-zinc-100 hover:underline"
+                    :title="`Open ${file.path}`"
+                    data-test="file-link"
+                  >{{ file.path }}</a>
+                  <p
+                    v-if="file.agent"
+                    class="truncate text-[10px] text-gray-400 dark:text-zinc-500"
+                    :title="`Uploaded by ${file.agent}`"
+                    data-test="file-agent"
+                  >
+                    {{ file.agent }}
+                  </p>
+                </div>
                 <span class="shrink-0 text-[11px] tabular-nums text-gray-400 dark:text-zinc-500">{{ formatBytes(file.size) }}</span>
                 <button type="button" :class="ICON_BUTTON" title="Copy file URL" data-test="file-copy" @click="copy(file.url, 'File URL copied')">
                   <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">

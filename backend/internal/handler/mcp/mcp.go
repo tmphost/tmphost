@@ -103,6 +103,8 @@ type (
 		Path     string `json:"path"`
 		Size     int64  `json:"size"`
 		URL      string `json:"url"`
+		// Agent names what last wrote the file.
+		Agent string `json:"agent,omitempty"`
 	}
 
 	tool struct {
@@ -184,7 +186,7 @@ func (t *tool) upload(ctx context.Context, userID int64, agent string, in FileIn
 	if err != nil {
 		return FileOutput{}, err
 	}
-	folderID, created, err := t.uploadFolder(ctx, userID, in)
+	folderID, created, err := t.uploadFolder(ctx, userID, agent, in)
 	if err != nil {
 		return FileOutput{}, err
 	}
@@ -253,7 +255,7 @@ func contentFormat(format string) (string, error) {
 
 // uploadFolder resolves the folder an upload goes to, creating it when no
 // id is given. created is the new folder, if any.
-func (t *tool) uploadFolder(ctx context.Context, userID int64, in FileInput) (int64, *entity.Folder, error) {
+func (t *tool) uploadFolder(ctx context.Context, userID int64, agent string, in FileInput) (int64, *entity.Folder, error) {
 	if in.ID != "" {
 		if in.TTL != "" {
 			return 0, nil, errors.New("ttl only applies to a new folder: leave out id or ttl")
@@ -268,7 +270,7 @@ func (t *tool) uploadFolder(ctx context.Context, userID int64, in FileInput) (in
 			return 0, nil, err
 		}
 	}
-	rs, err := t.folders.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: userID, TTLMinutes: minutes})
+	rs, err := t.folders.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: userID, Agent: agent, TTLMinutes: minutes})
 	if err != nil {
 		return 0, nil, err
 	}
@@ -346,7 +348,7 @@ func (t *tool) get(ctx context.Context, userID int64, in FileInput) (FileOutput,
 	}
 	files := make([]FileInfo, len(rs.Files))
 	for i, f := range rs.Files {
-		files[i] = FileInfo{FileName: f.Path[strings.LastIndex(f.Path, "/")+1:], Path: dirOf(f.Path), Size: f.Size, URL: f.URL}
+		files[i] = FileInfo{FileName: f.Path[strings.LastIndex(f.Path, "/")+1:], Path: dirOf(f.Path), Size: f.Size, URL: f.URL, Agent: f.Agent}
 	}
 	return FileOutput{ID: in.ID, URL: rs.Folder.URL, ExpiresAt: formatTime(rs.Folder.ExpiresAt), Files: files}, nil
 }
