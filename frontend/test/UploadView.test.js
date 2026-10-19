@@ -109,12 +109,43 @@ describe('UploadView', () => {
     expect(wrapper.find('[data-test="upload-summary"]').exists()).toBe(false)
 
     const result = wrapper.find('[data-test="upload-result"]')
-    expect(result.text()).toContain(folder.url)
     expect(result.find('[data-test="result-site/index.html"]').text()).toContain('5 B')
-    await result.find('[data-test="result-folder-copy"]').trigger('click')
-    expect(writeText).toHaveBeenCalledWith(folder.url)
     await result.find('[data-test="result-a.txt"] [data-test="result-file-copy"]').trigger('click')
     expect(writeText).toHaveBeenCalledWith(`${folder.url}a.txt`)
+    // index.html is only in site/, so the folder itself has no page to link.
+    expect(result.find('[data-test="result-folder-id"]').text()).toBe('Folder abc')
+    expect(result.text()).not.toContain(folder.url)
+    expect(result.find('[data-test="result-folder-copy"]').exists()).toBe(false)
+    expect(result.find('[data-test="result-folder-open"]').exists()).toBe(false)
+  })
+
+  it('links to the folder once it has an index.html at its root', async () => {
+    const wrapper = await mountView()
+    await pick(wrapper, '[data-test="pick-files"]', [file('index.html')])
+    await wrapper.find('[data-test="upload-start"]').trigger('click')
+    await flushPromises()
+    const result = wrapper.find('[data-test="upload-result"]')
+    expect(result.text()).toContain(folder.url)
+    expect(result.find('[data-test="result-folder-id"]').exists()).toBe(false)
+    expect(result.find('[data-test="result-folder-open"]').attributes('href')).toBe(folder.url)
+
+    // Adding a second file keeps the folder's page.
+    await pick(wrapper, '[data-test="pick-files"]', [file('a.txt')])
+    await wrapper.find('[data-test="upload-start"]').trigger('click')
+    await flushPromises()
+    await result.find('[data-test="result-folder-copy"]').trigger('click')
+    expect(writeText).toHaveBeenCalledWith(folder.url)
+  })
+
+  it('links to the only file of a folder without an index.html', async () => {
+    const wrapper = await mountView()
+    await pick(wrapper, '[data-test="pick-files"]', [file('notes.md')])
+    await wrapper.find('[data-test="upload-start"]').trigger('click')
+    await flushPromises()
+    const result = wrapper.find('[data-test="upload-result"]')
+    expect(result.find('[data-test="result-folder-open"]').attributes('href')).toBe(`${folder.url}notes.md`)
+    await result.find('[data-test="result-folder-copy"]').trigger('click')
+    expect(writeText).toHaveBeenCalledWith(`${folder.url}notes.md`)
   })
 
   it('says "1 file" and shows progress while uploading', async () => {

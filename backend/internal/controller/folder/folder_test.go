@@ -318,6 +318,34 @@ func TestGetFolder_SingleFileDefaultTitle(t *testing.T) {
 	rs, err := e.ctrl.GetFolder(ctx, &entity.GetFolderRequest{UserID: 7, FolderID: 1000})
 	require.NoError(t, err)
 	assert.Equal(t, "notes.txt", rs.Folder.DefaultTitle)
+	assert.Equal(t, _host+"notes.txt", rs.Folder.OpenURL)
+}
+
+func TestGetFolder_OpenURL(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	for _, tc := range []struct {
+		keys []string
+		want string
+	}{
+		{[]string{"index.html"}, _host},
+		{[]string{"app.css", "index.html"}, _host},
+		{[]string{"site/a b.md"}, _host + "site/a%20b.md"},
+		{[]string{"site/index.html", "notes.md"}, ""},
+		{[]string{"index.htm", "a.txt"}, ""},
+		{nil, ""},
+	} {
+		e.liveFolder(time.Hour)
+		objects := make([]storage.Object, len(tc.keys))
+		for i, k := range tc.keys {
+			objects[i] = storage.Object{Key: _prefix + k}
+		}
+		e.storage.EXPECT().List(ctx, _prefix).Return(objects, nil)
+		e.folders.EXPECT().ListFiles(ctx, int64(1000)).Return(nil, nil)
+		rs, err := e.ctrl.GetFolder(ctx, &entity.GetFolderRequest{UserID: 7, FolderID: 1000})
+		require.NoError(t, err)
+		assert.Equal(t, tc.want, rs.Folder.OpenURL, tc.keys)
+	}
 }
 
 func TestUpdateFolder(t *testing.T) {

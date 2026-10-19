@@ -261,9 +261,9 @@ func TestFromHTTPRequestToOpenPublicFileByPathRequestEntity(t *testing.T) {
 
 func TestFolderResponses(t *testing.T) {
 	at := time.Date(2026, 10, 18, 12, 0, 0, 0, time.FixedZone("x", 3600))
-	folder := entity.Folder{ID: 1000, CreatedAt: at, ExpiresAt: at, URL: "u", Title: "Photos", DefaultTitle: "a", Agent: "Claude Code"}
+	folder := entity.Folder{ID: 1000, CreatedAt: at, ExpiresAt: at, URL: "u", Title: "Photos", DefaultTitle: "a", OpenURL: "u", Agent: "Claude Code"}
 	file := entity.File{Path: "a", Size: 1, UpdatedAt: at, URL: "u/a", Agent: "Web"}
-	const folderJSON = `{"id":"000000rs","createdAt":"2026-10-18T11:00:00Z","expiresAt":"2026-10-18T11:00:00Z","url":"u","title":"Photos","defaultTitle":"a","agent":"Claude Code"}`
+	const folderJSON = `{"id":"000000rs","createdAt":"2026-10-18T11:00:00Z","expiresAt":"2026-10-18T11:00:00Z","url":"u","title":"Photos","defaultTitle":"a","openUrl":"u","agent":"Claude Code"}`
 	const fileJSON = `{"path":"a","size":1,"updatedAt":"2026-10-18T11:00:00Z","url":"u/a","agent":"Web"}`
 
 	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":60,"maxUploadBytes":5,"billingBlockMinutes":30,"billingUnitBytes":1048576}`,

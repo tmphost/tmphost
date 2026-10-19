@@ -30,6 +30,7 @@ import (
 	"mime"
 	"net/url"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -281,7 +282,7 @@ func (c *controller) ListFolders(ctx context.Context, rq *entity.ListFoldersRequ
 		out[i] = c.folderEntity(f)
 		// A folder whose files cannot be listed still shows, under its ID.
 		if objects, err := c.objects(ctx, f); err == nil {
-			out[i].DefaultTitle = defaultTitle(f, objects)
+			c.describe(&out[i], f, objects)
 		}
 	}
 	return &entity.ListFoldersResponse{Folders: out}, nil
@@ -311,7 +312,7 @@ func (c *controller) GetFolder(ctx context.Context, rq *entity.GetFolderRequest)
 		files[i] = entity.File{Path: p, Size: o.Size, UpdatedAt: o.ModTime.UTC(), URL: c.fileURL(f, p), Agent: agents[p]}
 	}
 	folder := c.folderEntity(f)
-	folder.DefaultTitle = defaultTitle(f, objects)
+	c.describe(&folder, f, objects)
 	return &entity.GetFolderResponse{Folder: folder, Files: files}, nil
 }
 
@@ -333,7 +334,7 @@ func (c *controller) UpdateFolder(ctx context.Context, rq *entity.UpdateFolderRe
 		return nil, fmt.Errorf("list files: %w", err)
 	}
 	folder := c.folderEntity(f)
-	folder.DefaultTitle = defaultTitle(f, objects)
+	c.describe(&folder, f, objects)
 	return &entity.UpdateFolderResponse{Folder: folder}, nil
 }
 
@@ -379,7 +380,7 @@ func (c *controller) ExtendFolder(ctx context.Context, rq *entity.ExtendFolderRe
 		return nil, fmt.Errorf("extend folder: %w", err)
 	}
 	folder := c.folderEntity(f)
-	folder.DefaultTitle = defaultTitle(f, objects)
+	c.describe(&folder, f, objects)
 	return &entity.ExtendFolderResponse{Folder: folder, CreditsSpent: total}, nil
 }
 
@@ -398,13 +399,20 @@ func ValidTitle(t string) bool {
 	return true
 }
 
-// defaultTitle names a folder that has no title: the name of its only
-// file, else its ID.
-func defaultTitle(f model.Folder, objects []storage.Object) string {
-	if len(objects) == 1 {
-		return path.Base(objects[0].Key)
+// describe fills in what e says about the files of f, objects: its
+// default title, the name of its only file, else its ID; and the URL to
+// open, the folder's own when its root has an index.html, else its only
+// file's, else none.
+func (c *controller) describe(e *entity.Folder, f model.Folder, objects []storage.Object) {
+	prefix := folderPrefix(f)
+	switch {
+	case slices.ContainsFunc(objects, func(o storage.Object) bool { return o.Key == prefix+_indexFile }):
+		e.OpenURL = e.URL
+	case len(objects) == 1:
+		p := strings.TrimPrefix(objects[0].Key, prefix)
+		e.DefaultTitle = path.Base(p)
+		e.OpenURL = c.fileURL(f, p)
 	}
-	return idgen.FormatFolderID(f.ID)
 }
 
 func (c *controller) DeleteFolder(ctx context.Context, rq *entity.DeleteFolderRequest) error {
