@@ -6,9 +6,17 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
 
 - Sign in with Google or GitHub (OAuth). Accounts are keyed by verified email,
   so both providers reach the same account.
-- Every account gets **250 operations** per period. A cron job running daily at
-  00:00 UTC resets due accounts to 250 (unused credits do not carry over) and
-  moves their renewal 30 days forward.
+- A new account starts with **1000 operations** (the sign-up grant,
+  `TMPHOSTIO_CREDITS_SIGNUP_GRANT`). Every 30 days it gets **250 operations**
+  (the monthly grant, `TMPHOSTIO_CREDITS_MONTHLY_GRANT`): a cron job running
+  daily at 00:00 UTC resets due accounts to 250 (unused credits do not carry
+  over) and moves their renewal 30 days forward.
+- Every change to a balance is kept in `credit_activities`, written in the
+  same transaction as the change: `ops` (stored as a uint8: grant, renewal,
+  spend, refund), the signed `change` (+X or -Y) and the `current` balance
+  after it. The Credits page charts daily use and balance over 30 days and
+  lists the history (`GET /api/v1/users/me/credits/activities?before=&limit=`,
+  newest first).
 
 ## File hosting
 
@@ -78,7 +86,7 @@ make test    # 100% coverage is enforced on both sides
 
 `/setup` opens only with the root access token (`TMPHOSTIO_AUTH_ROOT_ACCESS_TOKEN`;
 when it is empty, a random one is generated and printed at startup). There you
-can change the monthly credit grant, the maximum TTL and the public URL mode
+can change the sign-up and monthly credit grants, the maximum TTL and the public URL mode
 (these apply immediately), and these, which apply after a restart:
 
 - **Domains**: the app URL (default `http://localhost:2027`; e.g.

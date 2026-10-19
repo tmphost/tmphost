@@ -22,7 +22,7 @@ func FromSettingsModelToSettingsEntity(m model.Settings) entity.Settings {
 				CloudflareAPIToken: m.TLS.Lego.CloudflareAPIToken,
 			},
 		},
-		Credits: entity.CreditSettings{MonthlyGrant: m.Credits.MonthlyGrant},
+		Credits: entity.CreditSettings{MonthlyGrant: m.Credits.MonthlyGrant, SignupGrant: m.Credits.SignupGrant},
 		Database: entity.DatabaseSettings{
 			Driver:   m.Database.Driver,
 			SQLite:   entity.SQLiteSettings{DSN: m.Database.SQLite.DSN},
@@ -66,7 +66,7 @@ func FromSettingsEntityToSettingsModel(e entity.Settings) model.Settings {
 				CloudflareAPIToken: e.TLS.Lego.CloudflareAPIToken,
 			},
 		},
-		Credits: model.CreditSettings{MonthlyGrant: e.Credits.MonthlyGrant},
+		Credits: model.CreditSettings{MonthlyGrant: e.Credits.MonthlyGrant, SignupGrant: e.Credits.SignupGrant},
 		Database: model.DatabaseSettings{
 			Driver:   e.Database.Driver,
 			SQLite:   model.SQLiteSettings{DSN: e.Database.SQLite.DSN},

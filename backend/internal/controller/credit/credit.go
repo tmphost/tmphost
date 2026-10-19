@@ -2,9 +2,11 @@
 // This notice may not be modified or removed.
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Package credit implements the monthly operation credit grant: every
-// account gets the grant (DefaultMonthlyGrant unless root changed it),
-// renewed every Period by a daily job that runs at 00:00 UTC.
+// Package credit implements the operation credit grants: a new account
+// starts with the sign-up grant (DefaultSignupGrant unless root changed
+// it), and every Period a daily job that runs at 00:00 UTC resets the
+// balance to the monthly grant (DefaultMonthlyGrant unless root changed
+// it). Every change to a balance is kept as a credit activity.
 package credit
 
 //go:generate mockgen -source=credit.go -destination=mocks/credit.go -package=mocks
@@ -15,6 +17,7 @@ import (
 	"time"
 
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
+	mappermodel "github.com/tmphost/tmphost/backend/internal/mapper/model"
 	"github.com/tmphost/tmphost/backend/internal/repository"
 )
 
@@ -22,19 +25,31 @@ const (
 	// DefaultMonthlyGrant is the operation credit balance each period starts
 	// with, unless configured otherwise.
 	DefaultMonthlyGrant = 250
+	// DefaultSignupGrant is the balance a new account starts with, unless
+	// configured otherwise.
+	DefaultSignupGrant = 1000
 	// Period is how often the grant renews.
 	Period = 30 * 24 * time.Hour
 	// RenewalSchedule is the cron spec (UTC) of the renewal job.
 	RenewalSchedule = "0 0 * * *"
 
+	// DefaultHistoryLimit is the credit history page size unless asked
+	// otherwise.
+	DefaultHistoryLimit = 50
+	// MaxHistoryLimit is the largest credit history page.
+	MaxHistoryLimit = 200
+
 	_batchSize = 500
 )
 
 type (
-	// Controller renews credits.
+	// Controller renews credits and reports their history.
 	Controller interface {
 		// RenewDueCredits resets every account whose renewal time has passed.
 		RenewDueCredits(ctx context.Context) (*entity.RenewDueCreditsResponse, error)
+		// ListCreditActivities returns a page of a user's credit history,
+		// newest first.
+		ListCreditActivities(ctx context.Context, rq *entity.ListCreditActivitiesRequest) (*entity.ListCreditActivitiesResponse, error)
 	}
 
 	// Params are the controller's dependencies.
@@ -75,6 +90,15 @@ func GrantOrDefault(grant func() int) func() int {
 	return func() int { return DefaultMonthlyGrant }
 }
 
+// SignupGrantOrDefault returns grant, or a source of DefaultSignupGrant
+// when grant is nil.
+func SignupGrantOrDefault(grant func() int) func() int {
+	if grant != nil {
+		return grant
+	}
+	return func() int { return DefaultSignupGrant }
+}
+
 // FirstRenewal is when a newly registered account's credits first renew:
 // Period after the start (00:00 UTC) of the registration day, so it lines
 // up with a run of the daily job.
@@ -103,7 +127,7 @@ func (c *controller) RenewDueCredits(ctx context.Context) (*entity.RenewDueCredi
 			return &entity.RenewDueCreditsResponse{Renewed: renewed}, fmt.Errorf("list due users: %w", err)
 		}
 		for _, u := range users {
-			if err := c.users.UpdateUserCredits(ctx, u.ID, grant, NextRenewal(u.CreditsRenewAt, now)); err != nil {
+			if err := c.users.RenewUserCredits(ctx, u.ID, grant, NextRenewal(u.CreditsRenewAt, now)); err != nil {
 				return &entity.RenewDueCreditsResponse{Renewed: renewed}, fmt.Errorf("renew user %d: %w", u.ID, err)
 			}
 			renewed++
@@ -112,4 +136,24 @@ func (c *controller) RenewDueCredits(ctx context.Context) (*entity.RenewDueCredi
 			return &entity.RenewDueCreditsResponse{Renewed: renewed}, nil
 		}
 	}
+}
+
+func (c *controller) ListCreditActivities(ctx context.Context, rq *entity.ListCreditActivitiesRequest) (*entity.ListCreditActivitiesResponse, error) {
+	limit := rq.Limit
+	if limit <= 0 {
+		limit = DefaultHistoryLimit
+	}
+	limit = min(limit, MaxHistoryLimit)
+	// One extra row tells whether another page follows.
+	ms, err := c.users.ListCreditActivities(ctx, rq.UserID, rq.Before, limit+1)
+	if err != nil {
+		return nil, fmt.Errorf("list credit activities: %w", err)
+	}
+	rs := &entity.ListCreditActivitiesResponse{}
+	if len(ms) > limit {
+		ms = ms[:limit]
+		rs.Next = ms[limit-1].ID
+	}
+	rs.Activities = mappermodel.FromCreditActivityModelsToCreditActivityEntities(ms)
+	return rs, nil
 }

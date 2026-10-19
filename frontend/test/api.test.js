@@ -160,6 +160,22 @@ describe('files api', () => {
     expect(api.filePath('a b/c#d/e.txt')).toBe('a%20b/c%23d/e.txt')
   })
 
+  it('listCreditActivities pages the credit history', async () => {
+    const api = await loadApi('')
+    const page = { activities: [{ id: 'a', ops: 'spend', change: -1, current: 9 }], next: 'a' }
+    fetch.mockResolvedValueOnce(json(page))
+    expect(await api.listCreditActivities()).toEqual(page)
+    expect(fetch).toHaveBeenCalledWith('/api/v1/users/me/credits/activities?limit=200', { method: 'GET', credentials: 'same-origin' })
+    fetch.mockResolvedValueOnce(json({ activities: [], next: '' }))
+    await api.listCreditActivities('a')
+    expect(fetch).toHaveBeenLastCalledWith('/api/v1/users/me/credits/activities?limit=200&before=a', {
+      method: 'GET',
+      credentials: 'same-origin',
+    })
+    fetch.mockResolvedValueOnce(json({}, 500))
+    await expect(api.listCreditActivities()).rejects.toMatchObject({ message: 'Failed to load credit history (500)' })
+  })
+
   it('fetchLimits returns the limits', async () => {
     const api = await loadApi('')
     const limits = { defaultTtlMinutes: 30, maxTtlMinutes: 60, maxUploadBytes: 10, billingBlockMinutes: 30 }

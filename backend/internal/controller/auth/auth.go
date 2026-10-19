@@ -67,6 +67,8 @@ type (
 		IDGen     idgen.Service
 		// Grant returns the current monthly credit grant.
 		Grant func() int
+		// SignupGrant returns the current credit grant of new accounts.
+		SignupGrant func() int
 		// BasePath is the path prefix the app is served under ("" or "/x").
 		BasePath string
 		// BaseURL is the app's public URL; its origin is the only one
@@ -82,6 +84,7 @@ type (
 		users     repository.UserRepository
 		idgen     idgen.Service
 		grant     func() int
+		signup    func() int
 		basePath  string
 		webOrigin string
 		now       func() time.Time
@@ -96,6 +99,7 @@ func New(p Params) Controller {
 		users:     p.Users,
 		idgen:     p.IDGen,
 		grant:     credit.GrantOrDefault(p.Grant),
+		signup:    credit.SignupGrantOrDefault(p.SignupGrant),
 		basePath:  strings.TrimRight(p.BasePath, "/"),
 		webOrigin: origin(p.BaseURL),
 		now:       p.Now,
@@ -233,14 +237,15 @@ func (c *controller) findOrCreateUser(ctx context.Context, provider string, id *
 	email := strings.ToLower(strings.TrimSpace(id.Email))
 	user, err := c.users.FindUserByEmail(ctx, email)
 	if errors.Is(err, repository.ErrNotFound) {
-		// New accounts start with the full grant; the daily job renews it.
+		// New accounts start with the sign-up grant; the daily job resets
+		// it to the monthly grant.
 		user, err = c.users.CreateUser(ctx, model.User{
 			ID:             c.idgen.NextID(),
 			Email:          email,
 			Name:           id.Name,
 			Picture:        id.Picture,
 			Provider:       provider,
-			Credits:        c.grant(),
+			Credits:        c.signup(),
 			CreditsRenewAt: credit.FirstRenewal(c.now()),
 		})
 		if err != nil {

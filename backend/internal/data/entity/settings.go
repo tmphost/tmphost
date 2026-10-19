@@ -51,6 +51,8 @@ type (
 	// CreditSettings configure the operation credit grant.
 	CreditSettings struct {
 		MonthlyGrant int
+		// SignupGrant is the balance a new account starts with.
+		SignupGrant int
 	}
 
 	// DatabaseSettings choose and configure the database.

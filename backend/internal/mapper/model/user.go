@@ -11,7 +11,8 @@ import (
 )
 
 // FromUserModelToUserEntity maps a stored user to the domain user.
-// creditsLimit is the monthly grant, which is policy rather than data.
+// creditsLimit is the monthly grant, which is policy rather than data; a
+// balance above it (the sign-up grant) is its own limit.
 func FromUserModelToUserEntity(m model.User, creditsLimit int) entity.User {
 	return entity.User{
 		ID:             m.ID,
@@ -20,7 +21,7 @@ func FromUserModelToUserEntity(m model.User, creditsLimit int) entity.User {
 		Picture:        m.Picture,
 		Provider:       m.Provider,
 		Credits:        m.Credits,
-		CreditsLimit:   creditsLimit,
+		CreditsLimit:   max(creditsLimit, m.Credits),
 		CreditsRenewAt: m.CreditsRenewAt,
 		CreatedAt:      m.CreatedAt,
 	}

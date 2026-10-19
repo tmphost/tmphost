@@ -39,6 +39,7 @@ describe('AppSidebar', () => {
     expect(wrapper.text()).not.toContain('Home')
     expect(wrapper.findAll('a').find((a) => a.text() === 'Files').attributes('href')).toBe('/')
     expect(wrapper.find('a[href="/connect"]').text()).toBe('Connect')
+    expect(wrapper.find('a[href="/credits"]').text()).toBe('Credits')
     expect(wrapper.find('a[href="/connect"]').classes()).not.toContain('font-semibold')
     const credits = wrapper.find('[data-test="sidebar-credits"]')
     expect(credits.text()).toContain('125')
