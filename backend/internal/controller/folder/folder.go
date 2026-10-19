@@ -61,8 +61,9 @@ const (
 	// subdomains are off: <base URL>/files/<userID>/<folderID>/<path>.
 	PublicPathPrefix = "/files/"
 
-	// AnonymousMaxTTL is the longest lifetime of an anonymous folder.
-	AnonymousMaxTTL = 30 * time.Minute
+	// DefaultAnonymousMaxTTLMinutes is the longest lifetime of an
+	// anonymous folder unless root changes it.
+	DefaultAnonymousMaxTTLMinutes = 10
 	// AnonymousMaxUploadMB caps an anonymous upload request.
 	AnonymousMaxUploadMB = 4
 	// AnonymousOps is how many files an anonymous visitor may write, and
@@ -204,11 +205,12 @@ func (c *controller) GetLimits(_ context.Context, rq *entity.GetLimitsRequest) *
 }
 
 func (c *controller) CreateFolder(ctx context.Context, rq *entity.CreateFolderRequest) (*entity.CreateFolderResponse, error) {
+	maxTTL := c.maxTTLMinutes(rq.Anonymous)
 	ttl := time.Duration(rq.TTLMinutes) * time.Minute
 	if rq.TTLMinutes == 0 {
-		ttl = DefaultTTL
+		ttl = min(DefaultTTL, time.Duration(maxTTL)*time.Minute)
 	}
-	if maxTTL := c.maxTTLMinutes(rq.Anonymous); ttl < time.Minute || ttl > time.Duration(maxTTL)*time.Minute {
+	if ttl < time.Minute || ttl > time.Duration(maxTTL)*time.Minute {
 		return nil, fmt.Errorf("%w: must be between 1 and %d minutes", ErrInvalidTTL, maxTTL)
 	}
 	if rq.Anonymous && !c.anonymous.Take(folderQuotaKey(rq.UserID), 1) {
@@ -327,7 +329,7 @@ func (c *controller) refund(ctx context.Context, rq *entity.PutFilesRequest, cos
 
 func (c *controller) maxTTLMinutes(anonymous bool) int {
 	if anonymous {
-		return int(AnonymousMaxTTL / time.Minute)
+		return c.limits().AnonymousMaxTTLMinutes
 	}
 	return c.limits().MaxTTLMinutes
 }

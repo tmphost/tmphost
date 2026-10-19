@@ -407,7 +407,7 @@ onMounted(refresh)
         <section class="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
           <h2 class="text-sm font-bold text-gray-900 dark:text-zinc-100">Files</h2>
           <p class="text-xs text-gray-500 dark:text-zinc-400 mb-4" data-test="setup-files-help">
-            Limits for every upload and the form of public URLs. Max TTL and public URLs apply immediately; max upload
+            Limits for every upload and the form of public URLs. Max TTLs and public URLs apply immediately; max upload
             size needs a restart.
           </p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -434,6 +434,21 @@ onMounted(refresh)
                 data-test="setup-max-upload"
               />
               <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500">Per file upload.</p>
+            </div>
+            <div>
+              <label for="anonymous-max-ttl" :class="LABEL">Max TTL without sign-in (minutes)</label>
+              <input
+                id="anonymous-max-ttl"
+                v-model.number="form.files.anonymousMaxTtlMinutes"
+                type="number"
+                min="1"
+                :max="form.files.maxTtlMinutes"
+                :class="INPUT"
+                data-test="setup-anonymous-max-ttl"
+              />
+              <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500" data-test="setup-anonymous-max-ttl-hint">
+                {{ ttlHint(form.files.anonymousMaxTtlMinutes) }}, for uploads from the public Upload page. Default 10.
+              </p>
             </div>
           </div>
 

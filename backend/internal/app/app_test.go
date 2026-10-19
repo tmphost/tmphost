@@ -207,7 +207,7 @@ func TestSetupFlow_SettingsApplyAndPersist(t *testing.T) {
 
 	body := `{"settings":{"credits":{"monthlyGrant":500},"database":{"driver":"sqlite","sqlite":{"dsn":"` + cfg.SQLite.DSN + `"}},
 		"domain":{"appUrl":"http://localhost:3000"},
-		"storage":{"driver":"local","local":{"path":"` + cfg.Storage.LocalPath + `"}},"files":{"maxTtlMinutes":60,"maxUploadMb":1},
+		"storage":{"driver":"local","local":{"path":"` + cfg.Storage.LocalPath + `"}},"files":{"maxTtlMinutes":60,"maxUploadMb":1,"anonymousMaxTtlMinutes":10},
 		"auth":{"github":{"clientId":"h"},"providers":[{"name":"Okta","icon":"<svg></svg>","clientId":"o","clientSecret":"okta-client-secret","authUrl":"https://okta.example.com"}]}}}`
 	req = httptest.NewRequest(http.MethodPut, "/api/v1/setup/settings", strings.NewReader(body))
 	req.AddCookie(root)
@@ -248,7 +248,7 @@ func TestSettingsFromConfig(t *testing.T) {
 	cfg.Postgres = PostgresConfig{Enabled: true, DSN: "postgres://u:p@h:1/d"}
 	cfg.S3 = S3Config{Endpoint: "e", Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", UsePathStyle: true}
 	cfg.Storage = StorageConfig{Driver: "s3", LocalPath: "/files"}
-	cfg.Files = FilesConfig{MaxTTLMinutes: 60, MaxUploadMB: 2, Subdomains: true, PublicDomain: "tmp.site"}
+	cfg.Files = FilesConfig{MaxTTLMinutes: 60, MaxUploadMB: 2, AnonymousMaxTTLMinutes: 15, Subdomains: true, PublicDomain: "tmp.site"}
 	cfg.App.SitesDomain = "tmphost.io"
 	cfg.TLS = TLSConfig{Enabled: true, Email: "e@x.io", Lego: LegoConfig{Enabled: true, CloudflareAPIToken: "cf"}}
 	s := settingsFromConfig(cfg)
@@ -259,7 +259,7 @@ func TestSettingsFromConfig(t *testing.T) {
 	defaults := settingsFromConfig(Config{})
 	assert.Equal(t, "local", defaults.Storage.Driver)
 	assert.Equal(t, "./_storage/files", defaults.Storage.Local.Path)
-	assert.Equal(t, entity.FileSettings{MaxTTLMinutes: 7200 * 60, MaxUploadMB: 16}, defaults.Files)
+	assert.Equal(t, entity.FileSettings{MaxTTLMinutes: 7200 * 60, MaxUploadMB: 16, AnonymousMaxTTLMinutes: 10}, defaults.Files)
 	withBase := settingsFromConfig(Config{App: AppConfig{BaseURL: "https://TmpHost.io:8443/x"}})
 	assert.Equal(t, "tmphost.io:8443", withBase.Files.PublicDomain, "defaults to the base URL host")
 	withSites := settingsFromConfig(Config{App: AppConfig{BaseURL: "https://app.tmphost.io", SitesDomain: "Sites.io"}})
@@ -579,9 +579,9 @@ func TestAnonymousUploads(t *testing.T) {
 
 	res, body := call(http.MethodGet, "/api/v1/limits", "203.0.113.7", web, "")
 	require.Equal(t, http.StatusOK, res.StatusCode, body)
-	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":30,"maxUploadBytes":4194304,"billingBlockMinutes":30,"billingUnitBytes":1048576,"anonymous":true,"fileOps":5,"fileOpsWindowMinutes":30}`, body)
+	assert.JSONEq(t, `{"defaultTtlMinutes":10,"maxTtlMinutes":10,"maxUploadBytes":4194304,"billingBlockMinutes":30,"billingUnitBytes":1048576,"anonymous":true,"fileOps":5,"fileOpsWindowMinutes":30}`, body)
 
-	res, body = call(http.MethodPost, "/api/v1/folders", "203.0.113.7", web, `{"ttlMinutes":60}`)
+	res, body = call(http.MethodPost, "/api/v1/folders", "203.0.113.7", web, `{"ttlMinutes":11}`)
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode, body)
 	res, body = call(http.MethodPost, "/api/v1/folders", "203.0.113.7", web, "")
 	require.Equal(t, http.StatusCreated, res.StatusCode, body)
