@@ -49,7 +49,7 @@ func newEnv(t *testing.T) *env {
 		folders: mockrepo.NewMockFolderRepository(mc),
 		users:   mockrepo.NewMockUserRepository(mc),
 		storage: mockstorage.NewMockService(mc),
-		limits:  entity.FileSettings{MaxTTLMinutes: 120, MaxUploadMB: 1, Subdomains: true, PublicDomain: "tmp.host"},
+		limits:  entity.FileSettings{MaxTTLMinutes: 120, MaxUploadMB: 1, AnonymousMaxTTLMinutes: 10, Subdomains: true, PublicDomain: "tmp.host"},
 	}
 	e.ctrl = New(Params{
 		Folders:   e.folders,
@@ -107,7 +107,7 @@ func TestGetLimits(t *testing.T) {
 		DefaultTTLMinutes: 30, MaxTTLMinutes: 120, MaxUploadBytes: 1 << 20, BillingBlockMinutes: 30, BillingUnitBytes: 1 << 20,
 	}, e.ctrl.GetLimits(context.Background(), &entity.GetLimitsRequest{}))
 	assert.Equal(t, &entity.GetLimitsResponse{
-		DefaultTTLMinutes: 30, MaxTTLMinutes: 30, MaxUploadBytes: 4 << 20, BillingBlockMinutes: 30, BillingUnitBytes: 1 << 20,
+		DefaultTTLMinutes: 10, MaxTTLMinutes: 10, MaxUploadBytes: 4 << 20, BillingBlockMinutes: 30, BillingUnitBytes: 1 << 20,
 		Anonymous: true, FileOps: 5, FileOpsWindowMinutes: 30,
 	}, e.ctrl.GetLimits(context.Background(), &entity.GetLimitsRequest{Anonymous: true}))
 }
@@ -116,15 +116,18 @@ func TestCreateFolder_Anonymous(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
 	e.nextID = 1000
-	_, err := e.ctrl.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: 7, Anonymous: true, TTLMinutes: 31})
-	assert.ErrorIs(t, err, ErrInvalidTTL, "anonymous folders live at most 30 minutes")
+	_, err := e.ctrl.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: 7, Anonymous: true, TTLMinutes: 11})
+	assert.ErrorIs(t, err, ErrInvalidTTL, "anonymous folders live at most 10 minutes")
 
 	e.folders.EXPECT().CreateFolder(ctx, gomock.Any()).Return(model.Folder{}, errBoom)
 	_, err = e.ctrl.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: 7, Anonymous: true})
 	assert.ErrorIs(t, err, errBoom)
 
 	e.folders.EXPECT().CreateFolder(ctx, gomock.Any()).
-		DoAndReturn(func(_ context.Context, f model.Folder) (model.Folder, error) { return f, nil }).Times(AnonymousOps)
+		DoAndReturn(func(_ context.Context, f model.Folder) (model.Folder, error) {
+			assert.Equal(t, 10*time.Minute, f.ExpiresAt.Sub(f.CreatedAt), "no TTL asked: the anonymous max, not DefaultTTL")
+			return f, nil
+		}).Times(AnonymousOps)
 	for range AnonymousOps {
 		_, err = e.ctrl.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: 7, Anonymous: true})
 		require.NoError(t, err, "a failed create gives its folder back")
