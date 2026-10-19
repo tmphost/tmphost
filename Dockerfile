@@ -5,14 +5,20 @@
 # One image, one binary: the SPA and the base config are embedded in the
 # server, so the final image holds only the binary, CA certs and /data.
 
-FROM node:26-alpine3.22 AS frontend
+# Both build stages run on the BUILD platform, never the target. Otherwise a
+# multi-platform buildx (amd64+arm64 in CI) runs npm, vite and the Go
+# toolchain for arm64 under QEMU, which more than doubles the build time.
+# Neither output needs it: dist/ is the same JS and CSS on any architecture,
+# and Go cross-compiles from GOOS/GOARCH. Running on the build platform also
+# lets every target share one frontend build and one module download.
+FROM --platform=$BUILDPLATFORM node:26-alpine3.22 AS frontend
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-FROM golang:1.27-alpine AS backend
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS backend
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY backend/go.mod backend/go.sum ./
@@ -21,7 +27,10 @@ COPY backend/ ./
 # Only the fresh build is embedded, never whatever sat in public/ locally.
 RUN find cmd/server/public -mindepth 1 ! -name .gitkeep -delete
 COPY --from=frontend /app/dist/ cmd/server/public/
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /tmphost ./cmd/server
+# Declared this late so that everything above stays shared between targets.
+ARG TARGETOS TARGETARCH
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -trimpath -ldflags="-s -w" -o /tmphost ./cmd/server
 RUN echo 'nobody:x:65534:65534:nobody:/:' > /etc_passwd && mkdir -p /data
 
 FROM scratch
