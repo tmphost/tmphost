@@ -1,0 +1,12 @@
+{
+  "name": "tmphost",
+  "version": "0.1.0",
+  "description": "Host files at temporary public URLs on tmphost.io: upload, download, list and link files in folders that expire after a TTL.",
+  "mcpServers": {
+    "tmphost": {
+      "type": "http",
+      "url": "https://mcp.tmphost.io/mcp"
+    }
+  },
+  "contextFileName": "plugin/gemini/GEMINI.md"
+}

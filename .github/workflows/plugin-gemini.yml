@@ -1,0 +1,82 @@
+# Copyright 2026 Contextual, Inc. https://tmphost.io
+# This notice may not be modified or removed.
+# SPDX-License-Identifier: AGPL-3.0-only
+
+name: Gemini CLI extension
+
+# Gemini CLI installs the extension straight from this repository, reading the
+# manifest at its root, so there is nothing to build or publish. What can break
+# is the manifest, the context file it points at, the documented tools drifting
+# from the server, and a root folder Gemini would load into the extension.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'gemini-extension.json'
+      - 'plugin/gemini/**'
+      - 'backend/internal/handler/mcp/**'
+      - '.github/workflows/plugin-gemini.yml'
+  pull_request:
+    paths:
+      - 'gemini-extension.json'
+      - 'plugin/gemini/**'
+      - 'backend/internal/handler/mcp/**'
+      - '.github/workflows/plugin-gemini.yml'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  manifest:
+    name: Manifest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+
+      # Pinned, so a Gemini CLI release cannot turn this red on its own.
+      - name: Validate with Gemini CLI
+        run: npx -y @google/gemini-cli@0.61.0 extensions validate .
+
+      # Gemini loads these from an extension's root, and this repository's root
+      # is the extension's.
+      - name: No root folder Gemini would load
+        run: |
+          found=0
+          for d in skills agents commands hooks policies; do
+            if [ -e "$d" ]; then
+              echo "::error::$d/ at the repository root would be loaded into the Gemini extension"
+              found=1
+            fi
+          done
+          exit $found
+
+  docs:
+    name: Documented tools match the server
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Check plugin docs against the MCP server
+        working-directory: backend
+        run: go test ./internal/handler/mcp/ -run 'TestPluginDocs' -v
