@@ -167,8 +167,17 @@ type (
 	// StorageConfig is the "storage" section.
 	StorageConfig struct {
 		// Driver is "local" or "s3".
-		Driver    string `yaml:"driver"`
-		LocalPath string `yaml:"localPath"`
+		Driver    string             `yaml:"driver"`
+		LocalPath string             `yaml:"localPath"`
+		Cache     StorageCacheConfig `yaml:"cache"`
+	}
+
+	// StorageCacheConfig is the "storage.cache" section: fresh uploads are
+	// kept in memory and served from there for TTL. A zero TTL or MaxMB
+	// turns it off.
+	StorageCacheConfig struct {
+		TTL   time.Duration `yaml:"ttl"`
+		MaxMB int           `yaml:"maxMb"`
 	}
 
 	// S3Config is the "s3" section (an S3-compatible bucket).
@@ -430,6 +439,15 @@ func (a *App) sweepFolders() {
 }
 
 func openStorage(cfg Config) (storage.Service, error) {
+	store, err := openStorageDriver(cfg)
+	if err != nil {
+		return nil, err
+	}
+	c := cfg.Storage.Cache
+	return storage.NewCached(store, storage.CacheConfig{TTL: c.TTL, MaxBytes: int64(c.MaxMB) << 20}), nil
+}
+
+func openStorageDriver(cfg Config) (storage.Service, error) {
 	switch cfg.Storage.Driver {
 	case setupctrl.StorageLocal:
 		return storage.NewLocal(cfg.Storage.LocalPath)

@@ -40,8 +40,12 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   `u<userId>/<folderId>/<path>`. Paths are at most 5 directories deep and are
   validated server-side, so a file can never leave its folder. The database
   stores only each folder's ID, owner and expiry; a job deletes expired
-  folders every minute. Folder IDs are 11 random lowercase base36
+  folders every minute. Folder IDs are 8 random lowercase base36
   characters, so public URLs can't be guessed.
+- Fresh uploads are also kept in memory and served from there for their
+  first 5 minutes (`TMPHOSTIO_STORAGE_CACHE_TTL`), up to 256 MB in all
+  (`TMPHOSTIO_STORAGE_CACHE_MAX_MB`, least recently used dropped first; 0
+  turns it off). Deleting a file or folder drops it from memory too.
 - Public URLs: `<TMPHOSTIO_BASE_URL>/files/<userId>/<folderId>/<path>` by
   default, or `<folderId>.<publicDomain>/<path>` with subdomains on
   (`TMPHOSTIO_FILES_SUBDOMAINS`, `TMPHOSTIO_FILES_PUBLIC_DOMAIN`, which defaults
