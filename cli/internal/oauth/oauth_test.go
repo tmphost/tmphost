@@ -97,10 +97,10 @@ func TestTokenErrors(t *testing.T) {
 }
 
 func TestAuthorizeURL(t *testing.T) {
-	c := &Client{Server: "https://tmphost.io"}
+	c := &Client{Server: "https://app.tmphost.io"}
 	u, err := url.Parse(c.AuthorizeURL("http://127.0.0.1:5/callback", "chal", "st"))
 	require.NoError(t, err)
-	assert.Equal(t, "https://tmphost.io/oauth2/authorize", u.Scheme+"://"+u.Host+u.Path)
+	assert.Equal(t, "https://app.tmphost.io/oauth2/authorize", u.Scheme+"://"+u.Host+u.Path)
 	assert.Equal(t, url.Values{
 		"response_type": {"code"}, "client_id": {ClientID}, "redirect_uri": {"http://127.0.0.1:5/callback"},
 		"code_challenge": {"chal"}, "code_challenge_method": {"S256"}, "state": {"st"},

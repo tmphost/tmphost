@@ -30,7 +30,7 @@ From source: `cd cli && go build -o tmphost .` (or `make cli`, which writes
 ## Sign in
 
 ```sh
-tmphost login                              # https://tmphost.io
+tmphost login                              # https://app.tmphost.io
 tmphost login --server https://files.example.com
 tmphost login --device                     # no browser here, e.g. over SSH
 ```
