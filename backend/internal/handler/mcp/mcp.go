@@ -128,14 +128,18 @@ func New(p Params) http.Handler {
 	})(handler)
 }
 
-// verifier accepts access tokens; the user ID travels in the token info.
+// _extraAgent is the token info Extra key that names the OAuth client.
+const _extraAgent = "agent"
+
+// verifier accepts access tokens; the user ID and the client's name
+// travel in the token info.
 func verifier(controller authctrl.Controller) auth.TokenVerifier {
 	return func(ctx context.Context, token string, _ *http.Request) (*auth.TokenInfo, error) {
 		rs, err := controller.Authenticate(ctx, &entity.AuthenticateRequest{AccessToken: token})
 		if err != nil {
 			return nil, auth.ErrInvalidToken
 		}
-		return &auth.TokenInfo{UserID: monoflake.ID(rs.UserID).String()}, nil
+		return &auth.TokenInfo{UserID: monoflake.ID(rs.UserID).String(), Extra: map[string]any{_extraAgent: rs.Agent}}, nil
 	}
 }
 
@@ -149,13 +153,14 @@ func inputSchema() *jsonschema.Schema {
 
 func (t *tool) handle(ctx context.Context, req *mcp.CallToolRequest, in FileInput) (*mcp.CallToolResult, FileOutput, error) {
 	userID := monoflake.IDFromBase62(req.Extra.TokenInfo.UserID).Int64()
+	agent, _ := req.Extra.TokenInfo.Extra[_extraAgent].(string)
 	var (
 		out FileOutput
 		err error
 	)
 	switch in.Action {
 	case ActionUpload:
-		out, err = t.upload(ctx, userID, in)
+		out, err = t.upload(ctx, userID, agent, in)
 	case ActionDownload:
 		out, err = t.download(ctx, userID, in)
 	case ActionGet:
@@ -163,14 +168,14 @@ func (t *tool) handle(ctx context.Context, req *mcp.CallToolRequest, in FileInpu
 	case ActionURL:
 		out, err = t.url(ctx, userID, in)
 	case ActionExtend:
-		out, err = t.extend(ctx, userID, in)
+		out, err = t.extend(ctx, userID, agent, in)
 	default:
 		err = fmt.Errorf("unknown action %q: use upload, download, get, url or extend", in.Action)
 	}
 	return nil, out, err
 }
 
-func (t *tool) upload(ctx context.Context, userID int64, in FileInput) (FileOutput, error) {
+func (t *tool) upload(ctx context.Context, userID int64, agent string, in FileInput) (FileOutput, error) {
 	p, err := filePath(in.Path, in.FileName)
 	if err != nil {
 		return FileOutput{}, err
@@ -183,7 +188,7 @@ func (t *tool) upload(ctx context.Context, userID int64, in FileInput) (FileOutp
 	if err != nil {
 		return FileOutput{}, err
 	}
-	rs, err := t.folders.PutFiles(ctx, &entity.PutFilesRequest{UserID: userID, FolderID: folderID, Files: []entity.FileUpload{{Path: p, Data: data}}})
+	rs, err := t.folders.PutFiles(ctx, &entity.PutFilesRequest{UserID: userID, Agent: agent, FolderID: folderID, Files: []entity.FileUpload{{Path: p, Data: data}}})
 	if err != nil {
 		if created != nil {
 			// Don't leave an empty folder behind for a failed first upload.
@@ -279,7 +284,7 @@ func ttlMinutes(raw string) (int, error) {
 	return int(ttl / time.Minute), nil
 }
 
-func (t *tool) extend(ctx context.Context, userID int64, in FileInput) (FileOutput, error) {
+func (t *tool) extend(ctx context.Context, userID int64, agent string, in FileInput) (FileOutput, error) {
 	id, err := folderID(in.ID)
 	if err != nil {
 		return FileOutput{}, err
@@ -291,7 +296,7 @@ func (t *tool) extend(ctx context.Context, userID int64, in FileInput) (FileOutp
 	if err != nil {
 		return FileOutput{}, err
 	}
-	rs, err := t.folders.ExtendFolder(ctx, &entity.ExtendFolderRequest{UserID: userID, FolderID: id, Minutes: minutes})
+	rs, err := t.folders.ExtendFolder(ctx, &entity.ExtendFolderRequest{UserID: userID, Agent: agent, FolderID: id, Minutes: minutes})
 	if err != nil {
 		return FileOutput{}, err
 	}

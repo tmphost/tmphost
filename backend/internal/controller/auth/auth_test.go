@@ -23,6 +23,7 @@ import (
 	mockidgen "github.com/tmphost/tmphost/backend/internal/service/idgen/mocks"
 	"github.com/tmphost/tmphost/backend/internal/service/oauth"
 	mockoauth "github.com/tmphost/tmphost/backend/internal/service/oauth/mocks"
+	"github.com/tmphost/tmphost/backend/internal/service/token"
 	mocktoken "github.com/tmphost/tmphost/backend/internal/service/token/mocks"
 )
 
@@ -304,6 +305,7 @@ func TestAuthenticate(t *testing.T) {
 		rs, err := e.ctrl.Authenticate(ctx, &entity.AuthenticateRequest{SessionToken: "tok"})
 		require.NoError(t, err)
 		assert.Equal(t, int64(77), rs.UserID)
+		assert.Equal(t, AgentWeb, rs.Agent)
 	})
 }
 
@@ -320,7 +322,7 @@ func TestAuthenticateAnonymous(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			rs, err := newEnv(t).ctrl.AuthenticateAnonymous(ctx, &rq)
 			require.NoError(t, err)
-			assert.Equal(t, &entity.AuthenticateResponse{UserID: want, Anonymous: true}, rs)
+			assert.Equal(t, &entity.AuthenticateResponse{UserID: want, Anonymous: true, Agent: AgentWeb}, rs)
 		})
 	}
 
@@ -352,6 +354,7 @@ func TestAuthenticateAnonymous(t *testing.T) {
 		rs, err := c.AuthenticateAnonymous(ctx, &entity.AuthenticateAnonymousRequest{IP: "203.0.113.7", Origin: "https://WWW.tmphost.io"})
 		require.NoError(t, err)
 		assert.Equal(t, want, rs.UserID)
+		assert.Equal(t, AgentWeb, rs.Agent)
 		_, err = c.AuthenticateAnonymous(ctx, &entity.AuthenticateAnonymousRequest{IP: "203.0.113.7", Referer: "https://app.tmphost.io/upload"})
 		require.NoError(t, err, "the app's own origin still counts")
 		_, err = c.AuthenticateAnonymous(ctx, &entity.AuthenticateAnonymousRequest{IP: "203.0.113.7", Origin: "https://tmphost.io"})
@@ -368,15 +371,24 @@ func TestAuthenticate_AccessToken(t *testing.T) {
 
 	t.Run("wins over the session", func(t *testing.T) {
 		e := newEnv(t)
-		e.token.EXPECT().ValidateAccessToken("at").Return(monoflake.ID(9).String(), nil)
+		e.token.EXPECT().ValidateAccessToken("at").Return(token.OAuthGrant{UserID: monoflake.ID(9).String(), ClientName: "Claude Code"}, nil)
 		rs, err := e.ctrl.Authenticate(ctx, &entity.AuthenticateRequest{AccessToken: "at", SessionToken: "ignored"})
 		require.NoError(t, err)
 		assert.Equal(t, int64(9), rs.UserID)
+		assert.Equal(t, "Claude Code", rs.Agent)
+	})
+
+	t.Run("unnamed client", func(t *testing.T) {
+		e := newEnv(t)
+		e.token.EXPECT().ValidateAccessToken("at").Return(token.OAuthGrant{UserID: monoflake.ID(9).String()}, nil)
+		rs, err := e.ctrl.Authenticate(ctx, &entity.AuthenticateRequest{AccessToken: "at"})
+		require.NoError(t, err)
+		assert.Equal(t, AgentUnnamed, rs.Agent)
 	})
 
 	t.Run("invalid", func(t *testing.T) {
 		e := newEnv(t)
-		e.token.EXPECT().ValidateAccessToken("at").Return("", errBoom)
+		e.token.EXPECT().ValidateAccessToken("at").Return(token.OAuthGrant{}, errBoom)
 		_, err := e.ctrl.Authenticate(ctx, &entity.AuthenticateRequest{AccessToken: "at"})
 		assert.ErrorIs(t, err, ErrUnauthorized)
 	})

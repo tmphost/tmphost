@@ -45,10 +45,11 @@ type (
 		// SpendCredits takes n credits from a user in one transaction, or
 		// returns ErrInsufficientCredits and takes none. The credits that
 		// expire first go first: the monthly part expires at renewal, an
-		// admin grant at its ExpiresAt.
-		SpendCredits(ctx context.Context, id int64, n int) error
-		// RefundCredits gives n spent credits back to the monthly part.
-		RefundCredits(ctx context.Context, id int64, n int) error
+		// admin grant at its ExpiresAt. agent names what spent them.
+		SpendCredits(ctx context.Context, id int64, n int, agent string) error
+		// RefundCredits gives n credits agent spent back to the monthly
+		// part.
+		RefundCredits(ctx context.Context, id int64, n int, agent string) error
 		// GrantCredits adds an admin grant of n credits to a user, which
 		// expires at expiresAt. It returns ErrNotFound for an unknown user.
 		GrantCredits(ctx context.Context, id int64, n int, expiresAt time.Time) error
@@ -92,7 +93,7 @@ func (r *userRepository) CreateUser(ctx context.Context, u model.User) (model.Us
 		if err := tx.Create(&u).Error; err != nil {
 			return err
 		}
-		return r.record(tx, u.ID, model.CreditOpGrant, u.Credits)
+		return r.record(tx, u.ID, model.CreditOpGrant, u.Credits, "")
 	})
 	if err != nil {
 		return model.User{}, err
@@ -152,11 +153,11 @@ func (r *userRepository) RenewUserCredits(ctx context.Context, id int64, credits
 		if err != nil {
 			return err
 		}
-		return r.record(tx, id, model.CreditOpRenewal, credits-old)
+		return r.record(tx, id, model.CreditOpRenewal, credits-old, "")
 	})
 }
 
-func (r *userRepository) SpendCredits(ctx context.Context, id int64, n int) error {
+func (r *userRepository) SpendCredits(ctx context.Context, id int64, n int, agent string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lock(tx, id); err != nil {
 			return err
@@ -184,18 +185,18 @@ func (r *userRepository) SpendCredits(ctx context.Context, id int64, n int) erro
 		if err != nil {
 			return err
 		}
-		return r.record(tx, id, model.CreditOpSpend, -n)
+		return r.record(tx, id, model.CreditOpSpend, -n, agent)
 	})
 }
 
-func (r *userRepository) RefundCredits(ctx context.Context, id int64, n int) error {
+func (r *userRepository) RefundCredits(ctx context.Context, id int64, n int, agent string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		err := tx.Model(&model.User{}).Where("id = ?", id).
 			Update("credits", gorm.Expr("credits + ?", n)).Error
 		if err != nil {
 			return err
 		}
-		return r.record(tx, id, model.CreditOpRefund, n)
+		return r.record(tx, id, model.CreditOpRefund, n, agent)
 	})
 }
 
@@ -225,7 +226,7 @@ func (r *userRepository) GrantCredits(ctx context.Context, id int64, n int, expi
 		if err := tx.Create(&g).Error; err != nil {
 			return err
 		}
-		return r.record(tx, id, model.CreditOpAdminGrant, n)
+		return r.record(tx, id, model.CreditOpAdminGrant, n, "")
 	})
 }
 
@@ -263,7 +264,7 @@ func (r *userRepository) ExpireCreditGrant(ctx context.Context, g model.CreditGr
 		if err != nil {
 			return err
 		}
-		return r.record(tx, g.UserID, model.CreditOpExpiry, -g.Remaining)
+		return r.record(tx, g.UserID, model.CreditOpExpiry, -g.Remaining, "")
 	})
 }
 
@@ -334,12 +335,14 @@ func balance(tx *gorm.DB, id int64) (int, error) {
 
 // record adds a credit activity for a change just made inside tx, with the
 // balance it left.
-func (r *userRepository) record(tx *gorm.DB, id int64, ops uint8, change int) error {
+// record writes a credit activity; agent is empty when the system made
+// the change.
+func (r *userRepository) record(tx *gorm.DB, id int64, ops uint8, change int, agent string) error {
 	current, err := balance(tx, id)
 	if err != nil {
 		return err
 	}
-	return tx.Create(&model.CreditActivity{ID: r.ids.NextID(), UserID: id, Ops: ops, Change: change, Current: current}).Error
+	return tx.Create(&model.CreditActivity{ID: r.ids.NextID(), UserID: id, Ops: ops, Change: change, Current: current, Agent: agent}).Error
 }
 
 func (r *userRepository) first(ctx context.Context, query string, arg any) (model.User, error) {

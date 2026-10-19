@@ -82,9 +82,9 @@ func TestUserRepository_DBErrors(t *testing.T) {
 	assert.Error(t, err)
 
 	assert.Error(t, repo.RenewUserCredits(ctx, 1, 250, time.Now()))
-	assert.Error(t, repo.SpendCredits(ctx, 1, 1))
-	assert.NotErrorIs(t, repo.SpendCredits(ctx, 1, 1), ErrInsufficientCredits)
-	assert.Error(t, repo.RefundCredits(ctx, 1, 1))
+	assert.Error(t, repo.SpendCredits(ctx, 1, 1, ""))
+	assert.NotErrorIs(t, repo.SpendCredits(ctx, 1, 1, ""), ErrInsufficientCredits)
+	assert.Error(t, repo.RefundCredits(ctx, 1, 1, ""))
 }
 
 func TestUserRepository_SpendAndRefundCredits(t *testing.T) {
@@ -93,15 +93,23 @@ func TestUserRepository_SpendAndRefundCredits(t *testing.T) {
 	_, err := repo.CreateUser(ctx, model.User{ID: 1, Email: "a@x", Credits: 5})
 	require.NoError(t, err)
 
-	require.NoError(t, repo.SpendCredits(ctx, 1, 3))
-	assert.ErrorIs(t, repo.SpendCredits(ctx, 1, 3), ErrInsufficientCredits, "only 2 left")
-	assert.ErrorIs(t, repo.SpendCredits(ctx, 99, 1), ErrInsufficientCredits, "unknown user")
-	require.NoError(t, repo.SpendCredits(ctx, 1, 2))
-	require.NoError(t, repo.RefundCredits(ctx, 1, 4))
+	require.NoError(t, repo.SpendCredits(ctx, 1, 3, ""))
+	assert.ErrorIs(t, repo.SpendCredits(ctx, 1, 3, ""), ErrInsufficientCredits, "only 2 left")
+	assert.ErrorIs(t, repo.SpendCredits(ctx, 99, 1, ""), ErrInsufficientCredits, "unknown user")
+	require.NoError(t, repo.SpendCredits(ctx, 1, 2, "Claude Code"))
+	require.NoError(t, repo.RefundCredits(ctx, 1, 4, "tmphost CLI"))
 
 	u, err := repo.FindUserByID(ctx, 1)
 	require.NoError(t, err)
 	assert.Equal(t, 4, u.Credits)
+
+	as, err := repo.ListCreditActivities(ctx, 1, 0, 10)
+	require.NoError(t, err)
+	agents := []string{}
+	for _, a := range as {
+		agents = append(agents, a.Agent)
+	}
+	assert.Equal(t, []string{"tmphost CLI", "Claude Code", "", ""}, agents, "the system's sign-up grant names no agent")
 }
 
 func TestUserRepository_CreditRenewal(t *testing.T) {
@@ -143,9 +151,9 @@ func TestUserRepository_CreditActivities(t *testing.T) {
 	_, err = repo.CreateUser(ctx, model.User{ID: 2, Email: "b@x", Credits: 9})
 	require.NoError(t, err)
 
-	require.NoError(t, repo.SpendCredits(ctx, 1, 3))
-	assert.ErrorIs(t, repo.SpendCredits(ctx, 1, 3), ErrInsufficientCredits)
-	require.NoError(t, repo.RefundCredits(ctx, 1, 4))
+	require.NoError(t, repo.SpendCredits(ctx, 1, 3, ""))
+	assert.ErrorIs(t, repo.SpendCredits(ctx, 1, 3, ""), ErrInsufficientCredits)
+	require.NoError(t, repo.RefundCredits(ctx, 1, 4, ""))
 	require.NoError(t, repo.RenewUserCredits(ctx, 1, 250, time.Now()))
 
 	type row struct {
@@ -184,7 +192,7 @@ func TestUserRepository_CreditActivityIDsComeFromIDGen(t *testing.T) {
 	repo := NewUserRepository(newDB(t), ids)
 	_, err := repo.CreateUser(ctx, model.User{ID: 1, Email: "a@x", Credits: 5})
 	require.NoError(t, err)
-	require.NoError(t, repo.SpendCredits(ctx, 1, 1))
+	require.NoError(t, repo.SpendCredits(ctx, 1, 1, ""))
 
 	as, err := repo.ListCreditActivities(ctx, 1, 0, 10)
 	require.NoError(t, err)
@@ -219,8 +227,8 @@ func TestUserRepository_CreditActivityErrorsRollBack(t *testing.T) {
 		_, err = repo.FindUserByID(ctx, 2)
 		assert.ErrorIs(t, err, ErrNotFound, "user creation rolled back")
 
-		assert.Error(t, repo.SpendCredits(ctx, 1, 1))
-		assert.Error(t, repo.RefundCredits(ctx, 1, 1))
+		assert.Error(t, repo.SpendCredits(ctx, 1, 1, ""))
+		assert.Error(t, repo.RefundCredits(ctx, 1, 1, ""))
 		assert.Error(t, repo.RenewUserCredits(ctx, 1, 250, time.Now()))
 		u, err := repo.FindUserByID(ctx, 1)
 		require.NoError(t, err)
@@ -229,7 +237,7 @@ func TestUserRepository_CreditActivityErrorsRollBack(t *testing.T) {
 
 	t.Run("unknown user", func(t *testing.T) {
 		repo := NewUserRepository(newDB(t), idgen.New(1))
-		assert.ErrorIs(t, repo.RefundCredits(ctx, 9, 1), gorm.ErrRecordNotFound)
+		assert.ErrorIs(t, repo.RefundCredits(ctx, 9, 1, ""), gorm.ErrRecordNotFound)
 		assert.ErrorIs(t, repo.RenewUserCredits(ctx, 9, 250, time.Now()), gorm.ErrRecordNotFound)
 	})
 
@@ -251,9 +259,9 @@ func TestUserRepository_CreditActivityErrorsRollBack(t *testing.T) {
 		_, err := repo.CreateUser(ctx, model.User{ID: 1, Email: "a@x", Credits: 5})
 		require.NoError(t, err)
 		failUpdates(t, db, "credits")
-		assert.Error(t, repo.SpendCredits(ctx, 1, 1))
-		assert.NotErrorIs(t, repo.SpendCredits(ctx, 1, 1), ErrInsufficientCredits)
-		assert.Error(t, repo.RefundCredits(ctx, 1, 1))
+		assert.Error(t, repo.SpendCredits(ctx, 1, 1, ""))
+		assert.NotErrorIs(t, repo.SpendCredits(ctx, 1, 1, ""), ErrInsufficientCredits)
+		assert.Error(t, repo.RefundCredits(ctx, 1, 1, ""))
 		assert.Error(t, repo.RenewUserCredits(ctx, 1, 250, time.Now()))
 	})
 

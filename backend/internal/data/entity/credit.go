@@ -41,7 +41,9 @@ type (
 		// Change is the signed amount.
 		Change int
 		// Current is the balance right after the change.
-		Current   int
+		Current int
+		// Agent names what made the change; empty for the system.
+		Agent     string
 		CreatedAt time.Time
 	}
 

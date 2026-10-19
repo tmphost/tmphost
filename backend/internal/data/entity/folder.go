@@ -112,7 +112,9 @@ type (
 
 	// ExtendFolderRequest adds time to one of a user's live folders.
 	ExtendFolderRequest struct {
-		UserID   int64
+		UserID int64
+		// Agent names what asked, for the credit history.
+		Agent    string
 		FolderID int64
 		// Minutes is how much later the folder expires.
 		Minutes int
@@ -137,8 +139,10 @@ type (
 		// Anonymous marks a visitor without an account: the upload spends
 		// their per-IP quota instead of credits.
 		Anonymous bool
-		FolderID  int64
-		Files     []FileUpload
+		// Agent names what uploaded, for the credit history.
+		Agent    string
+		FolderID int64
+		Files    []FileUpload
 	}
 
 	// PutFilesResponse carries the written files and their cost.

@@ -24,6 +24,7 @@ func Authenticate(controller authctrl.Controller) fiber.Handler {
 			return sendError(c, fiber.StatusUnauthorized, "unauthorized")
 		}
 		c.Locals(mapper.LocalUserID, rs.UserID)
+		c.Locals(mapper.LocalAgent, rs.Agent)
 		return c.Next()
 	}
 }
@@ -52,6 +53,7 @@ func AuthenticateOrAnonymous(controller authctrl.Controller) fiber.Handler {
 			rs, err := controller.Authenticate(c.Context(), rq)
 			if err == nil {
 				c.Locals(mapper.LocalUserID, rs.UserID)
+				c.Locals(mapper.LocalAgent, rs.Agent)
 				return c.Next()
 			}
 			if rq.AccessToken != "" {
@@ -64,6 +66,7 @@ func AuthenticateOrAnonymous(controller authctrl.Controller) fiber.Handler {
 		}
 		c.Locals(mapper.LocalUserID, rs.UserID)
 		c.Locals(mapper.LocalAnonymous, rs.Anonymous)
+		c.Locals(mapper.LocalAgent, rs.Agent)
 		return c.Next()
 	}
 }

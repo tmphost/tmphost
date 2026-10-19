@@ -168,9 +168,10 @@ func TestFromHTTPRequestToFileRequestEntities(t *testing.T) {
 
 	runAs(t, 3, "/folders/:id/files/*", httptest.NewRequest(http.MethodPut, "/folders/000000rs/files/a", strings.NewReader("hi")), func(c fiber.Ctx) {
 		c.Locals(LocalAnonymous, true)
+		c.Locals(LocalAgent, "Web")
 		put = FromHTTPRequestToPutFilesRequestEntity(c)
 	})
-	assert.Equal(t, &entity.PutFilesRequest{UserID: 3, Anonymous: true, FolderID: 1000, Files: []entity.FileUpload{{Path: "a", Data: []byte("hi")}}}, put)
+	assert.Equal(t, &entity.PutFilesRequest{UserID: 3, Anonymous: true, Agent: "Web", FolderID: 1000, Files: []entity.FileUpload{{Path: "a", Data: []byte("hi")}}}, put)
 
 	for name, tc := range map[string]struct {
 		userID int64

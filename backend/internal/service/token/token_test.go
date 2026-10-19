@@ -176,7 +176,7 @@ func TestClientID(t *testing.T) {
 	_, err = svc.ValidateClientID(wrongSubject)
 	assert.ErrorIs(t, err, ErrInvalidToken)
 
-	access, err := svc.CreateAccessToken("u1", "c1")
+	access, err := svc.CreateAccessToken(OAuthGrant{UserID: "u1", ClientID: "c1"})
 	require.NoError(t, err)
 	_, err = svc.ValidateClientID(access)
 	assert.ErrorIs(t, err, ErrInvalidToken, "an access token is not a client ID")
@@ -185,7 +185,7 @@ func TestClientID(t *testing.T) {
 func TestGrantTokens(t *testing.T) {
 	now := time.Now()
 	svc := newService(t, func() time.Time { return now })
-	grant := OAuthGrant{UserID: "u1", ClientID: "c1", RedirectURI: "http://127.0.0.1/cb", CodeChallenge: "ch", State: "st"}
+	grant := OAuthGrant{UserID: "u1", ClientID: "c1", ClientName: "Claude Code", RedirectURI: "http://127.0.0.1/cb", CodeChallenge: "ch", State: "st"}
 
 	consent, err := svc.CreateConsentToken(grant)
 	require.NoError(t, err)
@@ -199,17 +199,18 @@ func TestGrantTokens(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, grant, got)
 
-	access, err := svc.CreateAccessToken("u1", "c1")
+	// Access and refresh tokens keep only the user and the client.
+	access, err := svc.CreateAccessToken(grant)
 	require.NoError(t, err)
-	user, err := svc.ValidateAccessToken(access)
+	got, err = svc.ValidateAccessToken(access)
 	require.NoError(t, err)
-	assert.Equal(t, "u1", user)
+	assert.Equal(t, OAuthGrant{UserID: "u1", ClientID: "c1", ClientName: "Claude Code"}, got)
 
-	refresh, err := svc.CreateRefreshToken("u1", "c1")
+	refresh, err := svc.CreateRefreshToken(grant)
 	require.NoError(t, err)
 	got, err = svc.ValidateRefreshToken(refresh)
 	require.NoError(t, err)
-	assert.Equal(t, OAuthGrant{UserID: "u1", ClientID: "c1"}, got)
+	assert.Equal(t, OAuthGrant{UserID: "u1", ClientID: "c1", ClientName: "Claude Code"}, got)
 
 	// No kind passes for another.
 	_, err = svc.ValidateAuthorizationCode(consent)

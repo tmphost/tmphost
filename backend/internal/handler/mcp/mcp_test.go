@@ -55,7 +55,7 @@ func newEnv(t *testing.T) *env {
 	t.Helper()
 	mc := gomock.NewController(t)
 	authn := mockauth.NewMockController(mc)
-	authn.EXPECT().Authenticate(gomock.Any(), &entity.AuthenticateRequest{AccessToken: _key}).Return(&entity.AuthenticateResponse{UserID: 7}, nil).AnyTimes()
+	authn.EXPECT().Authenticate(gomock.Any(), &entity.AuthenticateRequest{AccessToken: _key}).Return(&entity.AuthenticateResponse{UserID: 7, Agent: "Claude Code"}, nil).AnyTimes()
 	e := &env{folders: mockfolder.NewMockController(mc)}
 	srv := httptest.NewServer(New(Params{Folders: e.folders, Auth: authn, MaxBodyBytes: 1 << 20}))
 	t.Cleanup(srv.Close)
@@ -145,7 +145,7 @@ func TestUpload_NewFolder(t *testing.T) {
 	gomock.InOrder(
 		e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 7, TTLMinutes: 120}).
 			Return(&entity.CreateFolderResponse{Folder: _folder}, nil),
-		e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "site/index.html", Data: []byte("<p>")}}}).
+		e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, Agent: "Claude Code", FolderID: 1000, Files: []entity.FileUpload{{Path: "site/index.html", Data: []byte("<p>")}}}).
 			Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "site/index.html", Size: 3, URL: "https://000000rs.tmp.host/site/index.html"}}, CreditsSpent: 4}, nil),
 	)
 	out, msg := e.call(t, map[string]any{
@@ -161,7 +161,7 @@ func TestUpload_NewFolder(t *testing.T) {
 
 func TestUpload_ExistingFolder(t *testing.T) {
 	e := newEnv(t)
-	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "a.txt", Data: []byte{}}}}).
+	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, Agent: "Claude Code", FolderID: 1000, Files: []entity.FileUpload{{Path: "a.txt", Data: []byte{}}}}).
 		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "a.txt", URL: "https://000000rs.tmp.host/a.txt"}}, CreditsSpent: 1}, nil)
 	out, msg := e.call(t, map[string]any{"action": "upload", "id": "000000rs", "fileName": "a.txt", "base64Content": ""})
 	require.Empty(t, msg)
@@ -170,13 +170,13 @@ func TestUpload_ExistingFolder(t *testing.T) {
 
 func TestUpload_TextContent(t *testing.T) {
 	e := newEnv(t)
-	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "index.html", Data: []byte("<p>héllo</p>")}}}).
+	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, Agent: "Claude Code", FolderID: 1000, Files: []entity.FileUpload{{Path: "index.html", Data: []byte("<p>héllo</p>")}}}).
 		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "index.html", Size: 13, URL: "https://000000rs.tmp.host/index.html"}}, CreditsSpent: 1}, nil)
 	out, msg := e.call(t, map[string]any{"action": "upload", "id": "000000rs", "fileName": "index.html", "format": "textContent", "textContent": "<p>héllo</p>"})
 	require.Empty(t, msg)
 	assert.Equal(t, FileOutput{ID: "000000rs", URL: "https://000000rs.tmp.host/index.html", FileName: "index.html", Size: 13, CreditsSpent: 1}, out)
 
-	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "empty.txt", Data: []byte{}}}}).
+	e.folders.EXPECT().PutFiles(gomock.Any(), &entity.PutFilesRequest{UserID: 7, Agent: "Claude Code", FolderID: 1000, Files: []entity.FileUpload{{Path: "empty.txt", Data: []byte{}}}}).
 		Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "empty.txt", URL: "https://000000rs.tmp.host/empty.txt"}}, CreditsSpent: 1}, nil)
 	_, msg = e.call(t, map[string]any{"action": "upload", "id": "000000rs", "fileName": "empty.txt", "format": "textContent", "textContent": ""})
 	require.Empty(t, msg, "an empty text file")
@@ -324,7 +324,7 @@ func TestExtend(t *testing.T) {
 	e := newEnv(t)
 	extended := _folder
 	extended.ExpiresAt = extended.ExpiresAt.Add(90 * time.Minute)
-	e.folders.EXPECT().ExtendFolder(gomock.Any(), &entity.ExtendFolderRequest{UserID: 7, FolderID: 1000, Minutes: 90}).
+	e.folders.EXPECT().ExtendFolder(gomock.Any(), &entity.ExtendFolderRequest{UserID: 7, Agent: "Claude Code", FolderID: 1000, Minutes: 90}).
 		Return(&entity.ExtendFolderResponse{Folder: extended, CreditsSpent: 3}, nil)
 	out, msg := e.call(t, map[string]any{"action": "extend", "id": "000000rs", "ttl": "1h30m"})
 	require.Empty(t, msg)

@@ -38,6 +38,7 @@ func FromCreditActivityModelsToCreditActivityEntities(ms []model.CreditActivity)
 			Ops:       FromCreditOpToCreditOpName(m.Ops),
 			Change:    m.Change,
 			Current:   m.Current,
+			Agent:     m.Agent,
 			CreatedAt: m.CreatedAt,
 		}
 	}

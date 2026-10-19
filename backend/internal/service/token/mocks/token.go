@@ -35,18 +35,18 @@ func (m *MockService) EXPECT() *MockServiceMockRecorder {
 }
 
 // CreateAccessToken mocks base method.
-func (m *MockService) CreateAccessToken(userID, clientID string) (string, error) {
+func (m *MockService) CreateAccessToken(grant token.OAuthGrant) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateAccessToken", userID, clientID)
+	ret := m.ctrl.Call(m, "CreateAccessToken", grant)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateAccessToken indicates an expected call of CreateAccessToken.
-func (mr *MockServiceMockRecorder) CreateAccessToken(userID, clientID interface{}) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateAccessToken(grant interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccessToken", reflect.TypeOf((*MockService)(nil).CreateAccessToken), userID, clientID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccessToken", reflect.TypeOf((*MockService)(nil).CreateAccessToken), grant)
 }
 
 // CreateAuthorizationCode mocks base method.
@@ -95,18 +95,18 @@ func (mr *MockServiceMockRecorder) CreateConsentToken(grant interface{}) *gomock
 }
 
 // CreateRefreshToken mocks base method.
-func (m *MockService) CreateRefreshToken(userID, clientID string) (string, error) {
+func (m *MockService) CreateRefreshToken(grant token.OAuthGrant) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateRefreshToken", userID, clientID)
+	ret := m.ctrl.Call(m, "CreateRefreshToken", grant)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateRefreshToken indicates an expected call of CreateRefreshToken.
-func (mr *MockServiceMockRecorder) CreateRefreshToken(userID, clientID interface{}) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateRefreshToken(grant interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRefreshToken", reflect.TypeOf((*MockService)(nil).CreateRefreshToken), userID, clientID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRefreshToken", reflect.TypeOf((*MockService)(nil).CreateRefreshToken), grant)
 }
 
 // CreateRootToken mocks base method.
@@ -155,10 +155,10 @@ func (mr *MockServiceMockRecorder) CreateStateToken(provider, redirectURL interf
 }
 
 // ValidateAccessToken mocks base method.
-func (m *MockService) ValidateAccessToken(access string) (string, error) {
+func (m *MockService) ValidateAccessToken(access string) (token.OAuthGrant, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidateAccessToken", access)
-	ret0, _ := ret[0].(string)
+	ret0, _ := ret[0].(token.OAuthGrant)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -360,7 +360,7 @@ func TestUpdateFolder_Errors(t *testing.T) {
 
 func TestExtendFolder(t *testing.T) {
 	ctx := context.Background()
-	rq := &entity.ExtendFolderRequest{UserID: 7, FolderID: 1000, Minutes: 45}
+	rq := &entity.ExtendFolderRequest{UserID: 7, Agent: "Claude Code", FolderID: 1000, Minutes: 45}
 
 	e := newEnv(t)
 	e.liveFolder(time.Hour)
@@ -369,7 +369,7 @@ func TestExtendFolder(t *testing.T) {
 	}, nil)
 	// (2 units + 1 unit) x 2 started blocks of 45 minutes.
 	gomock.InOrder(
-		e.users.EXPECT().SpendCredits(ctx, int64(7), 6).Return(nil),
+		e.users.EXPECT().SpendCredits(ctx, int64(7), 6, "Claude Code").Return(nil),
 		e.folders.EXPECT().ExtendFolder(ctx, int64(1000), _now, _now.Add(105*time.Minute)).Return(nil),
 	)
 	rs, err := e.ctrl.ExtendFolder(ctx, rq)
@@ -419,7 +419,7 @@ func TestExtendFolder_Errors(t *testing.T) {
 		e := newEnv(t)
 		e.liveFolder(time.Hour)
 		e.storage.EXPECT().List(ctx, _prefix).Return(file, nil)
-		e.users.EXPECT().SpendCredits(ctx, int64(7), 1).Return(repository.ErrInsufficientCredits)
+		e.users.EXPECT().SpendCredits(ctx, int64(7), 1, "").Return(repository.ErrInsufficientCredits)
 		_, err := e.ctrl.ExtendFolder(ctx, rq)
 		assert.ErrorIs(t, err, ErrInsufficientCredits)
 		assert.Contains(t, err.Error(), "1 needed")
@@ -428,7 +428,7 @@ func TestExtendFolder_Errors(t *testing.T) {
 		e := newEnv(t)
 		e.liveFolder(time.Hour)
 		e.storage.EXPECT().List(ctx, _prefix).Return(file, nil)
-		e.users.EXPECT().SpendCredits(ctx, int64(7), 1).Return(errBoom)
+		e.users.EXPECT().SpendCredits(ctx, int64(7), 1, "").Return(errBoom)
 		_, err := e.ctrl.ExtendFolder(ctx, rq)
 		assert.ErrorIs(t, err, errBoom)
 	})
@@ -436,9 +436,9 @@ func TestExtendFolder_Errors(t *testing.T) {
 		e := newEnv(t)
 		e.liveFolder(time.Hour)
 		e.storage.EXPECT().List(ctx, _prefix).Return(file, nil)
-		e.users.EXPECT().SpendCredits(ctx, int64(7), 1).Return(nil)
+		e.users.EXPECT().SpendCredits(ctx, int64(7), 1, "").Return(nil)
 		e.folders.EXPECT().ExtendFolder(ctx, int64(1000), _now, _now.Add(90*time.Minute)).Return(repository.ErrNotFound)
-		e.users.EXPECT().RefundCredits(ctx, int64(7), 1).Return(nil)
+		e.users.EXPECT().RefundCredits(ctx, int64(7), 1, "").Return(nil)
 		_, err := e.ctrl.ExtendFolder(ctx, rq)
 		assert.ErrorIs(t, err, ErrNotFound)
 	})
@@ -447,9 +447,9 @@ func TestExtendFolder_Errors(t *testing.T) {
 		e.liveFolder(time.Hour)
 		refundErr := errors.New("refund failed")
 		e.storage.EXPECT().List(ctx, _prefix).Return(file, nil)
-		e.users.EXPECT().SpendCredits(ctx, int64(7), 1).Return(nil)
+		e.users.EXPECT().SpendCredits(ctx, int64(7), 1, "").Return(nil)
 		e.folders.EXPECT().ExtendFolder(ctx, int64(1000), _now, _now.Add(90*time.Minute)).Return(errBoom)
-		e.users.EXPECT().RefundCredits(ctx, int64(7), 1).Return(refundErr)
+		e.users.EXPECT().RefundCredits(ctx, int64(7), 1, "").Return(refundErr)
 		_, err := e.ctrl.ExtendFolder(ctx, rq)
 		assert.ErrorIs(t, err, errBoom)
 		assert.ErrorIs(t, err, refundErr)
@@ -551,11 +551,11 @@ func TestPutFiles(t *testing.T) {
 	e.liveFolder(45 * time.Minute)
 	big := make([]byte, 2<<20+1)
 	gomock.InOrder(
-		e.users.EXPECT().SpendCredits(ctx, int64(7), 8).Return(nil),
+		e.users.EXPECT().SpendCredits(ctx, int64(7), 8, "tmphost CLI").Return(nil),
 		e.storage.EXPECT().Put(ctx, _prefix+"index.html", []byte("<p>")).Return(nil),
 		e.storage.EXPECT().Put(ctx, _prefix+"css/a.bin", big).Return(nil),
 	)
-	rs, err := e.ctrl.PutFiles(ctx, &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{
+	rs, err := e.ctrl.PutFiles(ctx, &entity.PutFilesRequest{UserID: 7, Agent: "tmphost CLI", FolderID: 1000, Files: []entity.FileUpload{
 		{Path: "index.html", Data: []byte("<p>")},
 		{Path: "css/a.bin", Data: big},
 	}})
@@ -576,7 +576,7 @@ func TestPutFiles_ReplacesAFile(t *testing.T) {
 	require.NoError(t, err)
 	ctrl := New(Params{Folders: e.folders, Users: e.users, Storage: local, Limits: func() entity.FileSettings { return e.limits }, Now: func() time.Time { return _now }})
 	e.folders.EXPECT().FindFolderByID(gomock.Any(), int64(1000)).Return(model.Folder{ID: 1000, UserID: 7, ExpiresAt: _now.Add(time.Hour)}, nil).Times(4)
-	e.users.EXPECT().SpendCredits(ctx, int64(7), 2).Return(nil).Times(2)
+	e.users.EXPECT().SpendCredits(ctx, int64(7), 2, "").Return(nil).Times(2)
 
 	put := func(data string) entity.File {
 		rs, err := ctrl.PutFiles(ctx, &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "site/index.html", Data: []byte(data)}}})
@@ -625,7 +625,7 @@ func TestPutFiles_Credits(t *testing.T) {
 	t.Run("insufficient", func(t *testing.T) {
 		e := newEnv(t)
 		e.liveFolder(time.Hour)
-		e.users.EXPECT().SpendCredits(ctx, int64(7), 2).Return(repository.ErrInsufficientCredits)
+		e.users.EXPECT().SpendCredits(ctx, int64(7), 2, "").Return(repository.ErrInsufficientCredits)
 		_, err := e.ctrl.PutFiles(ctx, rq)
 		assert.ErrorIs(t, err, ErrInsufficientCredits)
 		assert.Contains(t, err.Error(), "2 needed")
@@ -633,7 +633,7 @@ func TestPutFiles_Credits(t *testing.T) {
 	t.Run("spend error", func(t *testing.T) {
 		e := newEnv(t)
 		e.liveFolder(time.Hour)
-		e.users.EXPECT().SpendCredits(ctx, int64(7), 2).Return(errBoom)
+		e.users.EXPECT().SpendCredits(ctx, int64(7), 2, "").Return(errBoom)
 		_, err := e.ctrl.PutFiles(ctx, rq)
 		assert.ErrorIs(t, err, errBoom)
 	})
@@ -651,10 +651,10 @@ func TestPutFiles_WriteFailureRefundsTheRest(t *testing.T) {
 		e.limits.MaxUploadMB = 4
 		e.liveFolder(30 * time.Minute)
 		gomock.InOrder(
-			e.users.EXPECT().SpendCredits(ctx, int64(7), 6).Return(nil),
+			e.users.EXPECT().SpendCredits(ctx, int64(7), 6, "").Return(nil),
 			e.storage.EXPECT().Put(ctx, _prefix+"a", gomock.Any()).Return(nil),
 			e.storage.EXPECT().Put(ctx, _prefix+"b", gomock.Any()).Return(errBoom),
-			e.users.EXPECT().RefundCredits(ctx, int64(7), 5).Return(nil),
+			e.users.EXPECT().RefundCredits(ctx, int64(7), 5, "").Return(nil),
 		)
 		_, err := e.ctrl.PutFiles(ctx, rq)
 		assert.ErrorIs(t, err, errBoom)
@@ -665,9 +665,9 @@ func TestPutFiles_WriteFailureRefundsTheRest(t *testing.T) {
 		e.limits.MaxUploadMB = 4
 		e.liveFolder(30 * time.Minute)
 		refundErr := errors.New("refund failed")
-		e.users.EXPECT().SpendCredits(ctx, int64(7), 6).Return(nil)
+		e.users.EXPECT().SpendCredits(ctx, int64(7), 6, "").Return(nil)
 		e.storage.EXPECT().Put(ctx, _prefix+"a", gomock.Any()).Return(errBoom)
-		e.users.EXPECT().RefundCredits(ctx, int64(7), 6).Return(refundErr)
+		e.users.EXPECT().RefundCredits(ctx, int64(7), 6, "").Return(refundErr)
 		_, err := e.ctrl.PutFiles(ctx, rq)
 		assert.ErrorIs(t, err, errBoom)
 		assert.ErrorIs(t, err, refundErr)

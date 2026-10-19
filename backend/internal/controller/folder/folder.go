@@ -331,7 +331,7 @@ func (c *controller) ExtendFolder(ctx context.Context, rq *entity.ExtendFolderRe
 		total += Cost(o.Size, extension)
 	}
 	if total > 0 {
-		err = c.users.SpendCredits(ctx, rq.UserID, total)
+		err = c.users.SpendCredits(ctx, rq.UserID, total, rq.Agent)
 		if errors.Is(err, repository.ErrInsufficientCredits) {
 			return nil, fmt.Errorf("%w: %d needed", ErrInsufficientCredits, total)
 		}
@@ -343,7 +343,7 @@ func (c *controller) ExtendFolder(ctx context.Context, rq *entity.ExtendFolderRe
 	if err := c.folders.ExtendFolder(ctx, f.ID, now, f.ExpiresAt); err != nil {
 		// The time was not added, so it is not paid for.
 		if total > 0 {
-			if rerr := c.users.RefundCredits(ctx, rq.UserID, total); rerr != nil {
+			if rerr := c.users.RefundCredits(ctx, rq.UserID, total, rq.Agent); rerr != nil {
 				err = errors.Join(err, fmt.Errorf("refund credits: %w", rerr))
 			}
 		}
@@ -413,7 +413,7 @@ func (c *controller) PutFiles(ctx context.Context, rq *entity.PutFilesRequest) (
 			costs[i] = Cost(int64(len(u.Data)), f.ExpiresAt.Sub(now))
 			total += costs[i]
 		}
-		err = c.users.SpendCredits(ctx, rq.UserID, total)
+		err = c.users.SpendCredits(ctx, rq.UserID, total, rq.Agent)
 		if errors.Is(err, repository.ErrInsufficientCredits) {
 			return nil, fmt.Errorf("%w: %d needed", ErrInsufficientCredits, total)
 		}
@@ -448,7 +448,7 @@ func (c *controller) refund(ctx context.Context, rq *entity.PutFilesRequest, fro
 	for _, n := range costs {
 		sum += n
 	}
-	return c.users.RefundCredits(ctx, rq.UserID, sum)
+	return c.users.RefundCredits(ctx, rq.UserID, sum, rq.Agent)
 }
 
 func (c *controller) maxTTLMinutes(anonymous bool) int {

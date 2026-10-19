@@ -65,6 +65,9 @@ type (
 		// Anonymous is set for a web visitor without a session, known only
 		// by their IP address.
 		Anonymous bool
+		// Agent names what made the request: the OAuth client's name for
+		// an access token, or the web app for a browser.
+		Agent string
 	}
 
 	// AuthenticateAnonymousRequest describes a request without a session

@@ -82,12 +82,15 @@ type (
 		CreateAuthorizationCode(grant OAuthGrant) (string, error)
 		// ValidateAuthorizationCode returns the request a code approves.
 		ValidateAuthorizationCode(code string) (OAuthGrant, error)
-		// CreateAccessToken signs an access token for a user and client.
-		CreateAccessToken(userID, clientID string) (string, error)
-		// ValidateAccessToken returns the user an access token is for.
-		ValidateAccessToken(access string) (string, error)
-		// CreateRefreshToken signs a refresh token for a user and client.
-		CreateRefreshToken(userID, clientID string) (string, error)
+		// CreateAccessToken signs an access token for a grant's user and
+		// client.
+		CreateAccessToken(grant OAuthGrant) (string, error)
+		// ValidateAccessToken returns the user and client an access token
+		// is for.
+		ValidateAccessToken(access string) (OAuthGrant, error)
+		// CreateRefreshToken signs a refresh token for a grant's user and
+		// client.
+		CreateRefreshToken(grant OAuthGrant) (string, error)
 		// ValidateRefreshToken returns the user and client of a refresh
 		// token.
 		ValidateRefreshToken(refresh string) (OAuthGrant, error)
@@ -105,7 +108,10 @@ type (
 		UserID string
 		// ClientID identifies the client; callers pass a digest, since a
 		// client ID is long.
-		ClientID      string
+		ClientID string
+		// ClientName is the name the client registered with, so the work
+		// done with its tokens can be told apart.
+		ClientName    string
 		RedirectURI   string
 		CodeChallenge string
 		State         string
@@ -135,6 +141,7 @@ type (
 	grantClaims struct {
 		jwt.RegisteredClaims
 		ClientID      string `json:"cid"`
+		ClientName    string `json:"cn,omitempty"`
 		RedirectURI   string `json:"ruri,omitempty"`
 		CodeChallenge string `json:"cch,omitempty"`
 		State         string `json:"st,omitempty"`
@@ -252,17 +259,22 @@ func (s *service) ValidateAuthorizationCode(code string) (OAuthGrant, error) {
 	return s.parseGrant(code, _codeAudience)
 }
 
-func (s *service) CreateAccessToken(userID, clientID string) (string, error) {
-	return s.signGrant(OAuthGrant{UserID: userID, ClientID: clientID}, _accessAudience, AccessTokenTTL)
+func (s *service) CreateAccessToken(grant OAuthGrant) (string, error) {
+	return s.signGrant(tokenGrant(grant), _accessAudience, AccessTokenTTL)
 }
 
-func (s *service) ValidateAccessToken(token string) (string, error) {
-	grant, err := s.parseGrant(token, _accessAudience)
-	return grant.UserID, err
+func (s *service) ValidateAccessToken(token string) (OAuthGrant, error) {
+	return s.parseGrant(token, _accessAudience)
 }
 
-func (s *service) CreateRefreshToken(userID, clientID string) (string, error) {
-	return s.signGrant(OAuthGrant{UserID: userID, ClientID: clientID}, _refreshAudience, RefreshTokenTTL)
+func (s *service) CreateRefreshToken(grant OAuthGrant) (string, error) {
+	return s.signGrant(tokenGrant(grant), _refreshAudience, RefreshTokenTTL)
+}
+
+// tokenGrant keeps what access and refresh tokens carry: the user and the
+// client, not the authorization request.
+func tokenGrant(grant OAuthGrant) OAuthGrant {
+	return OAuthGrant{UserID: grant.UserID, ClientID: grant.ClientID, ClientName: grant.ClientName}
 }
 
 func (s *service) ValidateRefreshToken(refresh string) (OAuthGrant, error) {
@@ -273,6 +285,7 @@ func (s *service) signGrant(grant OAuthGrant, audience string, ttl time.Duration
 	return s.sign(grantClaims{
 		RegisteredClaims: s.registered(grant.UserID, audience, ttl),
 		ClientID:         grant.ClientID,
+		ClientName:       grant.ClientName,
 		RedirectURI:      grant.RedirectURI,
 		CodeChallenge:    grant.CodeChallenge,
 		State:            grant.State,
@@ -290,6 +303,7 @@ func (s *service) parseGrant(token, audience string) (OAuthGrant, error) {
 	return OAuthGrant{
 		UserID:        claims.Subject,
 		ClientID:      claims.ClientID,
+		ClientName:    claims.ClientName,
 		RedirectURI:   claims.RedirectURI,
 		CodeChallenge: claims.CodeChallenge,
 		State:         claims.State,

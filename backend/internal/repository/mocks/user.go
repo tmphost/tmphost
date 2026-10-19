@@ -170,17 +170,17 @@ func (mr *MockUserRepositoryMockRecorder) ListUsersDueForCreditRenewal(ctx, now,
 }
 
 // RefundCredits mocks base method.
-func (m *MockUserRepository) RefundCredits(ctx context.Context, id int64, n int) error {
+func (m *MockUserRepository) RefundCredits(ctx context.Context, id int64, n int, agent string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RefundCredits", ctx, id, n)
+	ret := m.ctrl.Call(m, "RefundCredits", ctx, id, n, agent)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RefundCredits indicates an expected call of RefundCredits.
-func (mr *MockUserRepositoryMockRecorder) RefundCredits(ctx, id, n interface{}) *gomock.Call {
+func (mr *MockUserRepositoryMockRecorder) RefundCredits(ctx, id, n, agent interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefundCredits", reflect.TypeOf((*MockUserRepository)(nil).RefundCredits), ctx, id, n)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefundCredits", reflect.TypeOf((*MockUserRepository)(nil).RefundCredits), ctx, id, n, agent)
 }
 
 // RenewUserCredits mocks base method.
@@ -198,17 +198,17 @@ func (mr *MockUserRepositoryMockRecorder) RenewUserCredits(ctx, id, credits, ren
 }
 
 // SpendCredits mocks base method.
-func (m *MockUserRepository) SpendCredits(ctx context.Context, id int64, n int) error {
+func (m *MockUserRepository) SpendCredits(ctx context.Context, id int64, n int, agent string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SpendCredits", ctx, id, n)
+	ret := m.ctrl.Call(m, "SpendCredits", ctx, id, n, agent)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SpendCredits indicates an expected call of SpendCredits.
-func (mr *MockUserRepositoryMockRecorder) SpendCredits(ctx, id, n interface{}) *gomock.Call {
+func (mr *MockUserRepositoryMockRecorder) SpendCredits(ctx, id, n, agent interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SpendCredits", reflect.TypeOf((*MockUserRepository)(nil).SpendCredits), ctx, id, n)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SpendCredits", reflect.TypeOf((*MockUserRepository)(nil).SpendCredits), ctx, id, n, agent)
 }
 
 // UpdateUser mocks base method.

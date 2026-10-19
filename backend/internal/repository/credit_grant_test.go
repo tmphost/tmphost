@@ -115,19 +115,19 @@ func TestUserRepository_SpendTakesWhatExpiresFirst(t *testing.T) {
 	require.NoError(t, repo.GrantCredits(ctx, 1, 4, _day.Add(5*24*time.Hour)))
 	assert.Equal(t, 34, credits(t, repo))
 
-	require.NoError(t, repo.SpendCredits(ctx, 1, 3))
+	require.NoError(t, repo.SpendCredits(ctx, 1, 3, ""))
 	assert.Equal(t, []int{1, 20}, remaining(t, db), "the soonest grant first")
 
-	require.NoError(t, repo.SpendCredits(ctx, 1, 5))
+	require.NoError(t, repo.SpendCredits(ctx, 1, 5, ""))
 	assert.Equal(t, []int{0, 20}, remaining(t, db), "then the monthly credits")
 	assert.Equal(t, 26, credits(t, repo))
 
-	require.NoError(t, repo.SpendCredits(ctx, 1, 12))
+	require.NoError(t, repo.SpendCredits(ctx, 1, 12, ""))
 	assert.Equal(t, []int{0, 14}, remaining(t, db), "then the later grant")
 	assert.Equal(t, 14, credits(t, repo))
 
-	assert.ErrorIs(t, repo.SpendCredits(ctx, 1, 15), ErrInsufficientCredits)
-	require.NoError(t, repo.SpendCredits(ctx, 1, 14))
+	assert.ErrorIs(t, repo.SpendCredits(ctx, 1, 15, ""), ErrInsufficientCredits)
+	require.NoError(t, repo.SpendCredits(ctx, 1, 14, ""))
 	assert.Equal(t, []int{0, 0}, remaining(t, db))
 	assert.Equal(t, 0, credits(t, repo))
 }
@@ -136,7 +136,7 @@ func TestUserRepository_RenewalKeepsLiveGrants(t *testing.T) {
 	ctx := context.Background()
 	db, repo := newGrantRepo(t, 10, _day)
 	require.NoError(t, repo.GrantCredits(ctx, 1, 50, _day.Add(20*24*time.Hour)))
-	require.NoError(t, repo.SpendCredits(ctx, 1, 12)) // 10 monthly, 2 of the grant
+	require.NoError(t, repo.SpendCredits(ctx, 1, 12, "")) // 10 monthly, 2 of the grant
 	assert.Equal(t, []int{48}, remaining(t, db))
 
 	require.NoError(t, repo.RenewUserCredits(ctx, 1, 250, _day.Add(_period)))
@@ -154,7 +154,7 @@ func TestUserRepository_ExpireCreditGrants(t *testing.T) {
 	require.NoError(t, repo.GrantCredits(ctx, 1, 30, _day))
 	require.NoError(t, repo.GrantCredits(ctx, 1, 7, _day.Add(-24*time.Hour)))
 	require.NoError(t, repo.GrantCredits(ctx, 1, 5, _day.Add(time.Hour)))
-	require.NoError(t, repo.SpendCredits(ctx, 1, 9)) // the oldest grant, then 2 of the next
+	require.NoError(t, repo.SpendCredits(ctx, 1, 9, "")) // the oldest grant, then 2 of the next
 
 	expired, err := repo.ListExpiredCreditGrants(ctx, _day, 10)
 	require.NoError(t, err)
@@ -200,7 +200,7 @@ func TestUserRepository_CreditGrantErrors(t *testing.T) {
 		db, repo := newGrantRepo(t, 10, _day)
 		require.NoError(t, db.Migrator().DropTable(&model.CreditGrant{}))
 		assert.Error(t, repo.GrantCredits(ctx, 1, 1, _day))
-		assert.Error(t, repo.SpendCredits(ctx, 1, 1))
+		assert.Error(t, repo.SpendCredits(ctx, 1, 1, ""))
 		assert.Error(t, repo.RenewUserCredits(ctx, 1, 250, _day))
 		assert.Equal(t, 10, credits(t, repo), "rolled back")
 	})
@@ -223,7 +223,7 @@ func TestUserRepository_CreditGrantErrors(t *testing.T) {
 				_ = tx.AddError(errors.New("read failed"))
 			}
 		}))
-		err := repo.SpendCredits(ctx, 1, 1)
+		err := repo.SpendCredits(ctx, 1, 1, "")
 		assert.Error(t, err)
 		assert.NotErrorIs(t, err, ErrInsufficientCredits)
 	})
@@ -232,7 +232,7 @@ func TestUserRepository_CreditGrantErrors(t *testing.T) {
 		db, repo := newGrantRepo(t, 0, _day)
 		require.NoError(t, repo.GrantCredits(ctx, 1, 5, _day))
 		failUpdates(t, db, "remaining")
-		assert.Error(t, repo.SpendCredits(ctx, 1, 1))
+		assert.Error(t, repo.SpendCredits(ctx, 1, 1, ""))
 		assert.Error(t, repo.ExpireCreditGrant(ctx, model.CreditGrant{ID: firstGrantID(t, db), UserID: 1}))
 		assert.Equal(t, 5, credits(t, repo))
 	})
@@ -241,7 +241,7 @@ func TestUserRepository_CreditGrantErrors(t *testing.T) {
 		db, repo := newGrantRepo(t, 10, _day)
 		require.NoError(t, repo.GrantCredits(ctx, 1, 5, _day))
 		failCreditsExpr(t, db, "-")
-		assert.Error(t, repo.SpendCredits(ctx, 1, 1))
+		assert.Error(t, repo.SpendCredits(ctx, 1, 1, ""))
 		assert.Error(t, repo.ExpireCreditGrant(ctx, model.CreditGrant{ID: firstGrantID(t, db), UserID: 1}))
 		assert.Equal(t, 15, credits(t, repo))
 	})
