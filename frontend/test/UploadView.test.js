@@ -144,6 +144,40 @@ describe('UploadView', () => {
     expect(wrapper.find('[data-test="selected-b.txt"]').exists()).toBe(true)
   })
 
+  it('adds to the last folder, replacing files with the same path', async () => {
+    const wrapper = await mountView()
+    await pick(wrapper, '[data-test="pick-files"]', [file('a.txt'), file('b.txt')])
+    expect(wrapper.find('[data-test="upload-into-result"]').exists()).toBe(false)
+    await wrapper.find('[data-test="upload-start"]').trigger('click')
+    await flushPromises()
+
+    await pick(wrapper, '[data-test="pick-files"]', [file('b.txt', 20), file('c.txt')])
+    expect(wrapper.find('[data-test="upload-into-result"]').element.checked).toBe(true)
+    expect(wrapper.find('[data-test="selected-b.txt"] [data-test="selected-replaces"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="selected-c.txt"] [data-test="selected-replaces"]').exists()).toBe(false)
+    await wrapper.find('[data-test="upload-start"]').trigger('click')
+    await flushPromises()
+    expect(createFolder).toHaveBeenCalledTimes(1)
+    expect(uploadFile.mock.calls.slice(2).map((c) => [c[0], c[1]])).toEqual([
+      ['abc', 'b.txt'],
+      ['abc', 'c.txt'],
+    ])
+    const rows = wrapper.findAll('[data-test^="result-"]:not([data-test^="result-folder"]):not([data-test="result-file-copy"])')
+    expect(rows.map((r) => r.attributes('data-test'))).toEqual(['result-a.txt', 'result-b.txt', 'result-c.txt'])
+    expect(wrapper.find('[data-test="result-b.txt"]').text()).toContain('20 B')
+
+    // Unticked, the next upload starts a new folder.
+    createFolder.mockResolvedValueOnce({ id: 'xyz', url: 'https://tmphost.io/files/1/xyz/' })
+    await pick(wrapper, '[data-test="pick-files"]', [file('a.txt')])
+    await wrapper.find('[data-test="upload-into-result"]').setValue(false)
+    expect(wrapper.find('[data-test="selected-replaces"]').exists()).toBe(false)
+    await wrapper.find('[data-test="upload-start"]').trigger('click')
+    await flushPromises()
+    expect(createFolder).toHaveBeenCalledTimes(2)
+    expect(uploadFile).toHaveBeenLastCalledWith('xyz', 'a.txt', expect.anything())
+    expect(wrapper.find('[data-test="result-b.txt"]').exists()).toBe(false)
+  })
+
   it('blocks oversized files and too many files', async () => {
     const wrapper = await mountView()
     await pick(wrapper, '[data-test="pick-files"]', [file('big.bin', limits.maxUploadBytes + 1)])

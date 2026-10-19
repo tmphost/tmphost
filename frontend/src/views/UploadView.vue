@@ -36,6 +36,10 @@ const uploading = ref(false)
 const progress = ref({ done: 0, total: 0 })
 // The last upload: { folder, files }.
 const result = ref(null)
+// Whether the next upload goes into result's folder, replacing files with
+// the same path, rather than a new folder.
+const addToResult = ref(false)
+const replaces = (path) => addToResult.value && result.value.files.some((f) => f.path === path)
 
 const isOversized = (file) => Boolean(limits.value) && file.size > limits.value.maxUploadBytes
 const oversized = computed(() => selected.value.filter((item) => isOversized(item.file)))
@@ -74,14 +78,17 @@ async function upload() {
   uploading.value = true
   progress.value = { done: 0, total: items.length }
   try {
-    const folder = await createFolder(limits.value.defaultTtlMinutes)
-    result.value = { folder, files: [] }
+    if (!addToResult.value) result.value = { folder: await createFolder(limits.value.defaultTtlMinutes), files: [] }
+    const { folder, files } = result.value
     for (const item of items) {
       const { file } = await uploadFile(folder.id, item.path, item.file)
-      result.value.files.push(file)
+      const i = files.findIndex((f) => f.path === file.path)
+      if (i < 0) files.push(file)
+      else files[i] = file
       progress.value = { done: progress.value.done + 1, total: items.length }
     }
     selected.value = []
+    addToResult.value = true
     notifySuccess(items.length === 1 ? 'Uploaded 1 file' : `Uploaded ${items.length} files`)
   } catch (err) {
     notifyError(err.message)
@@ -144,6 +151,13 @@ onMounted(async () => {
             :data-test="`selected-${item.path}`"
           >
             <span class="grow min-w-0 truncate font-mono text-gray-900 dark:text-zinc-100">{{ item.path }}</span>
+            <span
+              v-if="replaces(item.path)"
+              class="shrink-0 text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400"
+              data-test="selected-replaces"
+            >
+              Replaces
+            </span>
             <span :class="['tabular-nums', isOversized(item.file) ? 'font-bold text-rose-600 dark:text-rose-400' : 'text-gray-400 dark:text-zinc-500']">
               {{ formatBytes(item.file.size) }}
             </span>
@@ -168,6 +182,11 @@ onMounted(async () => {
         <p v-if="tooMany" role="alert" class="mt-3 text-xs font-medium text-rose-600 dark:text-rose-400" data-test="upload-too-many">
           At most {{ limits.fileOps }} files every {{ formatMinutes(limits.fileOpsWindowMinutes) }} without an account.
         </p>
+
+        <label v-if="result" class="mt-3 flex items-center gap-2 text-xs text-gray-500 dark:text-zinc-400">
+          <input v-model="addToResult" type="checkbox" class="accent-black dark:accent-white" data-test="upload-into-result" />
+          Add to the folder below, replacing files with the same path
+        </label>
 
         <div class="mt-4 flex items-center justify-end gap-3">
           <button type="button" :disabled="uploading" :class="SECONDARY" data-test="upload-clear" @click="selected = []">

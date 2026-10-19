@@ -45,7 +45,7 @@ const (
 
 const _toolDescription = `Temporary file hosting on tmphost.io. Files live in folders that expire after a TTL; each file is served at a public URL until then.
 Actions:
-- upload: store a file (fileName, its content in base64Content or textContent as format says, optional path inside the folder). Without id a new folder is created with ttl (default 30m); with id the file goes into that folder. Returns id and url. Costs 1 credit per started MB of the file per started 30 minutes of the folder's remaining lifetime.
+- upload: store a file (fileName, its content in base64Content or textContent as format says, optional path inside the folder). Without id a new folder is created with ttl (default 30m); with id the file goes into that folder, and a file already at that path is replaced in place (an update; its url stays the same). Returns id and url. Costs 1 credit per started MB of the file per started 30 minutes of the folder's remaining lifetime.
 - download: read a file (id, fileName, optional path). Returns its content in base64Content or, for UTF-8 text, in textContent as format says.
 - get: list a folder's files (id).
 - url: build the public URL of a folder (id), a directory (id, path) or a file (id, fileName, optional path).
@@ -68,7 +68,7 @@ type (
 	// FileInput is the file tool's arguments.
 	FileInput struct {
 		Action   string `json:"action" jsonschema:"what to do: upload, download, get or url"`
-		ID       string `json:"id,omitempty" jsonschema:"folder id; upload without it creates a new folder"`
+		ID       string `json:"id,omitempty" jsonschema:"folder id; upload without it creates a new folder, with it adds or replaces files in that folder"`
 		TTL      string `json:"ttl,omitempty" jsonschema:"lifetime of a new folder, such as 30m or 2h (default 30m); upload only"`
 		FileName string `json:"fileName,omitempty" jsonschema:"file name, without directories"`
 		Path     string `json:"path,omitempty" jsonschema:"directory inside the folder, such as site/css, at most 5 levels; empty for the folder root"`
