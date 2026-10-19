@@ -1,3 +1,7 @@
+# Copyright 2026 Contextual, Inc. https://tmphost.io
+# This notice may not be modified or removed.
+# SPDX-License-Identifier: AGPL-3.0-only
+
 # One image, one binary: the SPA and the base config are embedded in the
 # server, so the final image holds only the binary, CA certs and /data.
 

@@ -23,15 +23,30 @@ export const NOTICE_LINES = Object.freeze([
 ])
 
 const slashes = (lines) => lines.map((line) => `// ${line}`).join('\n')
+const hashes = (lines) => lines.map((line) => `# ${line}`).join('\n')
+const markup = (lines) => ['<!--', ...lines.map((line) => `  ${line}`), '-->'].join('\n')
 
-/** How each kind of file says it. One comment block, so it reads as one notice. */
+/**
+ * How each kind of file says it. One comment block, so it reads as one notice.
+ * Keyed by extension, or by the whole name for files that have none.
+ */
 export const COMMENT = Object.freeze({
   '.go': slashes,
   '.js': slashes,
   '.mjs': slashes,
-  '.vue': (lines) => ['<!--', ...lines.map((line) => `  ${line}`), '-->'].join('\n'),
+  '.vue': markup,
+  '.html': markup,
   '.css': (lines) => ['/*', ...lines.map((line) => ` * ${line}`), ' */'].join('\n'),
+  '.sh': hashes,
+  '.ps1': hashes,
+  '.yml': hashes,
+  '.yaml': hashes,
+  Dockerfile: hashes,
+  Makefile: hashes,
 })
+
+/** Files keyed by name rather than extension. */
+const NAMED = new Set(['Dockerfile', 'Makefile'])
 
 /** Dependencies and build output: not ours, and regenerated anyway. */
 const NOT_OURS = /(^|\/)(node_modules|dist|coverage)\//
@@ -42,6 +57,9 @@ const NOT_OURS = /(^|\/)(node_modules|dist|coverage)\//
  */
 const GENERATED = /^\/\/ Code generated .* DO NOT EDIT\.$/m
 
+/** A first line that must stay first: a shebang, or an HTML doctype. */
+const PROLOGUE = /^(#!|<!doctype )/i
+
 export function extensionOf(path) {
   const name = String(path ?? '')
   const dot = name.lastIndexOf('.')
@@ -49,15 +67,22 @@ export function extensionOf(path) {
   return dot > slash ? name.slice(dot) : ''
 }
 
+/** The key into COMMENT: the name for Dockerfile and Makefile, else the extension. */
+export function kindOf(path) {
+  const name = String(path ?? '')
+  const base = name.slice(name.lastIndexOf('/') + 1)
+  return NAMED.has(base) ? base : extensionOf(name)
+}
+
 /** Whether a path is one of ours to mark. */
 export function isOurs(path) {
   if (NOT_OURS.test(String(path ?? ''))) return false
-  return Object.hasOwn(COMMENT, extensionOf(path))
+  return Object.hasOwn(COMMENT, kindOf(path))
 }
 
 /** The exact block this file should carry, or '' for a file that carries none. */
 export function noticeFor(path) {
-  const comment = COMMENT[extensionOf(path)]
+  const comment = COMMENT[kindOf(path)]
   return comment ? comment(NOTICE_LINES) : ''
 }
 
@@ -86,11 +111,15 @@ export function carriesNotice(contents, path, within = 8) {
  *
  * A blank line follows the notice. In Go a comment directly above `package` is
  * the package documentation, so running into it would change what godoc says.
+ * A shebang or doctype stays on the first line, above the notice.
  */
 export function withNotice(contents, path) {
   const text = String(contents ?? '')
   if (carriesNotice(text, path)) return text
-  return `${noticeFor(path)}\n\n${text}`
+  const notice = noticeFor(path)
+  if (!PROLOGUE.test(text)) return `${notice}\n\n${text}`
+  const [first, ...rest] = text.split('\n')
+  return [first, notice, '', ...rest].join('\n')
 }
 
 /**

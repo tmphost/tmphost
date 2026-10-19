@@ -1,3 +1,7 @@
+# Copyright 2026 Contextual, Inc. https://tmphost.io
+# This notice may not be modified or removed.
+# SPDX-License-Identifier: AGPL-3.0-only
+
 # Values here (and the environment) are defaults. Once root saves settings on
 # the /setup page, the settings file overrides the app URL, sites domain, tls,
 # credits, database, storage, s3, files and auth provider values below.

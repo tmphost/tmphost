@@ -1,4 +1,8 @@
-.PHONY: build frontend backend cli test test-backend test-frontend test-cli coverage mocks lint lint-backend lint-frontend copyright copyright-fix docker dev-backend dev-frontend
+# Copyright 2026 Contextual, Inc. https://tmphost.io
+# This notice may not be modified or removed.
+# SPDX-License-Identifier: AGPL-3.0-only
+
+.PHONY: build frontend backend cli test test-backend test-frontend test-cli coverage mocks lint lint-backend lint-cli lint-frontend copyright copyright-fix docker dev-backend dev-frontend
 
 PUBLIC := backend/cmd/server/public
 
@@ -34,11 +38,14 @@ docker:
 mocks:
 	cd backend && go generate ./...
 
-lint: lint-backend lint-frontend copyright
+lint: lint-backend lint-cli lint-frontend copyright
 
 # Needs golangci-lint v2 on PATH; CI pins the version in .github/workflows/lint.yml.
 lint-backend:
 	cd backend && golangci-lint run ./...
+
+lint-cli:
+	cd cli && golangci-lint run ./...
 
 lint-frontend:
 	cd frontend && npm run lint

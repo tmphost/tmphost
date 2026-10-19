@@ -9,12 +9,15 @@ import {
   check,
   extensionOf,
   isOurs,
+  kindOf,
   noticeFor,
   report,
   withNotice,
 } from '../scripts/copyright.js'
 
 const GO = NOTICE_LINES.map((line) => `// ${line}`).join('\n')
+const HASH = NOTICE_LINES.map((line) => `# ${line}`).join('\n')
+const MARKUP = `<!--\n${NOTICE_LINES.map((l) => `  ${l}`).join('\n')}\n-->`
 
 describe('extensionOf', () => {
   it('reads the extension of the file, not of a directory', () => {
@@ -24,11 +27,27 @@ describe('extensionOf', () => {
   })
 })
 
+describe('kindOf', () => {
+  it('keys Dockerfile and Makefile by name, everything else by extension', () => {
+    expect(kindOf('Dockerfile')).toBe('Dockerfile')
+    expect(kindOf('cli/Makefile')).toBe('Makefile')
+    expect(kindOf('a/install.sh')).toBe('.sh')
+    expect(kindOf('Dockerfile.dev')).toBe('.dev')
+    expect(kindOf(undefined)).toBe('')
+  })
+})
+
 describe('isOurs', () => {
   it('marks source files only', () => {
     expect(isOurs('backend/main.go')).toBe(true)
     expect(isOurs('frontend/src/App.vue')).toBe(true)
     expect(isOurs('frontend/src/style.css')).toBe(true)
+    expect(isOurs('frontend/index.html')).toBe(true)
+    for (const path of ['install.sh', 'install.ps1', '.github/workflows/ci.yml', 'base.yaml', 'Dockerfile', 'Makefile']) {
+      expect(isOurs(path)).toBe(true)
+    }
+    expect(isOurs('go.sum')).toBe(false)
+    expect(isOurs('package.json')).toBe(false)
     expect(isOurs('README.md')).toBe(false)
     expect(isOurs(null)).toBe(false)
   })
@@ -44,7 +63,10 @@ describe('noticeFor', () => {
   it('writes the notice in each file kind’s comment syntax', () => {
     expect(noticeFor('a.go')).toBe(GO)
     expect(noticeFor('a.mjs')).toBe(GO)
-    expect(noticeFor('a.vue')).toBe(`<!--\n${NOTICE_LINES.map((l) => `  ${l}`).join('\n')}\n-->`)
+    expect(noticeFor('a.vue')).toBe(MARKUP)
+    expect(noticeFor('index.html')).toBe(MARKUP)
+    expect(noticeFor('install.sh')).toBe(HASH)
+    expect(noticeFor('Makefile')).toBe(HASH)
     expect(noticeFor('a.css')).toBe(`/*\n${NOTICE_LINES.map((l) => ` * ${l}`).join('\n')}\n */`)
     expect(noticeFor('a.txt')).toBe('')
   })
@@ -77,6 +99,16 @@ describe('withNotice', () => {
   it('prepends the notice and a blank line', () => {
     expect(withNotice('package main\n', 'a.go')).toBe(`${GO}\n\npackage main\n`)
     expect(withNotice(undefined, 'a.go')).toBe(`${GO}\n\n`)
+  })
+
+  it('keeps a shebang or doctype on the first line', () => {
+    expect(withNotice('#!/bin/sh\necho hi\n', 'install.sh')).toBe(`#!/bin/sh\n${HASH}\n\necho hi\n`)
+    expect(withNotice('#!/bin/sh', 'install.sh')).toBe(`#!/bin/sh\n${HASH}\n`)
+    expect(withNotice('<!DOCTYPE html>\n<html>\n', 'index.html')).toBe(`<!DOCTYPE html>\n${MARKUP}\n\n<html>\n`)
+  })
+
+  it('puts it above an ordinary first comment', () => {
+    expect(withNotice('# Builds it.\nFROM x\n', 'Dockerfile')).toBe(`${HASH}\n\n# Builds it.\nFROM x\n`)
   })
 
   it('leaves a file that has it unchanged', () => {
