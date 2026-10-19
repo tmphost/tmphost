@@ -88,6 +88,21 @@ self-hosted server, set the plugin's `server` option (default
 `claude plugin install tmphost --marketplace tmphost/tmphost --config server=https://mcp.example.com`.
 CI runs `claude plugin validate --strict` on both manifests.
 
+## Gemini CLI extension
+
+This repository is also a [Gemini CLI](https://github.com/google-gemini/gemini-cli)
+extension: [gemini-extension.json](gemini-extension.json) adds the MCP server
+at `https://mcp.tmphost.io/mcp` and loads
+[plugin/gemini/GEMINI.md](plugin/gemini/GEMINI.md) (when and how to share
+files with it) into every session.
+
+```sh
+gemini extensions install https://github.com/tmphost/tmphost
+```
+
+Gemini CLI signs in through the browser (`/mcp auth tmphost`). For a
+self-hosted server, see [plugin/gemini](plugin/gemini/README.md).
+
 ## Development
 
 ```sh
