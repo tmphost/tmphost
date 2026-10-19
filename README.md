@@ -89,12 +89,10 @@ repository is also its marketplace ([.claude-plugin/marketplace.json](.claude-pl
 /plugin install tmphost@tmphost
 ```
 
-It connects to `<server>/mcp`, by default `https://mcp.tmphost.io/mcp`.
-Claude Code signs in through the browser on the first tool call. For a
-self-hosted server, set the plugin's `server` option (default
-`https://mcp.tmphost.io`) to its MCP domain or app URL with
-`/plugin configure tmphost@tmphost`, or at install time:
-`claude plugin install tmphost --marketplace tmphost/tmphost --config server=https://mcp.example.com`.
+It connects to `https://mcp.tmphost.io/mcp`. Claude Code signs in through
+the browser on the first tool call. For a self-hosted server, add your own
+MCP server instead of the plugin:
+`claude mcp add --transport http tmphost https://mcp.example.com/mcp`.
 Its listing icon is [plugin/claude/.claude-plugin/icon.png](plugin/claude/.claude-plugin/icon.png)
 (1024 px, rendered from favicon-light.svg) and its privacy policy is
 [https://tmphost.io/privacy](https://tmphost.io/privacy).
