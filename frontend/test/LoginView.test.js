@@ -65,6 +65,8 @@ describe('LoginView', () => {
     expect(plain.find('img').exists()).toBe(false)
     expect(plain.find('svg').exists()).toBe(false)
     expect(wrapper.text()).toContain('250 free operations')
+    expect(wrapper.find('[data-test="login-tos"]').attributes('href')).toBe('https://tmphost.io/tos')
+    expect(wrapper.find('[data-test="login-privacy"]').attributes('href')).toBe('https://tmphost.io/privacy')
     expect(wrapper.find('[data-test="login-setup"]').attributes('href')).toBe('/setup')
     expect(wrapper.find('[data-test="login-upload"]').attributes('href')).toBe('/upload')
   })

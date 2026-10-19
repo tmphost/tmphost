@@ -80,6 +80,8 @@ describe('UploadView', () => {
       'Up to 4.0 MB per file and 5 files every 30 min. Links expire after 10 min.',
     )
     expect(wrapper.find('[data-test="upload-sign-in"]').attributes('href')).toBe('/login')
+    expect(wrapper.find('[data-test="upload-tos"]').attributes('href')).toBe('https://tmphost.io/tos')
+    expect(wrapper.find('[data-test="upload-privacy"]').attributes('href')).toBe('https://tmphost.io/privacy')
     expect(wrapper.find('[data-test="upload-summary"]').exists()).toBe(false)
   })
 
