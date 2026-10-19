@@ -46,6 +46,7 @@ type (
 		MaxTTLMinutes       int
 		MaxUploadBytes      int64
 		BillingBlockMinutes int
+		BillingUnitBytes    int64
 		// Anonymous limits replace credits with a per-IP quota: at most
 		// FileOps file writes per FileOpsWindowMinutes.
 		Anonymous            bool

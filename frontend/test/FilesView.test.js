@@ -21,7 +21,7 @@ import FilesView from '../src/views/FilesView.vue'
 import { useToasts } from '../src/composables/useToasts'
 
 const NOW = Date.parse('2026-10-18T12:00:00Z')
-const limits = { defaultTtlMinutes: 30, maxTtlMinutes: 432000, maxUploadBytes: 1000, billingBlockMinutes: 30 }
+const limits = { defaultTtlMinutes: 30, maxTtlMinutes: 432000, maxUploadBytes: 1000, billingBlockMinutes: 30, billingUnitBytes: 100 }
 const folders = [
   { id: 'old', createdAt: '2026-10-18T10:00:00Z', expiresAt: '2026-10-18T12:45:00Z', url: 'https://f.test/old/' },
   { id: 'new', createdAt: '2026-10-18T11:00:00Z', expiresAt: '2026-10-25T11:00:00Z', url: 'https://f.test/new/' },
@@ -174,6 +174,14 @@ describe('FilesView', () => {
 
     await wrapper.find('[data-test="upload-clear"]').trigger('click')
     expect(wrapper.find('[data-test="upload-summary"]').exists()).toBe(false)
+  })
+
+  it('charges each file per started billing unit of its size', async () => {
+    const wrapper = await mountView()
+    await pick(wrapper, '[data-test="pick-files"]', [file('a.bin', 100), file('b.bin', 101), file('c.bin', 201)])
+    expect(wrapper.find('[data-test="upload-cost"]').text()).toBe('3 files · 6 credits')
+    await wrapper.find('[data-test="upload-ttl"]').setValue('1')
+    expect(wrapper.find('[data-test="upload-cost"]').text()).toBe('3 files · 12 credits')
   })
 
   it('accepts dropped files', async () => {

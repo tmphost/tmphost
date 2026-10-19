@@ -91,20 +91,23 @@ func TestFolderURLs_PathMode(t *testing.T) {
 }
 
 func TestCost(t *testing.T) {
-	assert.Equal(t, 3, Cost(3, 30*time.Minute))
-	assert.Equal(t, 6, Cost(3, 31*time.Minute))
+	const mb = 1 << 20
+	assert.Equal(t, 1, Cost(mb, 30*time.Minute))
+	assert.Equal(t, 2, Cost(mb+mb/100, 30*time.Minute), "1.01 MB")
+	assert.Equal(t, 3, Cost(2*mb+mb/100, 30*time.Minute), "2.01 MB")
+	assert.Equal(t, 6, Cost(2*mb+1, 31*time.Minute), "3 units x 2 started blocks")
 	assert.Equal(t, 2, Cost(1, time.Hour))
 	assert.Equal(t, 1, Cost(1, time.Second))
-	assert.Equal(t, 1, Cost(1, 0), "never free")
+	assert.Equal(t, 1, Cost(0, 0), "never free")
 }
 
 func TestGetLimits(t *testing.T) {
 	e := newEnv(t)
 	assert.Equal(t, &entity.GetLimitsResponse{
-		DefaultTTLMinutes: 30, MaxTTLMinutes: 120, MaxUploadBytes: 1 << 20, BillingBlockMinutes: 30,
+		DefaultTTLMinutes: 30, MaxTTLMinutes: 120, MaxUploadBytes: 1 << 20, BillingBlockMinutes: 30, BillingUnitBytes: 1 << 20,
 	}, e.ctrl.GetLimits(context.Background(), &entity.GetLimitsRequest{}))
 	assert.Equal(t, &entity.GetLimitsResponse{
-		DefaultTTLMinutes: 30, MaxTTLMinutes: 30, MaxUploadBytes: 4 << 20, BillingBlockMinutes: 30,
+		DefaultTTLMinutes: 30, MaxTTLMinutes: 30, MaxUploadBytes: 4 << 20, BillingBlockMinutes: 30, BillingUnitBytes: 1 << 20,
 		Anonymous: true, FileOps: 5, FileOpsWindowMinutes: 30,
 	}, e.ctrl.GetLimits(context.Background(), &entity.GetLimitsRequest{Anonymous: true}))
 }
@@ -321,21 +324,23 @@ func TestDeleteFolder(t *testing.T) {
 func TestPutFiles(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
+	e.limits.MaxUploadMB = 4
 	e.liveFolder(45 * time.Minute)
+	big := make([]byte, 2<<20+1)
 	gomock.InOrder(
-		e.users.EXPECT().SpendCredits(ctx, int64(7), 4).Return(nil),
+		e.users.EXPECT().SpendCredits(ctx, int64(7), 8).Return(nil),
 		e.storage.EXPECT().Put(ctx, _prefix+"index.html", []byte("<p>")).Return(nil),
-		e.storage.EXPECT().Put(ctx, _prefix+"css/a.css", []byte("a{}")).Return(nil),
+		e.storage.EXPECT().Put(ctx, _prefix+"css/a.bin", big).Return(nil),
 	)
 	rs, err := e.ctrl.PutFiles(ctx, &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{
 		{Path: "index.html", Data: []byte("<p>")},
-		{Path: "css/a.css", Data: []byte("a{}")},
+		{Path: "css/a.bin", Data: big},
 	}})
 	require.NoError(t, err)
-	assert.Equal(t, 4, rs.CreditsSpent, "2 files x 2 started blocks")
+	assert.Equal(t, 8, rs.CreditsSpent, "(1 + 3 MB units) x 2 started blocks")
 	assert.Equal(t, []entity.File{
 		{Path: "index.html", Size: 3, UpdatedAt: _now, URL: _host + "index.html"},
-		{Path: "css/a.css", Size: 3, UpdatedAt: _now, URL: _host + "css/a.css"},
+		{Path: "css/a.bin", Size: 2<<20 + 1, UpdatedAt: _now, URL: _host + "css/a.bin"},
 	}, rs.Files)
 }
 
@@ -381,16 +386,20 @@ func TestPutFiles_Credits(t *testing.T) {
 
 func TestPutFiles_WriteFailureRefundsTheRest(t *testing.T) {
 	ctx := context.Background()
-	rq := &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{{Path: "a"}, {Path: "b"}, {Path: "c"}}}
+	// a costs 1, b 2 and c 3 credits.
+	rq := &entity.PutFilesRequest{UserID: 7, FolderID: 1000, Files: []entity.FileUpload{
+		{Path: "a"}, {Path: "b", Data: make([]byte, 1<<20+1)}, {Path: "c", Data: make([]byte, 2<<20+1)},
+	}}
 
 	t.Run("refunded", func(t *testing.T) {
 		e := newEnv(t)
+		e.limits.MaxUploadMB = 4
 		e.liveFolder(30 * time.Minute)
 		gomock.InOrder(
-			e.users.EXPECT().SpendCredits(ctx, int64(7), 3).Return(nil),
+			e.users.EXPECT().SpendCredits(ctx, int64(7), 6).Return(nil),
 			e.storage.EXPECT().Put(ctx, _prefix+"a", gomock.Any()).Return(nil),
 			e.storage.EXPECT().Put(ctx, _prefix+"b", gomock.Any()).Return(errBoom),
-			e.users.EXPECT().RefundCredits(ctx, int64(7), 2).Return(nil),
+			e.users.EXPECT().RefundCredits(ctx, int64(7), 5).Return(nil),
 		)
 		_, err := e.ctrl.PutFiles(ctx, rq)
 		assert.ErrorIs(t, err, errBoom)
@@ -398,11 +407,12 @@ func TestPutFiles_WriteFailureRefundsTheRest(t *testing.T) {
 	})
 	t.Run("refund fails too", func(t *testing.T) {
 		e := newEnv(t)
+		e.limits.MaxUploadMB = 4
 		e.liveFolder(30 * time.Minute)
 		refundErr := errors.New("refund failed")
-		e.users.EXPECT().SpendCredits(ctx, int64(7), 3).Return(nil)
+		e.users.EXPECT().SpendCredits(ctx, int64(7), 6).Return(nil)
 		e.storage.EXPECT().Put(ctx, _prefix+"a", gomock.Any()).Return(errBoom)
-		e.users.EXPECT().RefundCredits(ctx, int64(7), 3).Return(refundErr)
+		e.users.EXPECT().RefundCredits(ctx, int64(7), 6).Return(refundErr)
 		_, err := e.ctrl.PutFiles(ctx, rq)
 		assert.ErrorIs(t, err, errBoom)
 		assert.ErrorIs(t, err, refundErr)

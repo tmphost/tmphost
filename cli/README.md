@@ -82,8 +82,8 @@ Uploading a directory keeps its name as a prefix (`site` uploads
 `site/index.html`), while `site/` or `.` uploads only its contents, like
 rsync. Paths follow the server's rules (at most 5 directories deep, no `.` or
 `..` segments, no backslashes) and are checked before anything is sent. Each
-file costs one credit per started billing block of the folder's lifetime; the
-cost is checked against your credits before anything is uploaded.
+file costs one credit per started MB of its size per started billing block of
+the folder's lifetime; the cost is checked against your credits before anything is uploaded.
 
 Folder URLs come from the server and may look like
 `https://f<folder>.<domain>/` or `<server>/files/<user>/<folder>/`.

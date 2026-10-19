@@ -77,10 +77,10 @@ func TestMe(t *testing.T) {
 }
 
 func TestLimits(t *testing.T) {
-	c, req, _ := serve(t, 200, `{"defaultTtlMinutes":30,"maxTtlMinutes":432000,"maxUploadBytes":16777216,"billingBlockMinutes":30}`)
+	c, req, _ := serve(t, 200, `{"defaultTtlMinutes":30,"maxTtlMinutes":432000,"maxUploadBytes":16777216,"billingBlockMinutes":30,"billingUnitBytes":1048576}`)
 	l, err := c.Limits(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, &Limits{30, 432000, 16777216, 30}, l)
+	assert.Equal(t, &Limits{30, 432000, 16777216, 30, 1048576}, l)
 	assert.Equal(t, "/api/v1/limits", req.URL.Path)
 }
 

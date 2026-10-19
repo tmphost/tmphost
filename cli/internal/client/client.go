@@ -36,6 +36,7 @@ type Limits struct {
 	MaxTTLMinutes       int   `json:"maxTtlMinutes"`
 	MaxUploadBytes      int64 `json:"maxUploadBytes"`
 	BillingBlockMinutes int   `json:"billingBlockMinutes"`
+	BillingUnitBytes    int64 `json:"billingUnitBytes"`
 }
 
 // Folder is a temporary public folder.

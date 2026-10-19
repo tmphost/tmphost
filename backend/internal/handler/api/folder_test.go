@@ -75,10 +75,10 @@ func (e *filesEnv) do(t *testing.T, method, target, body string) (*http.Response
 
 func TestFolder_Limits(t *testing.T) {
 	e := newFilesApp(t)
-	e.folders.EXPECT().GetLimits(gomock.Any(), &entity.GetLimitsRequest{}).Return(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 60, MaxUploadBytes: 1024, BillingBlockMinutes: 30})
+	e.folders.EXPECT().GetLimits(gomock.Any(), &entity.GetLimitsRequest{}).Return(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 60, MaxUploadBytes: 1024, BillingBlockMinutes: 30, BillingUnitBytes: 1 << 20})
 	res, body := e.do(t, http.MethodGet, "/api/v1/limits", "")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
-	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":60,"maxUploadBytes":1024,"billingBlockMinutes":30}`, body)
+	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":60,"maxUploadBytes":1024,"billingBlockMinutes":30,"billingUnitBytes":1048576}`, body)
 }
 
 // anonymous is a request without credentials from the web app at
@@ -99,10 +99,10 @@ func (e *filesEnv) anonymous(t *testing.T, method, target, body string) (*http.R
 func TestFolder_Anonymous(t *testing.T) {
 	e := newFilesApp(t)
 	e.folders.EXPECT().GetLimits(gomock.Any(), &entity.GetLimitsRequest{Anonymous: true}).
-		Return(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 30, MaxUploadBytes: 4 << 20, BillingBlockMinutes: 30, Anonymous: true, FileOps: 5, FileOpsWindowMinutes: 30})
+		Return(&entity.GetLimitsResponse{DefaultTTLMinutes: 30, MaxTTLMinutes: 30, MaxUploadBytes: 4 << 20, BillingBlockMinutes: 30, BillingUnitBytes: 1 << 20, Anonymous: true, FileOps: 5, FileOpsWindowMinutes: 30})
 	res, body := e.anonymous(t, http.MethodGet, "/api/v1/limits", "")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
-	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":30,"maxUploadBytes":4194304,"billingBlockMinutes":30,"anonymous":true,"fileOps":5,"fileOpsWindowMinutes":30}`, body)
+	assert.JSONEq(t, `{"defaultTtlMinutes":30,"maxTtlMinutes":30,"maxUploadBytes":4194304,"billingBlockMinutes":30,"billingUnitBytes":1048576,"anonymous":true,"fileOps":5,"fileOpsWindowMinutes":30}`, body)
 
 	e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 3, Anonymous: true}).
 		Return(&entity.CreateFolderResponse{Folder: entity.Folder{ID: 1000, CreatedAt: _at, ExpiresAt: _at, URL: "u"}}, nil)

@@ -12,7 +12,8 @@
 // own origin, f<folderID>.<public domain>. Both IDs are base36 because
 // hostnames are case-insensitive; folder IDs are random and always 11
 // characters (idgen.FormatFolderID). Each file write costs one
-// credit per started BillingBlock of the folder's remaining lifetime.
+// credit per started BillingUnit of its size per started BillingBlock of
+// the folder's remaining lifetime.
 //
 // Anonymous web visitors (idgen.AnonymousUserID) pay no credits. They have
 // lower limits instead, and a per-IP quota of file writes and new folders.
@@ -43,8 +44,10 @@ import (
 const (
 	// DefaultTTL is a folder's lifetime when none is asked for.
 	DefaultTTL = 30 * time.Minute
-	// BillingBlock is the lifetime one credit pays for, per file.
+	// BillingBlock is the lifetime one credit pays for, per BillingUnit.
 	BillingBlock = 30 * time.Minute
+	// BillingUnit is the file size one credit pays for, per BillingBlock.
+	BillingUnit = 1 << 20
 	// DefaultMaxTTLMinutes is the longest TTL unless root changes it.
 	DefaultMaxTTLMinutes = 7200 * 60
 	// DefaultMaxUploadMB caps an upload request unless root changes it.
@@ -175,11 +178,13 @@ func New(p Params) Controller {
 	return c
 }
 
-// Cost is the credits writing files files into a folder with remaining
-// lifetime left costs.
-func Cost(files int, remaining time.Duration) int {
+// Cost is the credits writing a file of size bytes into a folder with
+// remaining lifetime left costs: one per started BillingUnit per started
+// BillingBlock. Empty files and expiring folders still cost one of each.
+func Cost(size int64, remaining time.Duration) int {
+	units := int((size + BillingUnit - 1) / BillingUnit)
 	blocks := int((remaining + BillingBlock - 1) / BillingBlock)
-	return files * max(blocks, 1)
+	return max(units, 1) * max(blocks, 1)
 }
 
 func (c *controller) GetLimits(_ context.Context, rq *entity.GetLimitsRequest) *entity.GetLimitsResponse {
@@ -189,6 +194,7 @@ func (c *controller) GetLimits(_ context.Context, rq *entity.GetLimitsRequest) *
 		MaxTTLMinutes:       maxTTL,
 		MaxUploadBytes:      int64(maxUploadMB) << 20,
 		BillingBlockMinutes: int(BillingBlock / time.Minute),
+		BillingUnitBytes:    BillingUnit,
 		Anonymous:           rq.Anonymous,
 	}
 	if rq.Anonymous {
@@ -271,16 +277,20 @@ func (c *controller) PutFiles(ctx context.Context, rq *entity.PutFilesRequest) (
 		return nil, err
 	}
 	now := c.now()
-	perFile := 0
+	costs := make([]int, len(rq.Files))
+	total := 0
 	if rq.Anonymous {
 		if !c.anonymous.Take(fileQuotaKey(rq.UserID), len(rq.Files)) {
 			return nil, fmt.Errorf("%w: at most %d files per %d minutes", ErrQuotaExceeded, AnonymousOps, int(AnonymousWindow/time.Minute))
 		}
 	} else {
-		perFile = Cost(1, f.ExpiresAt.Sub(now))
-		err = c.users.SpendCredits(ctx, rq.UserID, perFile*len(rq.Files))
+		for i, u := range rq.Files {
+			costs[i] = Cost(int64(len(u.Data)), f.ExpiresAt.Sub(now))
+			total += costs[i]
+		}
+		err = c.users.SpendCredits(ctx, rq.UserID, total)
 		if errors.Is(err, repository.ErrInsufficientCredits) {
-			return nil, fmt.Errorf("%w: %d needed", ErrInsufficientCredits, perFile*len(rq.Files))
+			return nil, fmt.Errorf("%w: %d needed", ErrInsufficientCredits, total)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("spend credits: %w", err)
@@ -291,23 +301,28 @@ func (c *controller) PutFiles(ctx context.Context, rq *entity.PutFilesRequest) (
 	for i, u := range rq.Files {
 		if err := c.storage.Put(ctx, folderPrefix(f)+u.Path, u.Data); err != nil {
 			// The files not written are not paid for.
-			if rerr := c.refund(ctx, rq, perFile, len(rq.Files)-i); rerr != nil {
+			if rerr := c.refund(ctx, rq, costs[i:]); rerr != nil {
 				err = errors.Join(err, fmt.Errorf("refund credits: %w", rerr))
 			}
 			return nil, fmt.Errorf("write %s: %w", u.Path, err)
 		}
 		files = append(files, entity.File{Path: u.Path, Size: int64(len(u.Data)), UpdatedAt: now.UTC(), URL: c.fileURL(f, u.Path)})
 	}
-	return &entity.PutFilesResponse{Files: files, CreditsSpent: perFile * len(rq.Files)}, nil
+	return &entity.PutFilesResponse{Files: files, CreditsSpent: total}, nil
 }
 
-// refund gives back what the unwritten files of rq were paid with.
-func (c *controller) refund(ctx context.Context, rq *entity.PutFilesRequest, perFile, files int) error {
+// refund gives back what the unwritten files of rq, costing costs, were
+// paid with.
+func (c *controller) refund(ctx context.Context, rq *entity.PutFilesRequest, costs []int) error {
 	if rq.Anonymous {
-		c.anonymous.Give(fileQuotaKey(rq.UserID), files)
+		c.anonymous.Give(fileQuotaKey(rq.UserID), len(costs))
 		return nil
 	}
-	return c.users.RefundCredits(ctx, rq.UserID, perFile*files)
+	sum := 0
+	for _, n := range costs {
+		sum += n
+	}
+	return c.users.RefundCredits(ctx, rq.UserID, sum)
 }
 
 func (c *controller) maxTTLMinutes(anonymous bool) int {

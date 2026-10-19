@@ -38,8 +38,8 @@ everything under a directory inside the folder.
 Without --id a new folder is created that expires after --ttl. With --id the
 files are added to that folder and keep its expiry.
 
-Each file costs one credit per started billing block of the folder's
-remaining lifetime; the total is checked against your credits up front.`,
+Each file costs one credit per started MB of its size per started billing
+block of the folder's remaining lifetime; the total is checked against your credits up front.`,
 		Example: `  tmphost file upload report.pdf --ttl 2h
   tmphost file upload site/                # index.html, css/app.css, ...
   tmphost file upload site --id rs         # site/index.html, ... in folder rs
@@ -133,7 +133,10 @@ func (a *app) upload(ctx context.Context, args []string, o uploadOptions) error 
 		return err
 	}
 
-	cost := len(files) * billingBlocks(minutes, limits.BillingBlockMinutes)
+	cost := 0
+	for _, f := range files {
+		cost += billingUnits(f.size, limits.BillingUnitBytes) * billingBlocks(minutes, limits.BillingBlockMinutes)
+	}
 	a.progress("Uploading %d files (cost: %d credits)\n", len(files), cost)
 	if user.Credits < cost {
 		return fmt.Errorf("not enough credits: this upload costs %d but you have %d (renews at %s)",
@@ -199,6 +202,13 @@ func ttlMinutes(ttl time.Duration, set bool, l *client.Limits) (int, error) {
 func billingBlocks(minutes, block int) int {
 	block = max(block, 1)
 	return max(1, (minutes+block-1)/block)
+}
+
+// billingUnits is how many started units a file's size spans, at least
+// one because even an empty file is charged for the upload.
+func billingUnits(size, unit int64) int {
+	unit = max(unit, 1)
+	return int(max(1, (size+unit-1)/unit))
 }
 
 // collect expands the arguments into the files to upload, rejecting two

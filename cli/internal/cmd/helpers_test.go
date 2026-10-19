@@ -25,7 +25,7 @@ var now = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
 
 const meJSON = `{"user":{"id":"u1","email":"ada@example.com","name":"Ada","credits":40,"creditsLimit":100,"creditsRenewAt":"2026-11-01T00:00:00Z"}}`
 
-const limitsJSON = `{"defaultTtlMinutes":30,"maxTtlMinutes":432000,"maxUploadBytes":16,"billingBlockMinutes":30}`
+const limitsJSON = `{"defaultTtlMinutes":30,"maxTtlMinutes":432000,"maxUploadBytes":16,"billingBlockMinutes":30,"billingUnitBytes":1048576}`
 
 // harness runs commands against a fake server: mux holds the API and OAuth
 // handlers, and API requests must carry the access token in validToken.

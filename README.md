@@ -14,7 +14,8 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
 
 - Files live in folders that expire after a TTL (default 30 minutes, at most
   `files.maxTtlMinutes`, 7200 hours by default). Each file written costs 1
-  credit per started 30 minutes of the folder's remaining lifetime.
+  credit per started MB (1 MiB) of its size per started 30 minutes of the
+  folder's remaining lifetime: a 1.01 MB file kept for an hour costs 2 x 2 = 4.
 - Storage is local disk (`TMPHOSTIO_STORAGE_LOCAL_PATH`) or an S3 bucket, under
   `u<userId>/<folderId>/<path>`. Paths are at most 5 directories deep and are
   validated server-side, so a file can never leave its folder. The database
