@@ -35,6 +35,7 @@ const (
 	ActionDownload = "download"
 	ActionGet      = "get"
 	ActionURL      = "url"
+	ActionExtend   = "extend"
 )
 
 // The content formats: which field carries a file's content.
@@ -49,6 +50,7 @@ Actions:
 - download: read a file (id, fileName, optional path). Returns its content in base64Content or, for UTF-8 text, in textContent as format says.
 - get: list a folder's files (id).
 - url: build the public URL of a folder (id), a directory (id, path) or a file (id, fileName, optional path).
+- extend: make a folder (id) expire ttl later, such as 1h; its remaining lifetime can't exceed the max TTL. Returns the new expiresAt. Costs, for each file in the folder, 1 credit per started MB per started 30 minutes of the added time; an empty folder is free.
 Paths are slash-separated directories inside the folder, at most 5 levels deep.
 format is base64Content (the default, for any file) or textContent (UTF-8 text such as HTML, CSS or JSON, sent as is).`
 
@@ -67,9 +69,9 @@ type (
 
 	// FileInput is the file tool's arguments.
 	FileInput struct {
-		Action   string `json:"action" jsonschema:"what to do: upload, download, get or url"`
+		Action   string `json:"action" jsonschema:"what to do: upload, download, get, url or extend"`
 		ID       string `json:"id,omitempty" jsonschema:"folder id; upload without it creates a new folder, with it adds or replaces files in that folder"`
-		TTL      string `json:"ttl,omitempty" jsonschema:"lifetime of a new folder, such as 30m or 2h (default 30m); upload only"`
+		TTL      string `json:"ttl,omitempty" jsonschema:"upload: lifetime of a new folder, such as 30m or 2h (default 30m); extend: time to add, such as 1h"`
 		FileName string `json:"fileName,omitempty" jsonschema:"file name, without directories"`
 		Path     string `json:"path,omitempty" jsonschema:"directory inside the folder, such as site/css, at most 5 levels; empty for the folder root"`
 		Format   string `json:"format,omitempty" jsonschema:"which field carries the content: base64Content (default) or textContent; upload and download only"`
@@ -140,7 +142,7 @@ func verifier(controller authctrl.Controller) auth.TokenVerifier {
 func inputSchema() *jsonschema.Schema {
 	// FileInput is a plain struct, so inference cannot fail.
 	s, _ := jsonschema.For[FileInput](nil)
-	s.Properties["action"].Enum = []any{ActionUpload, ActionDownload, ActionGet, ActionURL}
+	s.Properties["action"].Enum = []any{ActionUpload, ActionDownload, ActionGet, ActionURL, ActionExtend}
 	s.Properties["format"].Enum = []any{FormatBase64, FormatText}
 	return s
 }
@@ -160,8 +162,10 @@ func (t *tool) handle(ctx context.Context, req *mcp.CallToolRequest, in FileInpu
 		out, err = t.get(ctx, userID, in)
 	case ActionURL:
 		out, err = t.url(ctx, userID, in)
+	case ActionExtend:
+		out, err = t.extend(ctx, userID, in)
 	default:
-		err = fmt.Errorf("unknown action %q: use upload, download, get or url", in.Action)
+		err = fmt.Errorf("unknown action %q: use upload, download, get, url or extend", in.Action)
 	}
 	return nil, out, err
 }
@@ -254,17 +258,44 @@ func (t *tool) uploadFolder(ctx context.Context, userID int64, in FileInput) (in
 	}
 	minutes := 0
 	if in.TTL != "" {
-		ttl, err := time.ParseDuration(in.TTL)
-		if err != nil || ttl%time.Minute != 0 {
-			return 0, nil, errors.New("ttl must be whole minutes, such as 30m or 2h")
+		var err error
+		if minutes, err = ttlMinutes(in.TTL); err != nil {
+			return 0, nil, err
 		}
-		minutes = int(ttl / time.Minute)
 	}
 	rs, err := t.folders.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: userID, TTLMinutes: minutes})
 	if err != nil {
 		return 0, nil, err
 	}
 	return rs.Folder.ID, &rs.Folder, nil
+}
+
+// ttlMinutes parses a ttl argument, such as 30m or 2h.
+func ttlMinutes(raw string) (int, error) {
+	ttl, err := time.ParseDuration(raw)
+	if err != nil || ttl%time.Minute != 0 {
+		return 0, errors.New("ttl must be whole minutes, such as 30m or 2h")
+	}
+	return int(ttl / time.Minute), nil
+}
+
+func (t *tool) extend(ctx context.Context, userID int64, in FileInput) (FileOutput, error) {
+	id, err := folderID(in.ID)
+	if err != nil {
+		return FileOutput{}, err
+	}
+	if in.TTL == "" {
+		return FileOutput{}, errors.New("ttl is required: the time to add, such as 1h")
+	}
+	minutes, err := ttlMinutes(in.TTL)
+	if err != nil {
+		return FileOutput{}, err
+	}
+	rs, err := t.folders.ExtendFolder(ctx, &entity.ExtendFolderRequest{UserID: userID, FolderID: id, Minutes: minutes})
+	if err != nil {
+		return FileOutput{}, err
+	}
+	return FileOutput{ID: in.ID, URL: rs.Folder.URL, ExpiresAt: formatTime(rs.Folder.ExpiresAt), CreditsSpent: rs.CreditsSpent}, nil
 }
 
 func (t *tool) download(ctx context.Context, userID int64, in FileInput) (FileOutput, error) {

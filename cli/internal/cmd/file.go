@@ -132,12 +132,12 @@ func newFileCmd(a *app) *cobra.Command {
 		Short: "Upload, download and share files (mirrors the MCP file tool)",
 		Long: `Upload, download and share files in temporary folders.
 
-The upload, download, get and url subcommands mirror the actions of the
-server's MCP "file" tool: --id, --ttl and --path are its id, ttl and path
+The upload, download, get, url and extend subcommands mirror the actions of
+the server's MCP "file" tool: --id, --ttl and --path are its id, ttl and path
 arguments, and the file name is its fileName. ls and rm are extras for
 managing folders.`,
 	}
-	c.AddCommand(newFileUploadCmd(a), newFileDownloadCmd(a), newFileGetCmd(a), newFileURLCmd(a), newFileLsCmd(a), newFileRmCmd(a))
+	c.AddCommand(newFileUploadCmd(a), newFileDownloadCmd(a), newFileGetCmd(a), newFileURLCmd(a), newFileExtendCmd(a), newFileLsCmd(a), newFileRmCmd(a))
 	return c
 }
 
@@ -230,6 +230,44 @@ The file does not have to exist yet.`,
 	c.Flags().StringVar(&id, "id", "", "folder id")
 	c.Flags().StringVar(&dir, "path", "", "directory inside the folder, such as site/css")
 	_ = c.MarkFlagRequired("id")
+	return c
+}
+
+func newFileExtendCmd(a *app) *cobra.Command {
+	var (
+		id  string
+		ttl time.Duration
+	)
+	c := &cobra.Command{
+		Use:   "extend --id ID --ttl DURATION",
+		Short: "Make a folder expire later",
+		Long: `Add --ttl to a folder's lifetime. Its remaining lifetime can't exceed the
+server's max TTL. Each file in the folder costs 1 credit per started MB per
+started 30 minutes of the added time; an empty folder is free.`,
+		Example: `  tmphost file extend --id 1a2b3c4d --ttl 2h`,
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if ttl < time.Minute || ttl%time.Minute != 0 {
+				return fmt.Errorf("--ttl %s is not a positive whole number of minutes", ttl)
+			}
+			c, err := a.client()
+			if err != nil {
+				return err
+			}
+			r, err := c.ExtendFolder(cmd.Context(), id, int(ttl/time.Minute))
+			if err != nil {
+				return err
+			}
+			out := fileOutput{ID: r.Folder.ID, URL: r.Folder.URL, ExpiresAt: rfc3339(r.Folder.ExpiresAt), CreditsSpent: r.CreditsSpent}
+			return a.output(out, func(w io.Writer) {
+				fmt.Fprintf(w, "id:      %s\nurl:     %s\nexpires: %s\ncost:    %d credits\n", out.ID, out.URL, a.expiry(r.Folder.ExpiresAt), out.CreditsSpent)
+			})
+		},
+	}
+	c.Flags().StringVar(&id, "id", "", "folder id")
+	c.Flags().DurationVar(&ttl, "ttl", 0, "time to add, in whole minutes (e.g. 30m, 2h)")
+	_ = c.MarkFlagRequired("id")
+	_ = c.MarkFlagRequired("ttl")
 	return c
 }
 

@@ -15,9 +15,20 @@ vi.mock('../src/api', () => ({
   uploadFile: vi.fn(),
   deleteFile: vi.fn(),
   renameFolder: vi.fn(),
+  extendFolder: vi.fn(),
 }))
 
-import { createFolder, deleteFile, deleteFolder, fetchFolder, fetchLimits, listFolders, renameFolder, uploadFile } from '../src/api'
+import {
+  createFolder,
+  deleteFile,
+  deleteFolder,
+  extendFolder,
+  fetchFolder,
+  fetchLimits,
+  listFolders,
+  renameFolder,
+  uploadFile,
+} from '../src/api'
 import FilesView from '../src/views/FilesView.vue'
 import { useToasts } from '../src/composables/useToasts'
 import { dataTransfer, dirEntry, fileEntry } from './dropEntries'
@@ -612,6 +623,105 @@ describe('FilesView', () => {
     await wrapper.find('[data-test="file-a.txt"] [data-test="file-copy"]').trigger('click')
     await flushPromises()
     expect(lastToast()).toMatchObject({ type: 'success', message: 'File URL copied' })
+  })
+
+  it('extends a folder, charging its files for the added time', async () => {
+    const listing = deferred()
+    fetchFolder.mockReturnValueOnce(listing.promise)
+    const extended = deferred()
+    extendFolder.mockReturnValueOnce(extended.promise)
+    const wrapper = await mountView()
+    const card = () => wrapper.find('[data-test="folder-old"]')
+    await card().find('[data-test="folder-extend"]').trigger('click')
+    expect(card().find('[data-test="extend-cost"]').text()).toBe('Loading files…')
+    expect(card().find('[data-test="extend-confirm"]').attributes('disabled')).toBeDefined()
+    listing.resolve({ folder: folders[0], files })
+    await flushPromises()
+    expect(fetchFolder).toHaveBeenCalledWith('old')
+    expect(card().find('[data-test="folder-extend"]').attributes('aria-expanded')).toBe('true')
+    // 21 + 1 billing units, one started block of 30 minutes.
+    expect(card().find('[data-test="extend-cost"]').text()).toBe('Expires in 1h 15m · 22 credits')
+
+    await card().find('[data-test="extend-option-60"]').trigger('click')
+    expect(card().find('[data-test="extend-option-60"]').attributes('aria-checked')).toBe('true')
+    expect(card().find('[data-test="extend-cost"]').text()).toBe('Expires in 1h 45m · 44 credits')
+    expect(card().find('[data-test="extend-credits-warning"]').exists()).toBe(false)
+
+    await card().find('[data-test="extend-confirm"]').trigger('click')
+    expect(card().find('[data-test="extend-confirm"]').text()).toBe('Extending…')
+    extended.resolve({ folder: { ...folders[0], expiresAt: '2026-10-18T13:45:00Z' }, creditsSpent: 44 })
+    await flushPromises()
+    expect(extendFolder).toHaveBeenCalledWith('old', 60)
+    expect(card().find('[data-test="folder-expires"]').text()).toBe('1h 45m')
+    expect(card().find('[data-test="extend-panel"]').exists()).toBe(false)
+    expect(lastToast()).toMatchObject({ type: 'success', message: 'Folder extended by 1 h · 44 credits' })
+    expect(currentUser.refreshUser).toHaveBeenCalled()
+  })
+
+  it('toggles the extend panel and warns about its cost', async () => {
+    fetchFolder.mockResolvedValue({ folder: folders[0], files })
+    currentUser.user.value = { credits: 10 }
+    const wrapper = await mountView()
+    const toggle = () => wrapper.find('[data-test="folder-old"] [data-test="folder-extend"]').trigger('click')
+    await toggle()
+    await flushPromises()
+    expect(wrapper.find('[data-test="extend-credits-warning"]').text()).toBe('This costs 22 credits but you have 10 left.')
+    await toggle()
+    expect(wrapper.find('[data-test="extend-panel"]').exists()).toBe(false)
+  })
+
+  it('says when a folder cannot live any longer', async () => {
+    fetchLimits.mockResolvedValueOnce({ ...limits, maxTtlMinutes: 60 })
+    fetchFolder.mockResolvedValue({ folder: folders[0], files })
+    const wrapper = await mountView()
+    await wrapper.find('[data-test="folder-old"] [data-test="folder-extend"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="extend-maxed"]').text()).toBe('This folder already lives as long as it can.')
+    expect(wrapper.find('[data-test="extend-confirm"]').exists()).toBe(false)
+  })
+
+  it('extends nothing without limits', async () => {
+    fetchLimits.mockRejectedValueOnce(new Error('Failed to load limits'))
+    fetchFolder.mockResolvedValue({ folder: folders[0], files })
+    const wrapper = await mountView()
+    await wrapper.find('[data-test="folder-old"] [data-test="folder-extend"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="extend-maxed"]').exists()).toBe(true)
+  })
+
+  it('toasts extend errors', async () => {
+    fetchFolder.mockRejectedValueOnce(new Error('folder not found'))
+    const wrapper = await mountView()
+    const card = () => wrapper.find('[data-test="folder-old"]')
+    await card().find('[data-test="folder-extend"]').trigger('click')
+    await flushPromises()
+    expect(lastToast()).toMatchObject({ type: 'error', message: 'folder not found' })
+    expect(card().find('[data-test="extend-panel"]').exists()).toBe(false)
+
+    fetchFolder.mockResolvedValue({ folder: folders[0], files })
+    extendFolder.mockRejectedValueOnce(new Error('insufficient credits: 22 needed'))
+    await card().find('[data-test="folder-extend"]').trigger('click')
+    await flushPromises()
+    await card().find('[data-test="extend-confirm"]').trigger('click')
+    await flushPromises()
+    expect(lastToast()).toMatchObject({ type: 'error', message: 'insufficient credits: 22 needed' })
+    expect(card().find('[data-test="extend-confirm"]').text()).toBe('Extend')
+    expect(card().find('[data-test="folder-expires"]').text()).toBe('45m')
+  })
+
+  it('ignores a slow file listing for a folder no longer being extended', async () => {
+    const slow = deferred()
+    const failing = deferred()
+    fetchFolder.mockReturnValueOnce(slow.promise).mockReturnValueOnce(failing.promise.then(() => Promise.reject(new Error('late'))))
+    const wrapper = await mountView()
+    await wrapper.find('[data-test="folder-old"] [data-test="folder-extend"]').trigger('click')
+    await wrapper.find('[data-test="folder-new"] [data-test="folder-extend"]').trigger('click')
+    await wrapper.find('[data-test="folder-new"] [data-test="folder-extend"]').trigger('click')
+    slow.resolve({ folder: folders[0], files })
+    failing.resolve()
+    await flushPromises()
+    expect(wrapper.find('[data-test="extend-panel"]').exists()).toBe(false)
+    expect(lastToast()).toMatchObject({ type: 'error', message: 'late' })
   })
 
   it('deletes a folder after confirmation', async () => {

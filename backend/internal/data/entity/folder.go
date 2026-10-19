@@ -109,6 +109,21 @@ type (
 		Folder Folder
 	}
 
+	// ExtendFolderRequest adds time to one of a user's live folders.
+	ExtendFolderRequest struct {
+		UserID   int64
+		FolderID int64
+		// Minutes is how much later the folder expires.
+		Minutes int
+	}
+
+	// ExtendFolderResponse carries the extended folder and what the
+	// extension cost.
+	ExtendFolderResponse struct {
+		Folder       Folder
+		CreditsSpent int
+	}
+
 	// DeleteFolderRequest deletes a folder and its files.
 	DeleteFolderRequest struct {
 		UserID   int64

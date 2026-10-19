@@ -28,6 +28,11 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   CLI `--id`). Uploading to a path that is already there replaces the file
   in place, an update: its URL stays the same and the folder keeps its
   expiry. The write is charged like any other.
+- A folder can be extended to expire later (web app, MCP `extend`, CLI
+  `tmphost file extend`, `POST /api/v1/folders/:id/extend` with
+  `{"minutes": N}`), as long as its remaining lifetime stays within the max
+  TTL. Each file in it costs the same as an upload, for the added time: 1
+  credit per started MB per started 30 minutes. An empty folder is free.
 - Without signing in, the web app's Upload page makes folders that live at
   most `files.anonymousMaxTtlMinutes` (`TMPHOSTIO_FILES_ANONYMOUS_MAX_TTL_MINUTES`,
   10 minutes by default; root can change it on /setup).
@@ -47,7 +52,7 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
 ## MCP, CLI and OAuth
 
 - `/mcp` is a stateless MCP server with one tool, `file` (actions `upload`,
-  `download`, `get`, `url`), on the app URL and, when set, on the MCP domain
+  `download`, `get`, `url`, `extend`), on the app URL and, when set, on the MCP domain
   (`https://<mcp domain>/mcp`). The `tmphost` CLI in [cli/](cli/) mirrors it.
   File content travels as `base64Content` (the default) or, when the
   `format` argument asks for it, as UTF-8 `textContent`.

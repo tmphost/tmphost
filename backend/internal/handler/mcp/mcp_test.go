@@ -114,7 +114,7 @@ func TestListTools(t *testing.T) {
 	require.Len(t, rs.Tools, 1)
 	assert.Equal(t, "file", rs.Tools[0].Name)
 	schema, _ := json.Marshal(rs.Tools[0].InputSchema)
-	assert.Contains(t, string(schema), `"enum":["upload","download","get","url"]`)
+	assert.Contains(t, string(schema), `"enum":["upload","download","get","url","extend"]`)
 	assert.Contains(t, string(schema), `"enum":["base64Content","textContent"]`)
 }
 
@@ -126,7 +126,7 @@ func TestUnknownAction(t *testing.T) {
 	// The handler checks too, in case the schema is ever loosened.
 	req := &mcp.CallToolRequest{Extra: &mcp.RequestExtra{TokenInfo: &auth.TokenInfo{UserID: "7"}}}
 	_, _, err := (&tool{}).handle(context.Background(), req, FileInput{Action: "rm"})
-	assert.EqualError(t, err, `unknown action "rm": use upload, download, get or url`)
+	assert.EqualError(t, err, `unknown action "rm": use upload, download, get, url or extend`)
 }
 
 func TestContentFormat(t *testing.T) {
@@ -318,6 +318,36 @@ func TestGet(t *testing.T) {
 	e.folders.EXPECT().GetFolder(gomock.Any(), gomock.Any()).Return(nil, folderctrl.ErrNotFound)
 	_, msg = e.call(t, map[string]any{"action": "get", "id": "000000rs"})
 	assert.Contains(t, msg, "not found")
+}
+
+func TestExtend(t *testing.T) {
+	e := newEnv(t)
+	extended := _folder
+	extended.ExpiresAt = extended.ExpiresAt.Add(90 * time.Minute)
+	e.folders.EXPECT().ExtendFolder(gomock.Any(), &entity.ExtendFolderRequest{UserID: 7, FolderID: 1000, Minutes: 90}).
+		Return(&entity.ExtendFolderResponse{Folder: extended, CreditsSpent: 3}, nil)
+	out, msg := e.call(t, map[string]any{"action": "extend", "id": "000000rs", "ttl": "1h30m"})
+	require.Empty(t, msg)
+	assert.Equal(t, FileOutput{ID: "000000rs", URL: "https://000000rs.tmp.host/", ExpiresAt: "2026-10-18T14:00:00Z", CreditsSpent: 3}, out)
+
+	for name, tc := range map[string]struct {
+		args map[string]any
+		msg  string
+	}{
+		"bad id":         {map[string]any{"id": "RS", "ttl": "1h"}, "id must be a folder id"},
+		"no ttl":         {map[string]any{"id": "000000rs"}, "ttl is required"},
+		"fractional ttl": {map[string]any{"id": "000000rs", "ttl": "90s"}, "whole minutes"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tc.args["action"] = "extend"
+			_, msg := e.call(t, tc.args)
+			assert.Contains(t, msg, tc.msg)
+		})
+	}
+
+	e.folders.EXPECT().ExtendFolder(gomock.Any(), gomock.Any()).Return(nil, folderctrl.ErrInsufficientCredits)
+	_, msg = e.call(t, map[string]any{"action": "extend", "id": "000000rs", "ttl": "1h"})
+	assert.Contains(t, msg, "insufficient credits")
 }
 
 func TestURL(t *testing.T) {

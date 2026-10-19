@@ -111,6 +111,16 @@ func TestGetFolder(t *testing.T) {
 	assert.Equal(t, "/api/v1/folders/f1", req.URL.Path)
 }
 
+func TestExtendFolder(t *testing.T) {
+	c, req, body := serve(t, 200, `{"folder":{"id":"f1","expiresAt":"2026-10-18T12:00:00Z"},"creditsSpent":4}`)
+	r, err := c.ExtendFolder(context.Background(), "f1", 90)
+	require.NoError(t, err)
+	assert.Equal(t, &ExtendFolderResult{Folder: Folder{ID: "f1", ExpiresAt: ts}, CreditsSpent: 4}, r)
+	assert.Equal(t, "POST", req.Method)
+	assert.Equal(t, "/api/v1/folders/f1/extend", req.URL.Path)
+	assert.JSONEq(t, `{"minutes":90}`, *body)
+}
+
 func TestDeleteFolder(t *testing.T) {
 	c, req, _ := serve(t, 204, ``)
 	require.NoError(t, c.DeleteFolder(context.Background(), "f1"))
@@ -176,6 +186,7 @@ func TestMethodErrors(t *testing.T) {
 		"CreateFolder": func() error { _, err := c.CreateFolder(ctx, 1); return err },
 		"ListFolders":  func() error { _, err := c.ListFolders(ctx); return err },
 		"GetFolder":    func() error { _, err := c.GetFolder(ctx, "f"); return err },
+		"ExtendFolder": func() error { _, err := c.ExtendFolder(ctx, "f", 1); return err },
 		"DeleteFolder": func() error { return c.DeleteFolder(ctx, "f") },
 		"DeleteFile":   func() error { return c.DeleteFile(ctx, "f", "a") },
 	}

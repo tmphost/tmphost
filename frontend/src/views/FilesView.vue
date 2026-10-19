@@ -7,12 +7,23 @@
 <script setup>
 import { computed, inject, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import DeleteModal from '../components/DeleteModal.vue'
-import { createFolder, deleteFile, deleteFolder, fetchFolder, fetchLimits, listFolders, renameFolder, uploadFile } from '../api'
+import {
+  createFolder,
+  deleteFile,
+  deleteFolder,
+  extendFolder,
+  fetchFolder,
+  fetchLimits,
+  listFolders,
+  renameFolder,
+  uploadFile,
+} from '../api'
 import { useClipboard } from '../composables/useClipboard'
 import { useToasts } from '../composables/useToasts'
 import {
   droppedFiles,
   expiresIn,
+  extendOptions,
   fileItems,
   formatBytes,
   formatMinutes,
@@ -35,6 +46,7 @@ const ICONS = {
   open: 'M14 4h6v6m0-6L10 14M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5',
   upload: 'M12 16V4m0 0L7 9m5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3',
   trash: 'M4 7h16M10 11v6m4-6v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V4h6v3',
+  clock: 'M12 7v5l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
 }
 
 const { notifyError, notifySuccess } = useToasts()
@@ -71,6 +83,10 @@ const expanded = ref({})
 const editing = ref(null)
 // The title input; a ref inside v-for is an array, of one input here.
 const titleInput = ref([])
+
+// The folder being extended: { id, minutes, sizes, busy }; sizes is null
+// until its files are loaded.
+const extending = ref(null)
 
 // The pending deletion: { folder } or { folder, file }.
 const pendingDelete = ref(null)
@@ -116,6 +132,18 @@ const canUpload = computed(
     !targetExpired.value &&
     !uploading.value,
 )
+
+// extendChoices are the extensions a folder can still take.
+const extendChoices = (folder) => (limits.value ? extendOptions(remainingMinutes(folder), limits.value.maxTtlMinutes) : [])
+// extendCost charges each file as an upload would, for the added time.
+const extendCost = computed(() => {
+  const ext = extending.value
+  if (!ext?.sizes || !limits.value) return 0
+  return uploadCost(ext.sizes, ext.minutes, limits.value.billingBlockMinutes, limits.value.billingUnitBytes)
+})
+// extendedExpiry is when a folder would expire after the extension picked.
+const extendedExpiry = (folder) => new Date(Date.parse(folder.expiresAt) + extending.value.minutes * MINUTE_MS).toISOString()
+const extendTooCostly = computed(() => credits.value !== undefined && extendCost.value > credits.value)
 
 // folderTitle is what a folder is called: its title, else the name of its
 // only file, else its ID.
@@ -255,6 +283,38 @@ async function loadFiles(id) {
   } catch (err) {
     notifyError(err.message)
     collapse(id)
+  }
+}
+
+// openExtend shows a folder's extend panel, or hides it when it is open.
+async function openExtend(folder) {
+  if (extending.value?.id === folder.id) {
+    extending.value = null
+    return
+  }
+  extending.value = { id: folder.id, minutes: extendChoices(folder)[0], sizes: null, busy: false }
+  try {
+    const { files } = await fetchFolder(folder.id)
+    // Another folder may have been picked meanwhile.
+    if (extending.value?.id === folder.id) extending.value.sizes = files.map((f) => f.size)
+  } catch (err) {
+    if (extending.value?.id === folder.id) extending.value = null
+    notifyError(err.message)
+  }
+}
+
+async function confirmExtend(folder) {
+  const ext = extending.value
+  ext.busy = true
+  try {
+    const { folder: updated, creditsSpent } = await extendFolder(folder.id, ext.minutes)
+    folders.value = folders.value.map((f) => (f.id === folder.id ? { ...f, ...updated } : f))
+    extending.value = null
+    notifySuccess(`Folder extended by ${formatMinutes(ext.minutes)} · ${creditsSpent} credits`)
+    await currentUser.refreshUser()
+  } catch (err) {
+    ext.busy = false
+    notifyError(err.message)
   }
 }
 
@@ -548,12 +608,28 @@ onUnmounted(() => clearInterval(timer))
               {{ folderTitle(folder) }}
             </button>
           </div>
-          <div class="flex items-center gap-1 pl-11 pr-2 pb-1.5">
-            <span class="grow min-w-0 truncate text-[11px] text-gray-400 dark:text-zinc-500">
-              <template v-if="folderTitle(folder) !== folder.id">
-                <span class="font-mono" data-test="folder-id">{{ folder.id }}</span> ·
-              </template>
-              <span class="tabular-nums" :title="folder.expiresAt" data-test="folder-expires">{{ expiresIn(folder.expiresAt, now) }}</span>
+          <div class="flex items-center gap-1 pl-2 pr-2 pb-1.5">
+            <!-- The countdown doubles as the way to extend it. -->
+            <button
+              type="button"
+              :class="[
+                'inline-flex h-7 shrink-0 items-center gap-1 rounded-lg px-1.5 text-[11px] tabular-nums transition-colors',
+                extending?.id === folder.id
+                  ? 'text-gray-900 dark:text-zinc-100 bg-gray-100 dark:bg-zinc-800'
+                  : 'text-gray-400 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-zinc-100 hover:bg-gray-100 dark:hover:bg-zinc-800',
+              ]"
+              :title="`Expires ${folder.expiresAt} · click to extend`"
+              :aria-expanded="extending?.id === folder.id"
+              data-test="folder-extend"
+              @click="openExtend(folder)"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" :d="ICONS.clock" />
+              </svg>
+              <span data-test="folder-expires">{{ expiresIn(folder.expiresAt, now) }}</span>
+            </button>
+            <span class="grow min-w-0 truncate px-1 font-mono text-[11px] text-gray-400 dark:text-zinc-500">
+              <span v-if="folderTitle(folder) !== folder.id" data-test="folder-id">{{ folder.id }}</span>
             </span>
             <button
               type="button"
@@ -587,6 +663,59 @@ onUnmounted(() => clearInterval(timer))
                 <path stroke-linecap="round" stroke-linejoin="round" :d="ICONS.trash" />
               </svg>
             </button>
+          </div>
+
+          <div
+            v-if="extending?.id === folder.id"
+            class="border-t border-gray-100 dark:border-zinc-800 px-3 py-2.5"
+            data-test="extend-panel"
+          >
+            <p v-if="!extendChoices(folder).length" class="text-xs text-gray-500 dark:text-zinc-400" data-test="extend-maxed">
+              This folder already lives as long as it can.
+            </p>
+            <template v-else>
+              <p class="text-[11px] font-bold text-gray-500 dark:text-zinc-400">Extend by</p>
+              <div class="mt-1.5 flex flex-wrap gap-1" role="radiogroup" aria-label="Extend by">
+                <button
+                  v-for="m in extendChoices(folder)"
+                  :key="m"
+                  type="button"
+                  role="radio"
+                  :aria-checked="extending.minutes === m"
+                  :class="[
+                    'rounded-md border px-2 py-1 text-[11px] font-bold tabular-nums transition-colors',
+                    extending.minutes === m
+                      ? 'border-gray-900 dark:border-zinc-100 bg-gray-900 dark:bg-zinc-100 text-white dark:text-zinc-900'
+                      : 'border-gray-200 dark:border-zinc-800 text-gray-900 dark:text-zinc-100 hover:border-gray-300 dark:hover:border-zinc-600',
+                  ]"
+                  :data-test="`extend-option-${m}`"
+                  @click="extending.minutes = m"
+                >
+                  {{ formatMinutes(m) }}
+                </button>
+              </div>
+              <p v-if="extendTooCostly" class="mt-2 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-800 dark:text-amber-300" data-test="extend-credits-warning">
+                This costs {{ extendCost }} credits but you have {{ credits }} left.
+              </p>
+              <div class="mt-2 flex items-center gap-2">
+                <p class="grow min-w-0 text-xs text-gray-500 dark:text-zinc-400" data-test="extend-cost">
+                  <template v-if="extending.sizes">
+                    Expires in {{ expiresIn(extendedExpiry(folder), now) }} ·
+                    <span class="font-bold text-gray-900 dark:text-zinc-100">{{ extendCost }} credits</span>
+                  </template>
+                  <template v-else>Loading files…</template>
+                </p>
+                <button
+                  type="button"
+                  :disabled="!extending.sizes || extending.busy"
+                  :class="[PRIMARY, 'px-3 py-1.5']"
+                  data-test="extend-confirm"
+                  @click="confirmExtend(folder)"
+                >
+                  {{ extending.busy ? 'Extending…' : 'Extend' }}
+                </button>
+              </div>
+            </template>
           </div>
 
           <div v-if="expanded[folder.id]" class="border-t border-gray-100 dark:border-zinc-800 px-3 py-2" data-test="folder-files">

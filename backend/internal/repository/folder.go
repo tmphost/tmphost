@@ -29,6 +29,9 @@ type (
 		ListExpiredFolders(ctx context.Context, now time.Time, limit int) ([]model.Folder, error)
 		// UpdateFolderTitle sets a folder's title.
 		UpdateFolderTitle(ctx context.Context, id int64, title string) error
+		// ExtendFolder moves a folder's expiry to expiresAt, if it is still
+		// live at now and expires before expiresAt; else ErrNotFound.
+		ExtendFolder(ctx context.Context, id int64, now, expiresAt time.Time) error
 		DeleteFolder(ctx context.Context, id int64) error
 	}
 
@@ -88,6 +91,19 @@ func (r *folderRepository) ListExpiredFolders(ctx context.Context, now time.Time
 
 func (r *folderRepository) UpdateFolderTitle(ctx context.Context, id int64, title string) error {
 	return r.db.WithContext(ctx).Model(&model.Folder{}).Where("id = ?", id).Update("title", title).Error
+}
+
+func (r *folderRepository) ExtendFolder(ctx context.Context, id int64, now, expiresAt time.Time) error {
+	res := r.db.WithContext(ctx).Model(&model.Folder{}).
+		Where("id = ? AND expires_at > ? AND expires_at < ?", id, now, expiresAt).
+		Update("expires_at", expiresAt)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *folderRepository) DeleteFolder(ctx context.Context, id int64) error {

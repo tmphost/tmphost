@@ -337,6 +337,113 @@ func TestUpdateFolder_Errors(t *testing.T) {
 	})
 }
 
+func TestExtendFolder(t *testing.T) {
+	ctx := context.Background()
+	rq := &entity.ExtendFolderRequest{UserID: 7, FolderID: 1000, Minutes: 45}
+
+	e := newEnv(t)
+	e.liveFolder(time.Hour)
+	e.storage.EXPECT().List(ctx, _prefix).Return([]storage.Object{
+		{Key: _prefix + "a.jpg", Size: 3 << 19}, {Key: _prefix + "b.txt", Size: 10 << 10},
+	}, nil)
+	// (2 units + 1 unit) x 2 started blocks of 45 minutes.
+	gomock.InOrder(
+		e.users.EXPECT().SpendCredits(ctx, int64(7), 6).Return(nil),
+		e.folders.EXPECT().ExtendFolder(ctx, int64(1000), _now, _now.Add(105*time.Minute)).Return(nil),
+	)
+	rs, err := e.ctrl.ExtendFolder(ctx, rq)
+	require.NoError(t, err)
+	assert.Equal(t, 6, rs.CreditsSpent)
+	assert.Equal(t, _now.Add(105*time.Minute), rs.Folder.ExpiresAt)
+	assert.Equal(t, "000000rs", rs.Folder.DefaultTitle)
+	assert.Equal(t, _host, rs.Folder.URL)
+
+	e = newEnv(t)
+	e.liveFolder(time.Hour)
+	e.storage.EXPECT().List(ctx, _prefix).Return(nil, nil)
+	e.folders.EXPECT().ExtendFolder(ctx, int64(1000), _now, _now.Add(2*time.Hour)).Return(nil)
+	rs, err = e.ctrl.ExtendFolder(ctx, &entity.ExtendFolderRequest{UserID: 7, FolderID: 1000, Minutes: 60})
+	require.NoError(t, err)
+	assert.Zero(t, rs.CreditsSpent, "an empty folder is free, up to the max TTL")
+}
+
+func TestExtendFolder_Errors(t *testing.T) {
+	ctx := context.Background()
+	rq := &entity.ExtendFolderRequest{UserID: 7, FolderID: 1000, Minutes: 30}
+	file := []storage.Object{{Key: _prefix + "a", Size: 1}}
+
+	t.Run("not owner", func(t *testing.T) {
+		e := newEnv(t)
+		e.liveFolder(time.Hour)
+		_, err := e.ctrl.ExtendFolder(ctx, &entity.ExtendFolderRequest{UserID: 8, FolderID: 1000, Minutes: 30})
+		assert.ErrorIs(t, err, ErrNotFound)
+	})
+	t.Run("invalid minutes", func(t *testing.T) {
+		for _, minutes := range []int{0, -5, 61} {
+			e := newEnv(t)
+			e.liveFolder(time.Hour)
+			_, err := e.ctrl.ExtendFolder(ctx, &entity.ExtendFolderRequest{UserID: 7, FolderID: 1000, Minutes: minutes})
+			assert.ErrorIs(t, err, ErrInvalidTTL, minutes)
+			assert.Contains(t, err.Error(), "at most 120 more minutes")
+		}
+	})
+	t.Run("list fails", func(t *testing.T) {
+		e := newEnv(t)
+		e.liveFolder(time.Hour)
+		e.storage.EXPECT().List(ctx, _prefix).Return(nil, errBoom)
+		_, err := e.ctrl.ExtendFolder(ctx, rq)
+		assert.ErrorIs(t, err, errBoom)
+	})
+	t.Run("insufficient", func(t *testing.T) {
+		e := newEnv(t)
+		e.liveFolder(time.Hour)
+		e.storage.EXPECT().List(ctx, _prefix).Return(file, nil)
+		e.users.EXPECT().SpendCredits(ctx, int64(7), 1).Return(repository.ErrInsufficientCredits)
+		_, err := e.ctrl.ExtendFolder(ctx, rq)
+		assert.ErrorIs(t, err, ErrInsufficientCredits)
+		assert.Contains(t, err.Error(), "1 needed")
+	})
+	t.Run("spend error", func(t *testing.T) {
+		e := newEnv(t)
+		e.liveFolder(time.Hour)
+		e.storage.EXPECT().List(ctx, _prefix).Return(file, nil)
+		e.users.EXPECT().SpendCredits(ctx, int64(7), 1).Return(errBoom)
+		_, err := e.ctrl.ExtendFolder(ctx, rq)
+		assert.ErrorIs(t, err, errBoom)
+	})
+	t.Run("expired meanwhile refunds", func(t *testing.T) {
+		e := newEnv(t)
+		e.liveFolder(time.Hour)
+		e.storage.EXPECT().List(ctx, _prefix).Return(file, nil)
+		e.users.EXPECT().SpendCredits(ctx, int64(7), 1).Return(nil)
+		e.folders.EXPECT().ExtendFolder(ctx, int64(1000), _now, _now.Add(90*time.Minute)).Return(repository.ErrNotFound)
+		e.users.EXPECT().RefundCredits(ctx, int64(7), 1).Return(nil)
+		_, err := e.ctrl.ExtendFolder(ctx, rq)
+		assert.ErrorIs(t, err, ErrNotFound)
+	})
+	t.Run("update and refund fail", func(t *testing.T) {
+		e := newEnv(t)
+		e.liveFolder(time.Hour)
+		refundErr := errors.New("refund failed")
+		e.storage.EXPECT().List(ctx, _prefix).Return(file, nil)
+		e.users.EXPECT().SpendCredits(ctx, int64(7), 1).Return(nil)
+		e.folders.EXPECT().ExtendFolder(ctx, int64(1000), _now, _now.Add(90*time.Minute)).Return(errBoom)
+		e.users.EXPECT().RefundCredits(ctx, int64(7), 1).Return(refundErr)
+		_, err := e.ctrl.ExtendFolder(ctx, rq)
+		assert.ErrorIs(t, err, errBoom)
+		assert.ErrorIs(t, err, refundErr)
+		assert.NotErrorIs(t, err, ErrNotFound)
+	})
+	t.Run("empty folder update fails", func(t *testing.T) {
+		e := newEnv(t)
+		e.liveFolder(time.Hour)
+		e.storage.EXPECT().List(ctx, _prefix).Return(nil, nil)
+		e.folders.EXPECT().ExtendFolder(ctx, int64(1000), _now, _now.Add(90*time.Minute)).Return(errBoom)
+		_, err := e.ctrl.ExtendFolder(ctx, rq)
+		assert.ErrorIs(t, err, errBoom)
+	})
+}
+
 func TestValidTitle(t *testing.T) {
 	assert.True(t, ValidTitle(""))
 	assert.True(t, ValidTitle(strings.Repeat("ü", MaxTitleLength)))

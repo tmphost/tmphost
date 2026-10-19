@@ -76,6 +76,19 @@ func (h *Folder) Update(c fiber.Ctx) error {
 	return sendJSON(c, fiber.StatusOK, mapper.FromUpdateFolderResponseEntityToHTTPResponse(rs))
 }
 
+// Extend makes a folder expire later, for credits.
+func (h *Folder) Extend(c fiber.Ctx) error {
+	rq := mapper.FromHTTPRequestToExtendFolderRequestEntity(c)
+	if rq == nil {
+		return fiber.ErrBadRequest
+	}
+	rs, err := h.controller.ExtendFolder(c.Context(), rq)
+	if err != nil {
+		return sendFolderError(c, err)
+	}
+	return sendJSON(c, fiber.StatusOK, mapper.FromExtendFolderResponseEntityToHTTPResponse(rs))
+}
+
 // Delete deletes a folder and its files.
 func (h *Folder) Delete(c fiber.Ctx) error {
 	rq := mapper.FromHTTPRequestToDeleteFolderRequestEntity(c)

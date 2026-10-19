@@ -59,6 +59,14 @@ func TestFolderRepository(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got.Title, "untitled by default")
 
+	require.NoError(t, repo.ExtendFolder(ctx, 2, now, now.Add(3*time.Hour)))
+	got, err = repo.FindFolderByID(ctx, 2)
+	require.NoError(t, err)
+	assert.True(t, now.Add(3*time.Hour).Equal(got.ExpiresAt))
+	assert.ErrorIs(t, repo.ExtendFolder(ctx, 1, now, now.Add(time.Hour)), ErrNotFound, "expired")
+	assert.ErrorIs(t, repo.ExtendFolder(ctx, 3, now, now.Add(time.Hour)), ErrNotFound, "never shortens")
+	assert.ErrorIs(t, repo.ExtendFolder(ctx, 99, now, now.Add(time.Hour)), ErrNotFound)
+
 	require.NoError(t, repo.DeleteFolder(ctx, 4))
 	_, err = repo.FindFolderByID(ctx, 4)
 	assert.ErrorIs(t, err, ErrNotFound)
@@ -80,6 +88,7 @@ func TestFolderRepository_DBErrors(t *testing.T) {
 	_, err = repo.ListExpiredFolders(ctx, time.Now(), 1)
 	assert.Error(t, err)
 	assert.Error(t, repo.UpdateFolderTitle(ctx, 1, "x"))
+	assert.Error(t, repo.ExtendFolder(ctx, 1, time.Now(), time.Now()))
 	assert.Error(t, repo.DeleteFolder(ctx, 1))
 }
 

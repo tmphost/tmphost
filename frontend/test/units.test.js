@@ -13,6 +13,7 @@ import {
   expiresIn,
   fileItems,
   formatBytes,
+  extendOptions,
   formatMinutes,
   isFileDrag,
   relativePath,
@@ -168,6 +169,12 @@ describe('providers', () => {
 })
 
 describe('files utils', () => {
+  it('extendOptions keeps the lifetime within the max TTL', () => {
+    expect(extendOptions(30, 432000)).toEqual(TTL_CHOICES)
+    expect(extendOptions(45, 120)).toEqual([30, 60])
+    expect(extendOptions(100, 120)).toEqual([])
+  })
+
   it('ttlOptions caps the choices', () => {
     expect(ttlOptions(432000)).toEqual(TTL_CHOICES)
     expect(ttlOptions(120)).toEqual([30, 60, 120])

@@ -179,6 +179,16 @@ export async function renameFolder(id, title) {
   return body.folder
 }
 
+// extendFolder makes a folder expire minutes later. It returns
+// { folder, creditsSpent }: each file costs as an upload would for the
+// added time.
+export function extendFolder(id, minutes) {
+  return request('POST', `/folders/${encodeURIComponent(id)}/extend`, {
+    body: { minutes },
+    fallback: 'Failed to extend folder',
+  })
+}
+
 export async function deleteFolder(id) {
   await request('DELETE', `/folders/${encodeURIComponent(id)}`, { fallback: 'Failed to delete folder' })
 }

@@ -13,6 +13,12 @@ export function ttlOptions(maxTtlMinutes) {
   return TTL_CHOICES.filter((m) => m <= maxTtlMinutes)
 }
 
+// extendOptions are the TTL_CHOICES a folder with remainingMinutes left can
+// be extended by without living longer than maxTtlMinutes from now.
+export function extendOptions(remainingMinutes, maxTtlMinutes) {
+  return TTL_CHOICES.filter((m) => remainingMinutes + m <= maxTtlMinutes)
+}
+
 // formatMinutes renders a duration such as "30 min", "6 h", "7 days".
 export function formatMinutes(minutes) {
   if (minutes >= DAY_MIN && minutes % DAY_MIN === 0) {

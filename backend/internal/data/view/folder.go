@@ -50,6 +50,17 @@ type (
 		Title *string `json:"title"`
 	}
 
+	// ExtendFolderRequest is the POST /folders/:id/extend body.
+	ExtendFolderRequest struct {
+		Minutes int `json:"minutes"`
+	}
+
+	// ExtendFolderResponse is the extended folder and what it cost.
+	ExtendFolderResponse struct {
+		Folder       Folder `json:"folder"`
+		CreditsSpent int    `json:"creditsSpent"`
+	}
+
 	// FolderResponse wraps a folder.
 	FolderResponse struct {
 		Folder Folder `json:"folder"`
