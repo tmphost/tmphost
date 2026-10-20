@@ -59,8 +59,9 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
 - With S3, downloads of files over 1 MB (`TMPHOSTIO_STORAGE_REDIRECT_OVER_MB`,
   0 turns it off) on public URLs, the API and the CLI answer `302 Found` to
   a URL of the bucket signed for 15 minutes (`TMPHOSTIO_STORAGE_REDIRECT_TTL`),
-  so large files don't pass through tmphost. HTML pages, files still in
-  memory and MCP downloads (base64Content/textContent) are served directly.
+  so large files don't pass through tmphost. HTML files (`.html`, `.htm`,
+  whatever their size, on every route), files still in memory and MCP
+  downloads (base64Content/textContent) are served directly.
 - Public URLs: `<TMPHOSTIO_BASE_URL>/files/<userId>/<folderId>/<path>` by
   default, or `<folderId>.<publicDomain>/<path>` with subdomains on
   (`TMPHOSTIO_FILES_SUBDOMAINS`, `TMPHOSTIO_FILES_PUBLIC_DOMAIN`, which defaults

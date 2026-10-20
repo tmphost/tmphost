@@ -1035,6 +1035,9 @@ func TestOpenFile_Redirects(t *testing.T) {
 		"not listed":      {files, "other.bin", true},
 		"folder w/o list": {nil, "dir/big file.bin", true},
 		"no redirect":     {files, "dir/big file.bin", false},
+		// An HTML file stays on our domain, whatever its size.
+		"html": {model.FolderFiles{"big.html": big, "big.HTM": big}, "big.html", true},
+		"htm":  {model.FolderFiles{"big.html": big, "big.HTM": big}, "big.HTM", true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			e, _ := newSigningEnv(t)
