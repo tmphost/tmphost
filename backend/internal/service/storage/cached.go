@@ -8,13 +8,14 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"math"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/hashicorp/golang-lru/v2/expirable"
+	lru "github.com/hashicorp/golang-lru/v2"
 	zlog "github.com/rs/zerolog/log"
 )
 
@@ -26,10 +27,8 @@ const (
 )
 
 type (
-	// CacheConfig sizes the in-memory cache of fresh uploads.
+	// CacheConfig sizes the in-memory cache of uploads.
 	CacheConfig struct {
-		// TTL is how long an upload stays in memory after it is written.
-		TTL time.Duration
 		// MaxBytes caps the bytes held in memory; past it the least
 		// recently used uploads are dropped first. Uploads still being
 		// written in the background have a budget of the same size.
@@ -44,7 +43,7 @@ type (
 		maxBytes   int64
 		async      bool
 		retryDelay time.Duration
-		lru        *expirable.LRU[string, cacheEntry]
+		lru        *lru.Cache[string, cacheEntry]
 		size       atomic.Int64
 
 		// mu guards writes, writing and the cache's writes.
@@ -73,16 +72,18 @@ type (
 	}
 )
 
-// NewCached wraps inner so that each upload is also kept in memory for
-// cfg.TTL after it is written, and served from there while it is fresh.
-// Reads of anything else go to inner and are not cached. A zero TTL or byte
-// cap turns the cache off and returns inner as it is.
+// NewCached wraps inner so that each upload is also kept in memory, and
+// served from there until the byte cap pushes it out or it is overwritten
+// or deleted. Reads of anything else go to inner and are not cached. A zero
+// byte cap turns the cache off and returns inner as it is.
 func NewCached(inner Service, cfg CacheConfig) Service {
-	if cfg.TTL <= 0 || cfg.MaxBytes <= 0 {
+	if cfg.MaxBytes <= 0 {
 		return inner
 	}
 	c := &cached{Service: inner, maxBytes: cfg.MaxBytes, async: cfg.Async, retryDelay: _retryDelay, writes: map[string]*write{}}
-	c.lru = expirable.NewLRU(0, c.evicted, cfg.TTL)
+	// The byte cap bounds the cache, not the entry count. NewWithEvict
+	// only fails on a size below 1.
+	c.lru, _ = lru.NewWithEvict(math.MaxInt, c.evicted)
 	return c
 }
 
@@ -106,7 +107,7 @@ func Flush(ctx context.Context, s Service) error {
 	}
 }
 
-// evicted runs under the LRU's own lock, so it only touches the counter.
+// evicted may run under the LRU's own lock, so it only touches the counter.
 func (c *cached) evicted(_ string, e cacheEntry) {
 	c.size.Add(-int64(len(e.data)))
 }
@@ -210,7 +211,7 @@ func (c *cached) Get(ctx context.Context, key string) (io.ReadCloser, Object, er
 }
 
 // SignGet leaves what is in memory to Get: a background write isn't in
-// the inner storage yet, and a fresh upload is served from memory anyway.
+// the inner storage yet, and a cached upload is served from memory anyway.
 // Anything else is signed by the inner storage, when it can sign.
 func (c *cached) SignGet(ctx context.Context, key string, opts SignOptions) (string, error) {
 	c.mu.Lock()

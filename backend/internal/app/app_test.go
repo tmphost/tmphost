@@ -248,7 +248,7 @@ func TestSettingsFromConfig(t *testing.T) {
 	cfg.Credits.SignupGrant = 7
 	cfg.Postgres = PostgresConfig{Enabled: true, DSN: "postgres://u:p@h:1/d"}
 	cfg.S3 = S3Config{Endpoint: "e", Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", UsePathStyle: true}
-	cfg.Storage = StorageConfig{Driver: "s3", LocalPath: "/files", Cache: StorageCacheConfig{TTL: 5 * time.Minute, MaxMB: 256, Async: true}, Redirect: StorageRedirectConfig{OverMB: 1, TTL: 15 * time.Minute}}
+	cfg.Storage = StorageConfig{Driver: "s3", LocalPath: "/files", Cache: StorageCacheConfig{MaxMB: 256, Async: true}, Redirect: StorageRedirectConfig{OverMB: 1, TTL: 15 * time.Minute}}
 	cfg.Files = FilesConfig{MaxTTLMinutes: 60, MaxUploadMB: 2, AnonymousMaxTTLMinutes: 15, Subdomains: true, PublicDomain: "tmp.site"}
 	cfg.App.SitesDomain = "tmphost.io"
 	cfg.TLS = TLSConfig{Enabled: true, Email: "e@x.io", Lego: LegoConfig{Enabled: true, CloudflareAPIToken: "cf"}}
@@ -307,9 +307,9 @@ func TestOpenStorage(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, s)
 
-	// With the cache on, a fresh upload is served from memory.
+	// With the cache on, an upload is served from memory.
 	root := filepath.Join(t.TempDir(), "files")
-	s, err = openStorage(Config{Storage: StorageConfig{Driver: "local", LocalPath: root, Cache: StorageCacheConfig{TTL: time.Minute, MaxMB: 1}}})
+	s, err = openStorage(Config{Storage: StorageConfig{Driver: "local", LocalPath: root, Cache: StorageCacheConfig{MaxMB: 1}}})
 	require.NoError(t, err)
 	require.NoError(t, s.Put(context.Background(), "u1/f1/a.txt", []byte("hi")))
 	require.NoError(t, os.RemoveAll(root))

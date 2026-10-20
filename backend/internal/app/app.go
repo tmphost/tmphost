@@ -182,12 +182,11 @@ type (
 		TTL    time.Duration `yaml:"ttl"`
 	}
 
-	// StorageCacheConfig is the "storage.cache" section: fresh uploads are
-	// kept in memory and served from there for TTL. A zero TTL or MaxMB
+	// StorageCacheConfig is the "storage.cache" section: uploads are kept
+	// in memory and served from there, up to MaxMB in all. A zero MaxMB
 	// turns it off.
 	StorageCacheConfig struct {
-		TTL   time.Duration `yaml:"ttl"`
-		MaxMB int           `yaml:"maxMb"`
+		MaxMB int `yaml:"maxMb"`
 		// Async answers an upload to S3 once it is in memory and writes it
 		// to the bucket in the background. Local disk writes stay
 		// synchronous.
@@ -201,7 +200,7 @@ type (
 
 	// FolderCacheConfig is the "cache.folders" section: folders looked up
 	// by ID are kept in memory, up to MaxMB in all, until they are written
-	// to or expire. A zero MaxMB turns it off.
+	// to or deleted. A zero MaxMB turns it off.
 	FolderCacheConfig struct {
 		MaxMB int `yaml:"maxMb"`
 	}
@@ -496,7 +495,7 @@ func openStorage(cfg Config) (storage.Service, error) {
 	}
 	c := cfg.Storage.Cache
 	return storage.NewCached(store, storage.CacheConfig{
-		TTL: c.TTL, MaxBytes: int64(c.MaxMB) << 20, Async: c.Async && cfg.Storage.Driver == setupctrl.StorageS3,
+		MaxBytes: int64(c.MaxMB) << 20, Async: c.Async && cfg.Storage.Driver == setupctrl.StorageS3,
 	}), nil
 }
 

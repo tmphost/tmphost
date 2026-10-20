@@ -109,14 +109,14 @@ func done[T any](ch <-chan T) bool {
 }
 
 var (
-	syncCache  = CacheConfig{TTL: time.Minute, MaxBytes: 1 << 20}
-	asyncCache = CacheConfig{TTL: time.Minute, MaxBytes: 1 << 20, Async: true}
+	syncCache  = CacheConfig{MaxBytes: 1 << 20}
+	asyncCache = CacheConfig{MaxBytes: 1 << 20, Async: true}
 )
 
 func TestNewCached_Off(t *testing.T) {
 	inner, _ := newLocal(t)
-	assert.Same(t, Service(inner), NewCached(inner, CacheConfig{MaxBytes: 1}))
-	assert.Same(t, Service(inner), NewCached(inner, CacheConfig{TTL: time.Minute}))
+	assert.Same(t, Service(inner), NewCached(inner, CacheConfig{}))
+	assert.Same(t, Service(inner), NewCached(inner, CacheConfig{Async: true}))
 	assert.NoError(t, Flush(context.Background(), inner))
 }
 
@@ -145,22 +145,23 @@ func TestCached_ServesFreshUploadsFromMemory(t *testing.T) {
 	assert.ErrorIs(t, err, ErrNotFound)
 }
 
-func TestCached_Expires(t *testing.T) {
+func TestCached_NeverExpires(t *testing.T) {
 	ctx := context.Background()
-	s, inner, _ := newCached(t, CacheConfig{TTL: 50 * time.Millisecond, MaxBytes: 1 << 20})
+	s, inner, _ := newCached(t, syncCache)
 	require.NoError(t, s.Put(ctx, "u1/f1/a.txt", []byte("hello")))
 	require.NoError(t, inner.Delete(ctx, "u1/f1/a.txt"))
 
-	require.Eventually(t, func() bool {
-		_, err := read(t, s, "u1/f1/a.txt")
-		return errors.Is(err, ErrNotFound)
-	}, 5*time.Second, 10*time.Millisecond)
-	require.Eventually(t, func() bool { return s.size.Load() == 0 }, 5*time.Second, 10*time.Millisecond)
+	// With room to spare, an upload stays in memory however old it gets.
+	time.Sleep(50 * time.Millisecond)
+	got, err := read(t, s, "u1/f1/a.txt")
+	require.NoError(t, err)
+	assert.Equal(t, "hello", got)
+	assert.Equal(t, int64(5), s.size.Load())
 }
 
 func TestCached_ByteCap(t *testing.T) {
 	ctx := context.Background()
-	s, inner, _ := newCached(t, CacheConfig{TTL: time.Minute, MaxBytes: 10})
+	s, inner, _ := newCached(t, CacheConfig{MaxBytes: 10})
 
 	require.NoError(t, s.Put(ctx, "u1/f1/a", []byte("aaaaaa")))
 	require.NoError(t, s.Put(ctx, "u1/f1/b", []byte("bbbbbb")))
@@ -286,7 +287,7 @@ func TestCached_AsyncPut(t *testing.T) {
 
 func TestCached_AsyncBudget(t *testing.T) {
 	ctx := context.Background()
-	s, inner, _ := newCached(t, CacheConfig{TTL: time.Minute, MaxBytes: 4, Async: true})
+	s, inner, _ := newCached(t, CacheConfig{MaxBytes: 4, Async: true})
 
 	h := inner.hold("u1/f1/a")
 	require.NoError(t, s.Put(ctx, "u1/f1/a", []byte("aaa")))
@@ -332,7 +333,7 @@ func (s signingStore) SignGet(_ context.Context, key string, opts SignOptions) (
 
 func TestCached_SignGet(t *testing.T) {
 	ctx := context.Background()
-	s, _, _ := newCached(t, CacheConfig{TTL: time.Minute, MaxBytes: 1 << 20})
+	s, _, _ := newCached(t, syncCache)
 	// The inner storage doesn't sign: everything is read with Get.
 	u, err := s.SignGet(ctx, "u1/f1/a", SignOptions{TTL: time.Minute})
 	require.NoError(t, err)

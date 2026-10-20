@@ -29,7 +29,6 @@ const (
 type cachedFolders struct {
 	FolderRepository
 	maxBytes int64
-	now      func() time.Time
 
 	// mu guards lru, size and gen.
 	mu   sync.Mutex
@@ -43,13 +42,15 @@ type cachedFolders struct {
 
 // NewCachedFolderRepository wraps inner so that folder lookups by ID are
 // served from memory, up to maxBytes in all (least recently used dropped
-// first). A write to a folder drops it, and so does its expiry; the next
-// lookup reads it again. A zero maxBytes returns inner as it is.
+// first). A folder stays cached until the byte cap pushes it out or a write
+// to it (deleting it included) drops it; the next lookup reads it again.
+// Its expiry doesn't drop it: callers check ExpiresAt themselves. A zero
+// maxBytes returns inner as it is.
 func NewCachedFolderRepository(inner FolderRepository, maxBytes int64) FolderRepository {
 	if maxBytes <= 0 {
 		return inner
 	}
-	c := &cachedFolders{FolderRepository: inner, maxBytes: maxBytes, now: time.Now}
+	c := &cachedFolders{FolderRepository: inner, maxBytes: maxBytes}
 	// The byte cap bounds the cache, not the entry count. NewLRU only
 	// fails on a size below 1.
 	c.lru, _ = simplelru.NewLRU(math.MaxInt, c.evicted)
@@ -79,11 +80,8 @@ func (c *cachedFolders) evicted(_ int64, f model.Folder) {
 func (c *cachedFolders) FindFolderByID(ctx context.Context, id int64) (model.Folder, error) {
 	c.mu.Lock()
 	if f, ok := c.lru.Get(id); ok {
-		if c.now().Before(f.ExpiresAt) {
-			c.mu.Unlock()
-			return clone(f), nil
-		}
-		c.lru.Remove(id)
+		c.mu.Unlock()
+		return clone(f), nil
 	}
 	gen := c.gen
 	c.mu.Unlock()
@@ -101,7 +99,7 @@ func (c *cachedFolders) store(gen uint64, f model.Folder) {
 	n := folderBytes(f)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if gen != c.gen || n > c.maxBytes || !c.now().Before(f.ExpiresAt) {
+	if gen != c.gen || n > c.maxBytes {
 		return
 	}
 	// Add doesn't call evicted when it replaces a key.
