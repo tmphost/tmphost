@@ -518,6 +518,7 @@ func accessToken(t *testing.T, a *App, clientID string) string {
 // sweep.
 func TestFileHosting(t *testing.T) {
 	cfg := testConfig(t)
+	cfg.Storage.Cache.MaxMB, cfg.Cache.Folders.MaxMB = 1, 1
 	a, err := New(cfg, fstest.MapFS{})
 	require.NoError(t, err)
 	require.NoError(t, a.db.Create(&model.User{ID: 7, Email: "a@x", Credits: 10, CreditsRenewAt: time.Now().Add(time.Hour)}).Error)
@@ -598,6 +599,21 @@ func TestFileHosting(t *testing.T) {
 	entries, err := os.ReadDir(filepath.Join(cfg.Storage.LocalPath, "u7"))
 	require.NoError(t, err)
 	assert.Empty(t, entries)
+
+	// The sweep dropped the folder and its uploads from memory too: with
+	// the folder put back by hand, the new record and bytes are served.
+	require.NoError(t, a.db.Create(&model.Folder{ID: idgen.ParseFolderID(id), UserID: 7, ExpiresAt: time.Now().Add(time.Hour), Title: "back"}).Error)
+	dir := filepath.Join(cfg.Storage.LocalPath, "u7", id, "site")
+	require.NoError(t, os.MkdirAll(dir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>new</h1>"), 0o600))
+	res, body = call(http.MethodGet, "/files/7/"+id+"/site/index.html", "", "")
+	require.Equal(t, http.StatusOK, res.StatusCode, body)
+	assert.Equal(t, "<h1>new</h1>", body)
+	res, body = call(http.MethodGet, "/api/v1/folders/"+id, "", "")
+	require.Equal(t, http.StatusOK, res.StatusCode, body)
+	assert.Contains(t, body, `"title":"back"`)
+	require.NoError(t, a.db.Model(&model.Folder{}).Where("1 = 1").Update("expires_at", time.Now().Add(-time.Second)).Error)
+	a.sweepFolders()
 
 	a.sweepFolders() // nothing to do
 	// A failing run is logged, not fatal.
