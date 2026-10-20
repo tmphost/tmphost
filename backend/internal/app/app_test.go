@@ -248,7 +248,7 @@ func TestSettingsFromConfig(t *testing.T) {
 	cfg.Credits.SignupGrant = 7
 	cfg.Postgres = PostgresConfig{Enabled: true, DSN: "postgres://u:p@h:1/d"}
 	cfg.S3 = S3Config{Endpoint: "e", Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", UsePathStyle: true}
-	cfg.Storage = StorageConfig{Driver: "s3", LocalPath: "/files", Cache: StorageCacheConfig{TTL: 5 * time.Minute, MaxMB: 256, Async: true}, Redirect: StorageRedirectConfig{OverMB: 1, TTL: 15 * time.Minute}}
+	cfg.Storage = StorageConfig{Driver: "s3", LocalPath: "/files", Cache: StorageCacheConfig{MaxMB: 256, Async: true}, Redirect: StorageRedirectConfig{OverMB: 1, TTL: 15 * time.Minute}}
 	cfg.Files = FilesConfig{MaxTTLMinutes: 60, MaxUploadMB: 2, AnonymousMaxTTLMinutes: 15, Subdomains: true, PublicDomain: "tmp.site"}
 	cfg.App.SitesDomain = "tmphost.io"
 	cfg.TLS = TLSConfig{Enabled: true, Email: "e@x.io", Lego: LegoConfig{Enabled: true, CloudflareAPIToken: "cf"}}
@@ -307,9 +307,9 @@ func TestOpenStorage(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, s)
 
-	// With the cache on, a fresh upload is served from memory.
+	// With the cache on, an upload is served from memory.
 	root := filepath.Join(t.TempDir(), "files")
-	s, err = openStorage(Config{Storage: StorageConfig{Driver: "local", LocalPath: root, Cache: StorageCacheConfig{TTL: time.Minute, MaxMB: 1}}})
+	s, err = openStorage(Config{Storage: StorageConfig{Driver: "local", LocalPath: root, Cache: StorageCacheConfig{MaxMB: 1}}})
 	require.NoError(t, err)
 	require.NoError(t, s.Put(context.Background(), "u1/f1/a.txt", []byte("hi")))
 	require.NoError(t, os.RemoveAll(root))
@@ -518,6 +518,7 @@ func accessToken(t *testing.T, a *App, clientID string) string {
 // sweep.
 func TestFileHosting(t *testing.T) {
 	cfg := testConfig(t)
+	cfg.Storage.Cache.MaxMB, cfg.Cache.Folders.MaxMB = 1, 1
 	a, err := New(cfg, fstest.MapFS{})
 	require.NoError(t, err)
 	require.NoError(t, a.db.Create(&model.User{ID: 7, Email: "a@x", Credits: 10, CreditsRenewAt: time.Now().Add(time.Hour)}).Error)
@@ -598,6 +599,21 @@ func TestFileHosting(t *testing.T) {
 	entries, err := os.ReadDir(filepath.Join(cfg.Storage.LocalPath, "u7"))
 	require.NoError(t, err)
 	assert.Empty(t, entries)
+
+	// The sweep dropped the folder and its uploads from memory too: with
+	// the folder put back by hand, the new record and bytes are served.
+	require.NoError(t, a.db.Create(&model.Folder{ID: idgen.ParseFolderID(id), UserID: 7, ExpiresAt: time.Now().Add(time.Hour), Title: "back"}).Error)
+	dir := filepath.Join(cfg.Storage.LocalPath, "u7", id, "site")
+	require.NoError(t, os.MkdirAll(dir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>new</h1>"), 0o600))
+	res, body = call(http.MethodGet, "/files/7/"+id+"/site/index.html", "", "")
+	require.Equal(t, http.StatusOK, res.StatusCode, body)
+	assert.Equal(t, "<h1>new</h1>", body)
+	res, body = call(http.MethodGet, "/api/v1/folders/"+id, "", "")
+	require.Equal(t, http.StatusOK, res.StatusCode, body)
+	assert.Contains(t, body, `"title":"back"`)
+	require.NoError(t, a.db.Model(&model.Folder{}).Where("1 = 1").Update("expires_at", time.Now().Add(-time.Second)).Error)
+	a.sweepFolders()
 
 	a.sweepFolders() // nothing to do
 	// A failing run is logged, not fatal.

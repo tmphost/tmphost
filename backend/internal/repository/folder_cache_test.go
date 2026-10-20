@@ -34,17 +34,14 @@ func (r *countingFolders) FindFolderByID(ctx context.Context, id int64) (model.F
 type folderCacheFixture struct {
 	db    *countingFolders
 	cache *cachedFolders
-	clock time.Time
 }
 
 func newFolderCache(t *testing.T, maxBytes int64, folders ...model.Folder) *folderCacheFixture {
 	t.Helper()
 	x := &folderCacheFixture{
-		db:    &countingFolders{FolderRepository: NewFolderRepository(newDB(t)), reads: map[int64]int{}},
-		clock: time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC),
+		db: &countingFolders{FolderRepository: NewFolderRepository(newDB(t)), reads: map[int64]int{}},
 	}
 	x.cache = NewCachedFolderRepository(x.db, maxBytes).(*cachedFolders)
-	x.cache.now = func() time.Time { return x.clock }
 	for _, f := range folders {
 		_, err := x.db.CreateFolder(context.Background(), f)
 		require.NoError(t, err)
@@ -83,16 +80,12 @@ func TestCachedFolders_FindFolderByID(t *testing.T) {
 	assert.ErrorIs(t, err, ErrNotFound)
 	assert.Equal(t, 2, x.db.reads[99], "misses are not cached")
 
+	// Expiry doesn't drop a folder: callers check ExpiresAt, and the
+	// sweep's DeleteFolder drops it.
 	x.find(t, 2)
-	x.find(t, 2)
-	assert.Equal(t, 2, x.db.reads[2], "expired folders are not cached")
-
-	// At its expiry the folder is dropped and read again.
-	x.clock = now.Add(time.Hour)
-	x.find(t, 1)
-	assert.Equal(t, 2, x.db.reads[1])
-	assert.Zero(t, x.cache.size)
-	assert.Zero(t, x.cache.lru.Len())
+	assert.True(t, now.Add(-time.Minute).Equal(x.find(t, 2).ExpiresAt))
+	assert.Equal(t, 1, x.db.reads[2], "expired folders stay cached")
+	assert.Equal(t, 2, x.cache.lru.Len())
 }
 
 func TestCachedFolders_FilesAreCopied(t *testing.T) {

@@ -43,10 +43,10 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   time of its files (so listings and redirects need no storage call), never
   their bytes; a job deletes expired folders every minute. Folder IDs are 8 random lowercase base36
   characters, so public URLs can't be guessed.
-- Fresh uploads are also kept in memory and served from there for their
-  first 5 minutes (`TMPHOSTIO_STORAGE_CACHE_TTL`), up to 256 MB in all
-  (`TMPHOSTIO_STORAGE_CACHE_MAX_MB`, least recently used dropped first; 0
-  turns it off). Deleting a file or folder drops it from memory too. With
+- Uploads are also kept in memory and served from there, with no time
+  limit, up to 256 MB in all (`TMPHOSTIO_STORAGE_CACHE_MAX_MB`, least
+  recently used dropped first; 0 turns it off). Deleting a file or folder
+  drops it from memory too. With
   S3, an upload is answered once it is in memory and written to the bucket
   in the background (`TMPHOSTIO_STORAGE_CACHE_ASYNC`, on by default):
   writes of a path land in order, are retried 3 times, are listed and
@@ -54,8 +54,8 @@ Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
   another 256 MB of writes in flight, uploads wait for the bucket again.
 - Folder lookups are served from memory too, up to 64 MB in all
   (`TMPHOSTIO_CACHE_FOLDERS_MAX_MB`, least recently used dropped first; 0
-  turns it off). Writing to a folder or its expiry drops it, and the next
-  lookup reads it from the database again.
+  turns it off). Only writing to or deleting a folder drops it (not its
+  expiry), and the next lookup reads it from the database again.
 - With S3, downloads of files over 1 MB (`TMPHOSTIO_STORAGE_REDIRECT_OVER_MB`,
   0 turns it off) on public URLs, the API and the CLI answer `302 Found` to
   a URL of the bucket signed for 15 minutes (`TMPHOSTIO_STORAGE_REDIRECT_TTL`),

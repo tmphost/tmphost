@@ -71,10 +71,9 @@ postgres:
 storage:
   driver: ${TMPHOSTIO_STORAGE_DRIVER:local}
   localPath: ${TMPHOSTIO_STORAGE_LOCAL_PATH:./_storage/files}
-  # Fresh uploads stay in memory for ttl and are served from there, up to
-  # maxMb in all (least recently used dropped first). 0 turns it off.
+  # Uploads stay in memory and are served from there, up to maxMb in all
+  # (least recently used dropped first). 0 turns it off.
   cache:
-    ttl: ${TMPHOSTIO_STORAGE_CACHE_TTL:5m}
     maxMb: ${TMPHOSTIO_STORAGE_CACHE_MAX_MB:256}
     # With S3, answer uploads once they are in memory and write them to the
     # bucket in the background.
@@ -86,7 +85,7 @@ storage:
     overMb: ${TMPHOSTIO_STORAGE_REDIRECT_OVER_MB:1}
     ttl: ${TMPHOSTIO_STORAGE_REDIRECT_TTL:15m}
 # Folders looked up by ID stay in memory, up to maxMb in all (least recently
-# used dropped first), until they are written to or expire. 0 turns it off.
+# used dropped first), until they are written to or deleted. 0 turns it off.
 cache:
   folders:
     maxMb: ${TMPHOSTIO_CACHE_FOLDERS_MAX_MB:64}
