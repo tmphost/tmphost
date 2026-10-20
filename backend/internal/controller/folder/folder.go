@@ -567,11 +567,9 @@ func (c *controller) OpenPublicFile(ctx context.Context, rq *entity.OpenPublicFi
 		return nil, ErrNotFound
 	}
 	render := rq.Format == markdown.FormatHTML && markdown.IsMarkdown(p)
-	// A page stays on its folder's URL: its relative links lead to the
-	// folder's other files, and it renders sandboxed. A Markdown page is
-	// rendered here, so it needs the file's bytes.
+	// A Markdown page is rendered here, so it needs the file's bytes.
 	var sign *storage.SignOptions
-	if !render && !strings.HasPrefix(contentType(p), "text/html") {
+	if !render {
 		sign = &storage.SignOptions{ContentType: contentType(p)}
 	}
 	rs, err := c.open(ctx, f, p, sign)
@@ -700,10 +698,15 @@ func (c *controller) ownedFolder(ctx context.Context, userID, id int64) (model.F
 // open opens a file. With sign, a file over the redirect size comes as a
 // signed URL that answers with sign's headers, when the storage signs.
 // The size comes from the folder's Files, so deciding takes no request to
-// the storage.
+// the storage. An HTML file is never redirected, whatever its size: a page
+// stays on our domain, where its relative links lead to the folder's other
+// files and it renders sandboxed.
 func (c *controller) open(ctx context.Context, f model.Folder, p string, sign *storage.SignOptions) (*entity.OpenFileResponse, error) {
 	key := folderPrefix(f) + p
 	meta, known := f.Files[p]
+	if sign != nil && isHTML(p) {
+		sign = nil
+	}
 	if signer, ok := c.storage.(storage.Signer); ok && known && sign != nil && c.redirect > 0 && meta.Size > c.redirect {
 		opts := *sign
 		opts.TTL = c.ttl
@@ -737,6 +740,11 @@ func (c *controller) objects(ctx context.Context, f model.Folder) ([]storage.Obj
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
 	return out, nil
+}
+
+// isHTML reports whether the file at p is served as an HTML page.
+func isHTML(p string) bool {
+	return strings.HasPrefix(contentType(p), "text/html")
 }
 
 // contentType is the media type a file is served with, by its extension.

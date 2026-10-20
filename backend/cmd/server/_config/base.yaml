@@ -80,7 +80,8 @@ storage:
     async: ${TMPHOSTIO_STORAGE_CACHE_ASYNC:true}
   # With S3, downloads of files over overMb (over the web, the API and the
   # CLI; not MCP) redirect to a URL of the bucket signed for ttl (at least
-  # 1m), so large files don't pass through tmphost. 0 turns it off.
+  # 1m), so large files don't pass through tmphost. HTML files are always
+  # served from tmphost, whatever their size. 0 turns it off.
   redirect:
     overMb: ${TMPHOSTIO_STORAGE_REDIRECT_OVER_MB:1}
     ttl: ${TMPHOSTIO_STORAGE_REDIRECT_TTL:15m}
