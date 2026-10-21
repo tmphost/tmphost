@@ -228,7 +228,7 @@ onMounted(refresh)
     </div>
 
     <!-- Settings -->
-    <form v-else class="mx-auto w-full max-w-4xl" data-test="setup-form" @submit.prevent="save">
+    <form v-else class="mx-auto w-full max-w-7xl" data-test="setup-form" @submit.prevent="save">
       <header class="flex flex-wrap items-center gap-3 mb-6">
         <BrandLogo tile class="w-9 h-9" />
         <div class="grow min-w-0">
