@@ -11,13 +11,16 @@ on:
     paths:
       - 'backend/**'
       - 'Makefile'
+      - 'openapi.yaml'
       - '.github/workflows/backend.yml'
   # The Makefile is in scope because mock generation lives there: a change to
-  # it can break the build without touching backend/.
+  # it can break the build without touching backend/. openapi.yaml is too:
+  # a backend test checks it against the routes.
   pull_request:
     paths:
       - 'backend/**'
       - 'Makefile'
+      - 'openapi.yaml'
       - '.github/workflows/backend.yml'
   workflow_dispatch:
 
