@@ -6,13 +6,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 vi.mock('../src/api', () => ({
+  fetchAdminStats: vi.fn(),
+  fetchAdminUser: vi.fn(),
+  listAdminUserCreditActivities: vi.fn(),
+  listAdminUsers: vi.fn(),
   fetchSettings: vi.fn(),
   grantCredits: vi.fn(),
   setupLogin: vi.fn(),
   setupLogout: vi.fn(),
 }))
 
-import { fetchSettings, grantCredits, setupLogin, setupLogout } from '../src/api'
+import {
+  fetchAdminStats,
+  fetchAdminUser,
+  fetchSettings,
+  grantCredits,
+  listAdminUserCreditActivities,
+  listAdminUsers,
+  setupLogin,
+  setupLogout,
+} from '../src/api'
 import AdminView from '../src/views/AdminView.vue'
 import { useToasts } from '../src/composables/useToasts'
 
@@ -29,6 +42,28 @@ async function signedIn() {
   return mountView()
 }
 
+// granting opens the admin page on its grant section.
+async function granting() {
+  const wrapper = await signedIn()
+  await wrapper.find('[data-test="admin-tab-grant"]').trigger('click')
+  return wrapper
+}
+
+const USER = {
+  id: 'u1',
+  email: 'ann@example.com',
+  name: 'Ann',
+  picture: '',
+  provider: 'github',
+  credits: 940,
+  creditsLimit: 1000,
+  monthlyGrant: 250,
+  creditsRenewAt: '2026-11-18T00:00:00Z',
+  createdAt: '2026-10-01T00:00:00Z',
+  used: 60,
+  folders: 2,
+}
+
 function deferred() {
   let resolve
   const promise = new Promise((r) => {
@@ -40,6 +75,10 @@ function deferred() {
 describe('AdminView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    fetchAdminStats.mockResolvedValue({ users: 0, credits: 0, used: 0, signups: 0, folders: 0, days: [] })
+    listAdminUsers.mockResolvedValue({ users: [USER], next: '' })
+    fetchAdminUser.mockResolvedValue(USER)
+    listAdminUserCreditActivities.mockResolvedValue({ activities: [], next: '' })
     useToasts().toasts.value = []
   })
   afterEach(() => {
@@ -83,7 +122,7 @@ describe('AdminView', () => {
   })
 
   it('grants credits to all users', async () => {
-    const wrapper = await signedIn()
+    const wrapper = await granting()
     const pending = deferred()
     grantCredits.mockReturnValue(pending.promise)
     expect(wrapper.find('[data-test="admin-email"]').exists()).toBe(false)
@@ -101,7 +140,7 @@ describe('AdminView', () => {
   })
 
   it('grants credits to one user by email', async () => {
-    const wrapper = await signedIn()
+    const wrapper = await granting()
     grantCredits.mockResolvedValue({ users: 1, expiresAt: EXPIRES })
     await wrapper.find('[data-test="admin-target-one"]').trigger('click')
     expect(wrapper.find('[data-test="admin-target-one"]').attributes('aria-checked')).toBe('true')
@@ -117,7 +156,7 @@ describe('AdminView', () => {
   })
 
   it('names a single user when everyone is one user', async () => {
-    const wrapper = await signedIn()
+    const wrapper = await granting()
     grantCredits.mockResolvedValue({ users: 1, expiresAt: EXPIRES })
     await wrapper.find('[data-test="admin-grant"]').trigger('submit')
     await flushPromises()
@@ -125,13 +164,13 @@ describe('AdminView', () => {
   })
 
   it.each([['0'], ['1.5'], ['1000001'], ['']])('does not grant %s credits', async (value) => {
-    const wrapper = await signedIn()
+    const wrapper = await granting()
     await wrapper.find('[data-test="admin-credits"]').setValue(value)
     expect(wrapper.find('[data-test="admin-grant-submit"]').attributes('disabled')).toBeDefined()
   })
 
   it('shows grant errors in place of the last result', async () => {
-    const wrapper = await signedIn()
+    const wrapper = await granting()
     grantCredits.mockResolvedValueOnce({ users: 2, expiresAt: EXPIRES })
     await wrapper.find('[data-test="admin-grant"]').trigger('submit')
     await flushPromises()
@@ -143,7 +182,7 @@ describe('AdminView', () => {
   })
 
   it('asks to sign in again when the root session expired', async () => {
-    const wrapper = await signedIn()
+    const wrapper = await granting()
     grantCredits.mockRejectedValue(Object.assign(new Error('unauthorized'), { status: 401 }))
     await wrapper.find('[data-test="admin-grant"]').trigger('submit')
     await flushPromises()
@@ -157,5 +196,67 @@ describe('AdminView', () => {
     await flushPromises()
     expect(setupLogout).toHaveBeenCalled()
     expect(wrapper.find('[data-test="admin-login"]').exists()).toBe(true)
+  })
+
+  it('opens on the overview and switches sections', async () => {
+    const wrapper = await signedIn()
+    expect(wrapper.find('[data-test="admin-overview"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="admin-tab-overview"]').attributes('aria-current')).toBe('page')
+    expect(fetchAdminStats).toHaveBeenCalled()
+
+    await wrapper.find('[data-test="admin-tab-users"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="admin-users"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="admin-tab-overview"]').attributes('aria-current')).toBeUndefined()
+  })
+
+  it('opens a user, goes back to the list, and grants to them', async () => {
+    const wrapper = await signedIn()
+    await wrapper.find('[data-test="admin-tab-users"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-test="admin-user-u1"]').trigger('click')
+    await flushPromises()
+    expect(fetchAdminUser).toHaveBeenCalledWith('u1')
+    expect(wrapper.find('[data-test="admin-user-name"]').text()).toBe('Ann')
+
+    await wrapper.find('[data-test="admin-user-back"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="admin-users"]').exists()).toBe(true)
+
+    await wrapper.find('[data-test="admin-user-u1"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-test="admin-user-grant"]').trigger('click')
+    expect(wrapper.find('[data-test="admin-grant"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="admin-target-one"]').attributes('aria-checked')).toBe('true')
+    expect(wrapper.find('[data-test="admin-email"]').element.value).toBe('ann@example.com')
+
+    // Opening the users section again starts at the list.
+    await wrapper.find('[data-test="admin-tab-users"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="admin-users"]').exists()).toBe(true)
+  })
+
+  it('reports section errors, and asks to sign in again on 401', async () => {
+    fetchAdminStats.mockRejectedValueOnce(new Error('Failed to load stats (500)'))
+    const wrapper = await signedIn()
+    expect(useToasts().toasts.value[0].message).toBe('Failed to load stats (500)')
+    expect(wrapper.find('[data-test="admin-page"]').exists()).toBe(true)
+
+    listAdminUsers.mockRejectedValueOnce(Object.assign(new Error('unauthorized'), { status: 401 }))
+    await wrapper.find('[data-test="admin-tab-users"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="admin-login"]').exists()).toBe(true)
+  })
+
+  it('signs out back to the overview', async () => {
+    const wrapper = await granting()
+    await wrapper.find('[data-test="admin-logout"]').trigger('click')
+    await flushPromises()
+    fetchSettings.mockResolvedValue({ settings: {} })
+    setupLogin.mockResolvedValue()
+    await wrapper.find('[data-test="admin-token"]').setValue('root-token')
+    await wrapper.find('[data-test="admin-login"]').trigger('submit')
+    await flushPromises()
+    expect(wrapper.find('[data-test="admin-overview"]').exists()).toBe(true)
   })
 })

@@ -185,12 +185,19 @@ under `npm run dev`.
 
 `/admin` opens only with the root access token too (one root sign-in covers
 `/setup` and `/admin`). Root can grant credits to one user (by email) or to
-every user (`POST /api/v1/admin/credits/grants` with
+every user (`POST /admin/v1/credits/grants` with
 `{"credits": 500, "email": "a@b.c"}` or `{"credits": 500, "all": true}`).
 Granted credits are kept in `credit_grants` and logged as `admin_grant`. They
 expire 30 days later at the next 00:00 UTC, when the daily job takes back
 whatever is left (logged as `expiry`). Monthly renewals don't reset them, and
 spends take the credits that expire first.
+
+The admin page also shows stats over every account (users, credits held,
+credits used and sign-ups per day over the last 30 days, live folders) and a
+user list you can search by email, name or user ID. Each user's page shows
+their balance, usage, live folders and full credit history. The admin API
+lives under `/admin/v1`, apart from the public `/api/v1`, and is not part of
+`openapi.yaml`.
 
 ## Setup page
 

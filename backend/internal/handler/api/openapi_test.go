@@ -23,6 +23,10 @@ const specPath = "../../../../openapi.yaml"
 // New.
 var specOnlyPaths = map[string]bool{"/mcp": true}
 
+// adminPrefix is where the root-only admin routes live; they are kept out
+// of openapi.yaml on purpose.
+const adminPrefix = AdminPrefix + "/"
+
 var (
 	specParam  = regexp.MustCompile(`\{[^}]+\}`)
 	routeParam = regexp.MustCompile(`:[^/]+|\*`)
@@ -67,6 +71,10 @@ func TestOpenAPISpec(t *testing.T) {
 	}
 
 	for path := range registered {
+		if strings.HasPrefix(path, adminPrefix) {
+			assert.NotContains(t, spec, path, "admin route %s must stay out of openapi.yaml", path)
+			continue
+		}
 		assert.Contains(t, spec, path, "route %s is missing from openapi.yaml", path)
 	}
 	for path, methods := range spec {

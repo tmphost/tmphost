@@ -67,13 +67,14 @@ func (h *Setup) Update(c fiber.Ctx) error {
 	return sendJSON(c, fiber.StatusOK, mapper.FromUpdateSettingsResponseEntityToHTTPResponse(rs))
 }
 
-// cookie scopes the root session to the API, so one root sign-in covers
-// the setup and admin pages.
+// cookie scopes the root session to the whole app, so one root sign-in
+// covers the setup API (under RoutePrefix) and the admin API (under
+// AdminPrefix).
 func (h *Setup) cookie(value string, ttl time.Duration) *fiber.Cookie {
 	ck := &fiber.Cookie{
 		Name:     mapper.RootCookie,
 		Value:    value,
-		Path:     h.basePath + RoutePrefix,
+		Path:     h.basePath + "/",
 		HTTPOnly: true,
 		Secure:   h.cookieSecure,
 		SameSite: fiber.CookieSameSiteStrictMode,

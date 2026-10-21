@@ -7,6 +7,9 @@ export const BASE_PATH = (window.__TMPHOST_BASE_PATH__ || '').replace(/\/$/, '')
 
 export const API_BASE_URL = `${BASE_PATH}/api/v1`
 
+// ADMIN_BASE_URL is the root-only admin API, apart from the public one.
+export const ADMIN_BASE_URL = `${BASE_PATH}/admin/v1`
+
 let userCache = null
 let userPromise = null
 
@@ -120,7 +123,7 @@ export async function saveSettings(settings) {
 // grantCredits gives credits that expire to one user (by email) or to
 // every user (all), as root. It returns { users, expiresAt }.
 export async function grantCredits({ credits, email, all }) {
-  const res = await fetch(`${API_BASE_URL}/admin/credits/grants`, {
+  const res = await fetch(`${ADMIN_BASE_URL}/credits/grants`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
@@ -130,15 +133,16 @@ export async function grantCredits({ credits, email, all }) {
   return res.json()
 }
 
-// request sends a JSON request for the signed-in user and returns the parsed
-// body, or null for 204. Failures throw an Error carrying the HTTP status.
-async function request(method, path, { body, fallback } = {}) {
+// request sends a JSON request for the signed-in user (or root, with base
+// ADMIN_BASE_URL) and returns the parsed body, or null for 204. Failures
+// throw an Error carrying the HTTP status.
+async function request(method, path, { body, fallback, base = API_BASE_URL } = {}) {
   const init = { method, credentials: 'same-origin' }
   if (body !== undefined) {
     init.headers = { 'Content-Type': 'application/json' }
     init.body = JSON.stringify(body)
   }
-  const res = await fetch(`${API_BASE_URL}${path}`, init)
+  const res = await fetch(`${base}${path}`, init)
   if (!res.ok) throw await httpError(res, `${fallback} (${res.status})`)
   return res.status === 204 ? null : res.json()
 }
@@ -158,6 +162,43 @@ export function listCreditActivities(before = '') {
 
 // CREDIT_PAGE_SIZE is the largest page the server returns.
 export const CREDIT_PAGE_SIZE = 200
+
+// fetchAdminStats returns root's stats over every account: { users, credits,
+// used, signups, folders, days: [{ date, used, signups }] }.
+export async function fetchAdminStats() {
+  const { stats } = await request('GET', '/stats', { fallback: 'Failed to load stats', base: ADMIN_BASE_URL })
+  return stats
+}
+
+// listAdminUsers returns a page of users, newest first, as { users, next }:
+// q searches emails and names, or names one user ID; pass next back as
+// before for the next page.
+export function listAdminUsers({ q = '', before = '' } = {}) {
+  const query = new URLSearchParams({ limit: String(ADMIN_USERS_PAGE_SIZE) })
+  if (q) query.set('q', q)
+  if (before) query.set('before', before)
+  return request('GET', `/users?${query}`, { fallback: 'Failed to load users', base: ADMIN_BASE_URL })
+}
+
+// ADMIN_USERS_PAGE_SIZE is how many users a page of the admin list shows.
+export const ADMIN_USERS_PAGE_SIZE = 50
+
+// fetchAdminUser returns one user, as root.
+export async function fetchAdminUser(id) {
+  const { user } = await request('GET', `/users/${encodeURIComponent(id)}`, { fallback: 'Failed to load user', base: ADMIN_BASE_URL })
+  return user
+}
+
+// listAdminUserCreditActivities returns a page of one user's credit history,
+// as root, like listCreditActivities.
+export function listAdminUserCreditActivities(id, before = '') {
+  const query = new URLSearchParams({ limit: String(CREDIT_PAGE_SIZE) })
+  if (before) query.set('before', before)
+  return request('GET', `/users/${encodeURIComponent(id)}/credits/activities?${query}`, {
+    fallback: 'Failed to load credit history',
+    base: ADMIN_BASE_URL,
+  })
+}
 
 // fetchLimits returns the upload limits and billing block size.
 export function fetchLimits() {

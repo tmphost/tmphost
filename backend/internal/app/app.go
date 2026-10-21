@@ -22,6 +22,7 @@ import (
 	zlog "github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 
+	adminctrl "github.com/tmphost/tmphost/backend/internal/controller/admin"
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
 	"github.com/tmphost/tmphost/backend/internal/controller/credit"
 	folderctrl "github.com/tmphost/tmphost/backend/internal/controller/folder"
@@ -338,6 +339,12 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		Resource:    baseURL + MCPPath,
 		MCPResource: mcpURL,
 	})
+	admin := adminctrl.New(adminctrl.Params{
+		Users:   users,
+		Stats:   repository.NewStatsRepository(db),
+		Credits: credits,
+		Grant:   setup.MonthlyGrant,
+	})
 	api.New(api.Params{
 		Router:         f,
 		Hosts:          hostRouter(h),
@@ -346,6 +353,7 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		Folders:        folders,
 		OAuth:          oauth,
 		Credits:        credits,
+		Admin:          admin,
 		FileSettings:   setup.FileLimits,
 		AllowedOrigins: setup.AllowedOrigins,
 		BasePath:       basePath,

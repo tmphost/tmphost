@@ -24,6 +24,7 @@ describe('api', () => {
 
   it('builds the API base from the injected base path', async () => {
     expect((await loadApi('/app/')).API_BASE_URL).toBe('/app/api/v1')
+    expect((await loadApi('/app/')).ADMIN_BASE_URL).toBe('/app/admin/v1')
     expect((await loadApi(undefined)).API_BASE_URL).toBe('/api/v1')
   })
 
@@ -128,7 +129,7 @@ describe('setup api', () => {
     const api = await loadApi('')
     fetch.mockResolvedValueOnce(json({ users: 3, expiresAt: '2026-11-18T00:00:00Z' }, 201))
     expect(await api.grantCredits({ credits: 5, email: 'ignored', all: true })).toEqual({ users: 3, expiresAt: '2026-11-18T00:00:00Z' })
-    expect(fetch).toHaveBeenCalledWith('/api/v1/admin/credits/grants', {
+    expect(fetch).toHaveBeenCalledWith('/admin/v1/credits/grants', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
@@ -190,6 +191,49 @@ describe('files api', () => {
   it('filePath encodes each segment', async () => {
     const api = await loadApi('')
     expect(api.filePath('a b/c#d/e.txt')).toBe('a%20b/c%23d/e.txt')
+  })
+
+  it('fetchAdminStats unwraps the stats', async () => {
+    const api = await loadApi('')
+    fetch.mockResolvedValueOnce(json({ stats: { users: 2, days: [] } }))
+    expect(await api.fetchAdminStats()).toEqual({ users: 2, days: [] })
+    expect(fetch).toHaveBeenCalledWith('/admin/v1/stats', { method: 'GET', credentials: 'same-origin' })
+    fetch.mockResolvedValueOnce(json({}, 401))
+    await expect(api.fetchAdminStats()).rejects.toMatchObject({ status: 401 })
+  })
+
+  it('listAdminUsers searches and pages the users', async () => {
+    const api = await loadApi('')
+    fetch.mockResolvedValueOnce(json({ users: [], next: '' }))
+    expect(await api.listAdminUsers()).toEqual({ users: [], next: '' })
+    expect(fetch).toHaveBeenLastCalledWith('/admin/v1/users?limit=50', { method: 'GET', credentials: 'same-origin' })
+    fetch.mockResolvedValueOnce(json({ users: [], next: '' }))
+    await api.listAdminUsers({ q: 'a@b c', before: 'x' })
+    expect(fetch).toHaveBeenLastCalledWith('/admin/v1/users?limit=50&q=a%40b+c&before=x', { method: 'GET', credentials: 'same-origin' })
+    fetch.mockResolvedValueOnce(json({}, 500))
+    await expect(api.listAdminUsers()).rejects.toThrow('Failed to load users (500)')
+  })
+
+  it('fetchAdminUser unwraps one user', async () => {
+    const api = await loadApi('')
+    fetch.mockResolvedValueOnce(json({ user: { id: 'u1' } }))
+    expect(await api.fetchAdminUser('u1')).toEqual({ id: 'u1' })
+    expect(fetch).toHaveBeenCalledWith('/admin/v1/users/u1', { method: 'GET', credentials: 'same-origin' })
+    fetch.mockResolvedValueOnce(json({ error: 'user not found' }, 404))
+    await expect(api.fetchAdminUser('nope')).rejects.toMatchObject({ message: 'user not found', status: 404 })
+  })
+
+  it('listAdminUserCreditActivities pages a user\'s history', async () => {
+    const api = await loadApi('')
+    fetch.mockResolvedValueOnce(json({ activities: [], next: '' }))
+    await api.listAdminUserCreditActivities('u1')
+    expect(fetch).toHaveBeenLastCalledWith('/admin/v1/users/u1/credits/activities?limit=200', { method: 'GET', credentials: 'same-origin' })
+    fetch.mockResolvedValueOnce(json({ activities: [], next: '' }))
+    await api.listAdminUserCreditActivities('u1', 'a')
+    expect(fetch).toHaveBeenLastCalledWith('/admin/v1/users/u1/credits/activities?limit=200&before=a', {
+      method: 'GET',
+      credentials: 'same-origin',
+    })
   })
 
   it('listCreditActivities pages the credit history', async () => {
