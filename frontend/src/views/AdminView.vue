@@ -189,7 +189,7 @@ onMounted(refresh)
     </div>
 
     <!-- Admin -->
-    <div v-else class="mx-auto w-full max-w-5xl" data-test="admin-page">
+    <div v-else class="mx-auto w-full max-w-7xl" data-test="admin-page">
       <header class="flex flex-wrap items-center gap-3 mb-6">
         <BrandLogo tile class="w-9 h-9" />
         <div class="grow min-w-0">
@@ -238,7 +238,7 @@ onMounted(refresh)
           <AdminUsers v-else-if="section === 'users'" @open="userId = $event" @error="onError" />
           <form
             v-else
-            class="max-w-2xl rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5"
+            class="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5"
             data-test="admin-grant"
             @submit.prevent="grant"
           >
