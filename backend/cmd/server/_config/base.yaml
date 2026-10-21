@@ -78,6 +78,14 @@ storage:
     # With S3, answer uploads once they are in memory and write them to the
     # bucket in the background.
     async: ${TMPHOSTIO_STORAGE_CACHE_ASYNC:true}
+  # With S3, files under 1 MB are also kept on the local disk (next to the
+  # settings file) and read from there, up to maxMb in all. Usually set on
+  # the setup page, which overrides these.
+  warm:
+    enabled: ${TMPHOSTIO_STORAGE_WARM_ENABLED:false}
+    maxMb: ${TMPHOSTIO_STORAGE_WARM_MAX_MB:1024}
+    # Extra tries of a failed bucket write, waiting 1s, 2s, 4s, ... between.
+    retries: ${TMPHOSTIO_STORAGE_WARM_RETRIES:0}
   # With S3, downloads of files over overMb (over the web, the API and the
   # CLI; not MCP) redirect to a URL of the bucket signed for ttl (at least
   # 1m), so large files don't pass through tmphost. HTML files are always

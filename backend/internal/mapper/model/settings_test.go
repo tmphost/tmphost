@@ -28,9 +28,10 @@ func TestSettingsRoundTrip(t *testing.T) {
 			Postgres: entity.PostgresSettings{DSN: "postgres://u:p@h:5432/d?sslmode=require"},
 		},
 		Storage: entity.StorageSettings{
-			Driver: "s3",
-			Local:  entity.LocalStorageSettings{Path: "/files"},
-			S3:     entity.S3Settings{Endpoint: "https://s3", Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", UsePathStyle: true},
+			Driver:    "s3",
+			Local:     entity.LocalStorageSettings{Path: "/files"},
+			S3:        entity.S3Settings{Endpoint: "https://s3", Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", UsePathStyle: true},
+			WarmCache: entity.WarmCacheSettings{Enabled: true, MaxMB: 512, Retries: 3},
 		},
 		Files: entity.FileSettings{MaxTTLMinutes: 60, MaxUploadMB: 2, AnonymousMaxTTLMinutes: 7, Subdomains: true, PublicDomain: "x.io"},
 		Auth: entity.AuthSettings{

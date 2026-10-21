@@ -94,6 +94,7 @@ func FromSettingsViewToSettingsEntity(v view.Settings) entity.Settings {
 				SecretAccessKey: v.Storage.S3.SecretAccessKey,
 				UsePathStyle:    v.Storage.S3.UsePathStyle,
 			},
+			WarmCache: entity.WarmCacheSettings{Enabled: v.Storage.WarmCache.Enabled, MaxMB: v.Storage.WarmCache.MaxMB, Retries: v.Storage.WarmCache.Retries},
 		},
 		Files: entity.FileSettings{
 			MaxTTLMinutes: v.Files.MaxTTLMinutes, MaxUploadMB: v.Files.MaxUploadMB,
@@ -138,6 +139,7 @@ func FromSettingsEntityToSettingsView(e entity.Settings) view.Settings {
 				SecretAccessKey: e.Storage.S3.SecretAccessKey,
 				UsePathStyle:    e.Storage.S3.UsePathStyle,
 			},
+			WarmCache: view.WarmCacheSettings{Enabled: e.Storage.WarmCache.Enabled, MaxMB: e.Storage.WarmCache.MaxMB, Retries: e.Storage.WarmCache.Retries},
 		},
 		Files: view.FileSettings{
 			MaxTTLMinutes: e.Files.MaxTTLMinutes, MaxUploadMB: e.Files.MaxUploadMB,

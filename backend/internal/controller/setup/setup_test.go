@@ -38,6 +38,8 @@ func defaults() entity.Settings {
 			Driver: StorageLocal,
 			Local:  entity.LocalStorageSettings{Path: "./_storage/files"},
 			S3:     entity.S3Settings{SecretAccessKey: "s3secret"},
+			// A user setting that the saved file keeps.
+			WarmCache: entity.WarmCacheSettings{MaxMB: DefaultWarmCacheMaxMB},
 		},
 		Files: entity.FileSettings{MaxTTLMinutes: 432000, MaxUploadMB: 16, AnonymousMaxTTLMinutes: 10, PublicDomain: "tmphost.io"},
 		Auth: entity.AuthSettings{
@@ -96,7 +98,7 @@ func TestNew(t *testing.T) {
 	t.Run("sections missing from older saved settings take the defaults", func(t *testing.T) {
 		repo := mockrepo.NewMockSettingsRepository(mc)
 		saved := defaults()
-		saved.Storage.Local.Path, saved.Files = "", entity.FileSettings{}
+		saved.Storage.Local.Path, saved.Storage.WarmCache, saved.Files = "", entity.WarmCacheSettings{}, entity.FileSettings{}
 		repo.EXPECT().LoadSettings().Return(mappermodel.FromSettingsEntityToSettingsModel(saved), nil)
 		ctrl, err := New(Params{Repository: repo, RootAccessToken: "x", Defaults: defaults()})
 		require.NoError(t, err)
@@ -258,6 +260,11 @@ func TestUpdateSettings_Validation(t *testing.T) {
 		},
 		"unknown storage":    func(s *entity.Settings) { s.Storage.Driver = "ftp" },
 		"local without path": func(s *entity.Settings) { s.Storage.Local.Path = " " },
+		"warm cache without size": func(s *entity.Settings) {
+			s.Storage.WarmCache = entity.WarmCacheSettings{Enabled: true}
+		},
+		"negative warm retries": func(s *entity.Settings) { s.Storage.WarmCache.Retries = -1 },
+		"too many warm retries": func(s *entity.Settings) { s.Storage.WarmCache.Retries = MaxWarmCacheRetries + 1 },
 		"s3 without bucket": func(s *entity.Settings) {
 			s.Storage.Driver, s.Storage.S3 = StorageS3, entity.S3Settings{Region: "r"}
 		},

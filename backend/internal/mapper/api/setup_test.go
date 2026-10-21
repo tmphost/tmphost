@@ -92,12 +92,16 @@ func TestSettingsMapping(t *testing.T) {
 	// Entity -> view -> entity is lossless.
 	settings := FromSettingsViewToSettingsEntity(FromSettingsEntityToSettingsView(entity.Settings{
 		Database: entity.DatabaseSettings{Postgres: entity.PostgresSettings{DSN: "host=db"}},
-		Storage:  entity.StorageSettings{S3: entity.S3Settings{UsePathStyle: true}},
-		Files:    entity.FileSettings{Subdomains: true, PublicDomain: "x.io"},
+		Storage: entity.StorageSettings{
+			S3:        entity.S3Settings{UsePathStyle: true},
+			WarmCache: entity.WarmCacheSettings{Enabled: true, MaxMB: 512, Retries: 3},
+		},
+		Files: entity.FileSettings{Subdomains: true, PublicDomain: "x.io"},
 	}))
 	assert.Equal(t, entity.FileSettings{Subdomains: true, PublicDomain: "x.io"}, settings.Files)
 	assert.Equal(t, "host=db", settings.Database.Postgres.DSN)
 	assert.True(t, settings.Storage.S3.UsePathStyle)
+	assert.Equal(t, entity.WarmCacheSettings{Enabled: true, MaxMB: 512, Retries: 3}, settings.Storage.WarmCache)
 }
 
 func TestFromSettingsResponseEntityToHTTPResponse(t *testing.T) {
