@@ -11,12 +11,12 @@ on:
     paths:
       - '.claude-plugin/**'
       - 'plugin/claude/**'
-      - '.github/workflows/plugin.yml'
+      - '.github/workflows/plugin-claude.yml'
   pull_request:
     paths:
       - '.claude-plugin/**'
       - 'plugin/claude/**'
-      - '.github/workflows/plugin.yml'
+      - '.github/workflows/plugin-claude.yml'
   workflow_dispatch:
 
 env:

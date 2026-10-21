@@ -1,0 +1,138 @@
+# Copyright 2026 Contextual, Inc. https://tmphost.io
+# This notice may not be modified or removed.
+# SPDX-License-Identifier: AGPL-3.0-only
+
+name: Codex plugin
+
+# plugin/codex is a portable Agent Plugins package for Codex and ChatGPT, listed
+# by the repository marketplace in .agents/plugins. OpenAI has no validator to
+# run locally, so this checks it three ways: OpenAI's submission rules
+# (.github/scripts/codex-plugin.mjs), the published Agent Plugins schemas, and
+# a real install with the Codex CLI. It then uploads the ZIP to submit.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.agents/**'
+      - 'plugin/codex/**'
+      - 'plugin/claude/.claude-plugin/plugin.json'
+      - 'gemini-extension.json'
+      - 'backend/internal/handler/mcp/**'
+      - '.github/scripts/**'
+      - '.github/workflows/plugin-codex.yml'
+  pull_request:
+    paths:
+      - '.agents/**'
+      - 'plugin/codex/**'
+      - 'plugin/claude/.claude-plugin/plugin.json'
+      - 'gemini-extension.json'
+      - 'backend/internal/handler/mcp/**'
+      - '.github/scripts/**'
+      - '.github/workflows/plugin-codex.yml'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Pinned, so a release cannot turn this red on its own.
+  CODEX: '@openai/codex@0.163.0'
+  AJV: 'ajv-cli@5.0.0'
+
+jobs:
+  validate:
+    name: Validate the plugin and marketplace
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+
+      - name: Test the validator (100% coverage)
+        run: >-
+          node --test --experimental-test-coverage
+          --test-coverage-include=.github/scripts/codex-plugin.mjs
+          --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100
+          .github/scripts/codex-plugin.test.mjs
+
+      # The directory's final submission rules, the marketplace entry, and the
+      # same MCP server as the Claude plugin and Gemini extension.
+      - name: Check the submission rules
+        run: node .github/scripts/validate-codex-plugin.mjs
+
+      # Each manifest names its schema in $schema; validate against the
+      # published one, so a schema change shows up here.
+      - name: Validate against the Agent Plugins schemas
+        run: |
+          for f in plugin.json mcp.json; do
+            schema=$(node -p "require('./plugin/codex/$f').\$schema")
+            curl -fsSL --retry 3 -o "$RUNNER_TEMP/$f.schema.json" "$schema"
+            npx -y "$AJV" validate --spec=draft2020 -s "$RUNNER_TEMP/$f.schema.json" -d "plugin/codex/$f"
+          done
+
+      - name: Install with the Codex CLI
+        env:
+          CODEX_HOME: ${{ runner.temp }}/codex
+        run: |
+          mkdir -p "$CODEX_HOME"
+          npx -y "$CODEX" plugin marketplace add "$GITHUB_WORKSPACE"
+          npx -y "$CODEX" plugin add tmphost@tmphost
+          npx -y "$CODEX" plugin list --json > "$RUNNER_TEMP/plugins.json"
+          npx -y "$CODEX" mcp list --json > "$RUNNER_TEMP/mcp.json"
+          node -e '
+            const fs = require("fs");
+            const fail = (msg) => { console.error(`::error::${msg}`); process.exitCode = 1; };
+            const want = require("./plugin/codex/plugin.json");
+            const plugin = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).installed.find((p) => p.pluginId === "tmphost@tmphost");
+            if (!plugin?.installed || !plugin.enabled) fail("Codex did not install and enable tmphost@tmphost");
+            else if (plugin.version !== want.version) fail(`Codex installed version ${plugin.version}, plugin.json says ${want.version}`);
+            const cache = `${process.env.CODEX_HOME}/plugins/cache/tmphost/tmphost/${want.version}`;
+            for (const f of ["plugin.json", "mcp.json", "skills/tmphost/SKILL.md"]) if (!fs.existsSync(`${cache}/${f}`)) fail(`the installed plugin has no ${f}`);
+            const server = JSON.parse(fs.readFileSync(process.argv[2], "utf8")).find((s) => s.name === "tmphost");
+            const url = require("./plugin/codex/mcp.json").mcpServers.tmphost.url;
+            if (!server?.enabled || server.transport.url !== url) fail(`Codex does not load the tmphost MCP server at ${url}`);
+            // Codex probes the server: an OAuth-protected one reads not_logged_in.
+            else if (server.auth_status !== "not_logged_in") fail(`Codex sees no OAuth sign-in on ${url} (auth_status ${server.auth_status})`);
+            else console.log(`tmphost ${plugin.version} installed; MCP server ${url} asks for OAuth sign-in`);
+          ' "$RUNNER_TEMP/plugins.json" "$RUNNER_TEMP/mcp.json"
+
+      # The ZIP to upload in the Plugins dashboard: the plugin directory's
+      # contents at the archive root.
+      - name: Build the submission ZIP
+        run: |
+          cd plugin/codex
+          zip -r -X "$RUNNER_TEMP/tmphost-codex-plugin.zip" .
+          unzip -l "$RUNNER_TEMP/tmphost-codex-plugin.zip"
+
+      - name: Upload the submission ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: tmphost-codex-plugin
+          path: ${{ runner.temp }}/tmphost-codex-plugin.zip
+          if-no-files-found: error
+
+  docs:
+    name: Documented tools match the server
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Check the skill, README and review cases against the MCP server
+        working-directory: backend
+        run: go test ./internal/handler/mcp/ -run 'TestPluginDocs|TestCodexReviewCases' -v

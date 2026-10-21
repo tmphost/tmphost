@@ -146,6 +146,22 @@ gemini extensions install https://github.com/tmphost/tmphost
 Gemini CLI signs in through the browser (`/mcp auth tmphost`). For a
 self-hosted server, see [plugin/gemini](plugin/gemini/README.md).
 
+## Codex and ChatGPT plugin
+
+[plugin/codex](plugin/codex) is a portable [Agent Plugins](https://agent-plugins.org)
+package for Codex and ChatGPT with the MCP server and the `tmphost` skill. This
+repository is its marketplace ([.agents/plugins/marketplace.json](.agents/plugins/marketplace.json)):
+
+```sh
+codex plugin marketplace add tmphost/tmphost
+codex plugin add tmphost@tmphost
+```
+
+Codex signs in through the browser on the first tool call. CI checks the
+package against OpenAI's directory submission rules and the Agent Plugins
+schemas, installs it with the Codex CLI, and uploads the ZIP to submit; see
+[plugin/codex](plugin/codex/README.md).
+
 ## Development
 
 ```sh

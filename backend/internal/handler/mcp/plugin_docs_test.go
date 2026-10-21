@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -70,6 +71,8 @@ func TestPluginDocsNameEveryAction(t *testing.T) {
 	root := repoRoot(t)
 	docs := []string{
 		"plugin/claude/skills/tmphost/SKILL.md",
+		"plugin/codex/skills/tmphost/SKILL.md",
+		"plugin/codex/README.md",
 		"plugin/gemini/GEMINI.md",
 		"plugin/gemini/README.md",
 	}
@@ -80,6 +83,34 @@ func TestPluginDocsNameEveryAction(t *testing.T) {
 				assert.Contains(t, text, "`"+action.(string)+"`", "%s doesn't document the %q action", doc, action)
 			}
 		})
+	}
+}
+
+// The review team tests the Codex plugin with the cases in its manifest; each
+// names the tools it expects, which must be ones the server registers.
+func TestCodexReviewCasesNameRegisteredTools(t *testing.T) {
+	var manifest struct {
+		Extensions struct {
+			OpenAI struct {
+				Review struct {
+					TestCases struct {
+						Positive []struct {
+							ToolsTriggered string `json:"tools_triggered"`
+						} `json:"positive"`
+					} `json:"test_cases"`
+				} `json:"review"`
+			} `json:"com.openai"`
+		} `json:"extensions"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(readFile(t, filepath.Join(repoRoot(t), "plugin", "codex", "plugin.json"))), &manifest))
+
+	registered := matches(_toolRe, readFile(t, "mcp.go"))
+	cases := manifest.Extensions.OpenAI.Review.TestCases.Positive
+	require.NotEmpty(t, cases)
+	for i, c := range cases {
+		for _, tool := range strings.Split(c.ToolsTriggered, ",") {
+			assert.Contains(t, registered, strings.TrimSpace(tool), "positive case %d expects a tool the server doesn't register", i)
+		}
 	}
 }
 
