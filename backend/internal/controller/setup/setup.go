@@ -39,6 +39,14 @@ const (
 	StorageLocal = "local"
 	// StorageS3 keeps uploaded files in an S3-compatible bucket.
 	StorageS3 = "s3"
+	// DefaultWarmCacheMaxMB is the disk the warm cache takes by default.
+	DefaultWarmCacheMaxMB = 1024
+	// WarmCacheUnder is the size limit of the warm cache: it keeps files
+	// smaller than 1 MB.
+	WarmCacheUnder = 1 << 20
+	// MaxWarmCacheRetries caps the retries of a failed bucket write, so
+	// the backoff stays under about 17 minutes.
+	MaxWarmCacheRetries = 10
 
 	// DefaultTLSPort is the HTTPS port used when none is set.
 	DefaultTLSPort = 443
@@ -218,6 +226,9 @@ func withDefaults(s, defaults entity.Settings) entity.Settings {
 	}
 	if s.Storage.Local.Path == "" {
 		s.Storage.Local.Path = defaults.Storage.Local.Path
+	}
+	if s.Storage.WarmCache.MaxMB == 0 {
+		s.Storage.WarmCache.MaxMB = defaults.Storage.WarmCache.MaxMB
 	}
 	if s.Files.MaxTTLMinutes == 0 {
 		s.Files.MaxTTLMinutes = defaults.Files.MaxTTLMinutes
@@ -587,6 +598,12 @@ func validateStorage(s entity.StorageSettings) error {
 		}
 	default:
 		return fmt.Errorf("storage driver must be %q or %q", StorageLocal, StorageS3)
+	}
+	if s.WarmCache.Enabled && s.WarmCache.MaxMB < 1 {
+		return errors.New("warm cache size must be at least 1 MB")
+	}
+	if s.WarmCache.Retries < 0 || s.WarmCache.Retries > MaxWarmCacheRetries {
+		return fmt.Errorf("warm cache retries must be between 0 and %d", MaxWarmCacheRetries)
 	}
 	return nil
 }

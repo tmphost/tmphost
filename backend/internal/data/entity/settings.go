@@ -89,6 +89,18 @@ type (
 		Driver string
 		Local  LocalStorageSettings
 		S3     S3Settings
+		// WarmCache keeps small S3 files on the local disk too.
+		WarmCache WarmCacheSettings
+	}
+
+	// WarmCacheSettings configure the local disk cache of small S3 files.
+	WarmCacheSettings struct {
+		Enabled bool
+		// MaxMB caps the disk the copies take.
+		MaxMB int
+		// Retries is how many more times a failed bucket write of a
+		// cached file is tried, with exponential backoff.
+		Retries int
 	}
 
 	// LocalStorageSettings configure storage on the server's disk.

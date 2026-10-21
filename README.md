@@ -57,6 +57,14 @@ test fails when a route is missing from it, so keep it in step with
   writes of a path land in order, are retried 3 times, are listed and
   served from memory until they land, and finish before shutdown. Past
   another 256 MB of writes in flight, uploads wait for the bucket again.
+- With S3, an optional warm cache (setup page → Storage, off by default)
+  keeps files under 1 MB on the server's disk as well, in `warm/` next to
+  the settings file (`/data/warm` in Docker), up to 1024 MB by default
+  (least recently used dropped first, no time limit). An upload goes to
+  disk first, then to the bucket, retried with exponential backoff (1s,
+  2s, 4s, ...) as many times as the setup page says (0 by default), and the
+  copy is dropped again if the bucket write still fails; a file read from the bucket is copied to disk on the
+  way out. Deletes drop the copies. The directory is emptied on start.
 - Folder lookups are served from memory too, up to 64 MB in all
   (`TMPHOSTIO_CACHE_FOLDERS_MAX_MB`, least recently used dropped first; 0
   turns it off). Only writing to or deleting a folder drops it (not its

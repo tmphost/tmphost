@@ -248,7 +248,7 @@ func TestSettingsFromConfig(t *testing.T) {
 	cfg.Credits.SignupGrant = 7
 	cfg.Postgres = PostgresConfig{Enabled: true, DSN: "postgres://u:p@h:1/d"}
 	cfg.S3 = S3Config{Endpoint: "e", Region: "r", Bucket: "b", AccessKeyID: "a", SecretAccessKey: "s", UsePathStyle: true}
-	cfg.Storage = StorageConfig{Driver: "s3", LocalPath: "/files", Cache: StorageCacheConfig{MaxMB: 256, Async: true}, Redirect: StorageRedirectConfig{OverMB: 1, TTL: 15 * time.Minute}}
+	cfg.Storage = StorageConfig{Driver: "s3", LocalPath: "/files", Cache: StorageCacheConfig{MaxMB: 256, Async: true}, Warm: StorageWarmConfig{Enabled: true, MaxMB: 64, Retries: 2}, Redirect: StorageRedirectConfig{OverMB: 1, TTL: 15 * time.Minute}}
 	cfg.Files = FilesConfig{MaxTTLMinutes: 60, MaxUploadMB: 2, AnonymousMaxTTLMinutes: 15, Subdomains: true, PublicDomain: "tmp.site"}
 	cfg.App.SitesDomain = "tmphost.io"
 	cfg.TLS = TLSConfig{Enabled: true, Email: "e@x.io", Lego: LegoConfig{Enabled: true, CloudflareAPIToken: "cf"}}
@@ -262,6 +262,7 @@ func TestSettingsFromConfig(t *testing.T) {
 	assert.Equal(t, entity.CreditSettings{MonthlyGrant: credit.DefaultMonthlyGrant, SignupGrant: credit.DefaultSignupGrant}, defaults.Credits)
 	assert.Equal(t, "local", defaults.Storage.Driver)
 	assert.Equal(t, "./_storage/files", defaults.Storage.Local.Path)
+	assert.Equal(t, entity.WarmCacheSettings{MaxMB: 1024}, defaults.Storage.WarmCache)
 	assert.Equal(t, entity.FileSettings{MaxTTLMinutes: 7200 * 60, MaxUploadMB: 16, AnonymousMaxTTLMinutes: 10}, defaults.Files)
 	withBase := settingsFromConfig(Config{App: AppConfig{BaseURL: "https://TmpHost.io:8443/x"}})
 	assert.Equal(t, "tmphost.io:8443", withBase.Files.PublicDomain, "defaults to the base URL host")
@@ -322,6 +323,21 @@ func TestOpenStorage(t *testing.T) {
 	require.NoError(t, os.WriteFile(notADir, nil, 0o600))
 	_, err = openStorage(Config{Storage: StorageConfig{Driver: "local", LocalPath: filepath.Join(notADir, "x")}})
 	assert.Error(t, err)
+
+	// The warm cache only wraps S3, in a directory next to the settings.
+	dir := t.TempDir()
+	warm := StorageWarmConfig{Enabled: true, MaxMB: 1}
+	settings := AppConfig{SettingsFile: filepath.Join(dir, "settings.json")}
+	s, err = openStorage(Config{App: settings, Storage: StorageConfig{Driver: "s3", Warm: warm}, S3: S3Config{Region: "auto", Bucket: "b"}})
+	require.NoError(t, err)
+	assert.NotNil(t, s)
+	assert.DirExists(t, filepath.Join(dir, "warm"))
+	_, err = openStorage(Config{App: AppConfig{SettingsFile: filepath.Join(notADir, "x", "settings.json")}, Storage: StorageConfig{Driver: "s3", Warm: warm}, S3: S3Config{Region: "auto", Bucket: "b"}})
+	assert.Error(t, err)
+	local := filepath.Join(t.TempDir(), "files")
+	_, err = openStorage(Config{App: AppConfig{SettingsFile: filepath.Join(local, "s.json")}, Storage: StorageConfig{Driver: "local", LocalPath: local, Warm: warm}})
+	require.NoError(t, err)
+	assert.NoDirExists(t, filepath.Join(local, "warm"))
 }
 
 // TestOAuth runs the OAuth server end to end: discovery, registration,

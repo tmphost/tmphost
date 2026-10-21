@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	zlog "github.com/rs/zerolog/log"
@@ -20,6 +21,7 @@ import (
 const (
 	_defaultSettingsFile = "./_storage/settings.json"
 	_defaultFilesDir     = "./_storage/files"
+	_warmDir             = "warm"
 )
 
 func settingsFile(cfg Config) string {
@@ -27,6 +29,12 @@ func settingsFile(cfg Config) string {
 		return cfg.App.SettingsFile
 	}
 	return _defaultSettingsFile
+}
+
+// warmDir is where the warm cache keeps its copies: next to the settings
+// file, so it lands on the data volume (/data/warm in Docker).
+func warmDir(cfg Config) string {
+	return filepath.Join(filepath.Dir(settingsFile(cfg)), _warmDir)
 }
 
 // rootAccessToken returns the configured root token, or generates and logs
@@ -70,6 +78,10 @@ func settingsFromConfig(cfg Config) entity.Settings {
 	if localPath == "" {
 		localPath = _defaultFilesDir
 	}
+	warmCache := entity.WarmCacheSettings(cfg.Storage.Warm)
+	if warmCache.MaxMB == 0 {
+		warmCache.MaxMB = setupctrl.DefaultWarmCacheMaxMB
+	}
 	files := entity.FileSettings(cfg.Files)
 	if files.MaxTTLMinutes == 0 {
 		files.MaxTTLMinutes = folder.DefaultMaxTTLMinutes
@@ -101,8 +113,9 @@ func settingsFromConfig(cfg Config) entity.Settings {
 			Postgres: entity.PostgresSettings{DSN: cfg.Postgres.DSN},
 		},
 		Storage: entity.StorageSettings{
-			Driver: storageDriver,
-			Local:  entity.LocalStorageSettings{Path: localPath},
+			Driver:    storageDriver,
+			Local:     entity.LocalStorageSettings{Path: localPath},
+			WarmCache: warmCache,
 			S3: entity.S3Settings{
 				Endpoint: s3.Endpoint, Region: s3.Region, Bucket: s3.Bucket,
 				AccessKeyID: s3.AccessKeyID, SecretAccessKey: s3.SecretAccessKey, UsePathStyle: s3.UsePathStyle,
@@ -125,7 +138,9 @@ func applySettings(cfg Config, s entity.Settings) Config {
 	cfg.Postgres.Enabled = s.Database.Driver == setupctrl.DriverPostgres
 	cfg.Postgres.DSN = s.Database.Postgres.DSN
 	s3 := s.Storage.S3
-	cfg.Storage = StorageConfig{Driver: s.Storage.Driver, LocalPath: s.Storage.Local.Path, Cache: cfg.Storage.Cache, Redirect: cfg.Storage.Redirect}
+	cfg.Storage = StorageConfig{Driver: s.Storage.Driver, LocalPath: s.Storage.Local.Path, Cache: cfg.Storage.Cache, Redirect: cfg.Storage.Redirect,
+		Warm: StorageWarmConfig(s.Storage.WarmCache),
+	}
 	cfg.Files = FilesConfig(s.Files)
 	cfg.S3 = S3Config{
 		Endpoint: s3.Endpoint, Region: s3.Region, Bucket: s3.Bucket,

@@ -1506,6 +1506,21 @@ components:
                   writeOnly: true
                 usePathStyle:
                   type: boolean
+            warmCache:
+              type: object
+              description: With S3, files under 1 MB are also kept on the server's disk and read from there. Takes effect after a restart.
+              properties:
+                enabled:
+                  type: boolean
+                maxMb:
+                  type: integer
+                  minimum: 1
+                  description: Disk the copies may take, in MB; least recently used are dropped first.
+                retries:
+                  type: integer
+                  minimum: 0
+                  maximum: 10
+                  description: Extra tries of a failed bucket write of a cached file, waiting 1s, 2s, 4s, ... between them. The disk copy is served meanwhile.
         files:
           type: object
           properties:

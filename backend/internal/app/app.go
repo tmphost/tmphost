@@ -171,7 +171,19 @@ type (
 		Driver    string                `yaml:"driver"`
 		LocalPath string                `yaml:"localPath"`
 		Cache     StorageCacheConfig    `yaml:"cache"`
+		Warm      StorageWarmConfig     `yaml:"warm"`
 		Redirect  StorageRedirectConfig `yaml:"redirect"`
+	}
+
+	// StorageWarmConfig is the "storage.warm" section: with S3, files under
+	// 1 MB are also kept on the local disk and read from there, up to
+	// MaxMB in all. It is set on the setup page.
+	StorageWarmConfig struct {
+		Enabled bool `yaml:"enabled"`
+		MaxMB   int  `yaml:"maxMb"`
+		// Retries is how many more times a failed bucket write of a
+		// cached file is tried, with exponential backoff from 1s.
+		Retries int `yaml:"retries"`
 	}
 
 	// StorageRedirectConfig is the "storage.redirect" section: with S3,
@@ -492,6 +504,14 @@ func openStorage(cfg Config) (storage.Service, error) {
 	store, err := openStorageDriver(cfg)
 	if err != nil {
 		return nil, err
+	}
+	if w := cfg.Storage.Warm; w.Enabled && cfg.Storage.Driver == setupctrl.StorageS3 {
+		store, err = storage.NewWarm(store, storage.WarmConfig{
+			Dir: warmDir(cfg), MaxBytes: int64(w.MaxMB) << 20, Under: setupctrl.WarmCacheUnder, Retries: w.Retries,
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 	c := cfg.Storage.Cache
 	return storage.NewCached(store, storage.CacheConfig{

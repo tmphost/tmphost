@@ -72,9 +72,17 @@ type (
 
 	// StorageSettings is the storage section.
 	StorageSettings struct {
-		Driver string               `json:"driver"`
-		Local  LocalStorageSettings `json:"local"`
-		S3     S3Settings           `json:"s3"`
+		Driver    string               `json:"driver"`
+		Local     LocalStorageSettings `json:"local"`
+		S3        S3Settings           `json:"s3"`
+		WarmCache WarmCacheSettings    `json:"warmCache"`
+	}
+
+	// WarmCacheSettings is the storage.warmCache section.
+	WarmCacheSettings struct {
+		Enabled bool `json:"enabled"`
+		MaxMB   int  `json:"maxMb"`
+		Retries int  `json:"retries"`
 	}
 
 	// LocalStorageSettings is the storage.local section.

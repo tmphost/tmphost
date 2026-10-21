@@ -31,6 +31,7 @@ function state(overrides = {}) {
         driver: 'local',
         local: { path: './_storage/files' },
         s3: { endpoint: '', region: '', bucket: '', accessKeyId: '', secretAccessKey: '', usePathStyle: false },
+        warmCache: { enabled: false, maxMb: 1024, retries: 0 },
       },
       files: { maxTtlMinutes: 432000, maxUploadMb: 16, anonymousMaxTtlMinutes: 10, subdomains: false, publicDomain: '' },
       auth: {
@@ -278,6 +279,31 @@ describe('SetupView', () => {
     await saved.find('[data-test="setup-storage-s3"]').trigger('click')
     expect(saved.find('#s3-secret').attributes('placeholder')).toContain('saved')
     expect(saved.find('#s3-secret').element.value).toBe('')
+  })
+
+  it('turns on the S3 warm cache and sizes it', async () => {
+    fetchSettings.mockResolvedValue(state())
+    saveSettings.mockImplementation(async (settings) => state({ settings }))
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-test="setup-warm-cache"]').exists()).toBe(false)
+
+    await wrapper.find('[data-test="setup-storage-s3"]').trigger('click')
+    const warm = wrapper.find('[data-test="setup-warm-cache"]')
+    expect(warm.text()).toContain('under 1 MB')
+    expect(wrapper.find('[data-test="setup-warm-max-mb"]').exists()).toBe(false)
+
+    await wrapper.find('[data-test="setup-warm-enabled"]').setValue(true)
+    const size = wrapper.find('[data-test="setup-warm-max-mb"]')
+    expect(size.element.value).toBe('1024')
+    expect(wrapper.find('label[for="warm-max-mb"]').text()).toBe('Disk budget (MB)')
+    await size.setValue('256')
+    const retries = wrapper.find('[data-test="setup-warm-retries"]')
+    expect(retries.element.value).toBe('0')
+    expect(wrapper.find('label[for="warm-retries"]').text()).toBe('Write retries')
+    await retries.setValue('3')
+    await wrapper.find('[data-test="setup-form"]').trigger('submit')
+    await flushPromises()
+    expect(saveSettings.mock.calls.at(-1)[0].storage.warmCache).toEqual({ enabled: true, maxMb: 256, retries: 3 })
   })
 
   it('explains the max TTL in hours or days', async () => {

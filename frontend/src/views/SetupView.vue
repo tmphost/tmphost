@@ -518,6 +518,35 @@ onMounted(refresh)
                 <input v-model="form.storage.s3.usePathStyle" type="checkbox" class="accent-black dark:accent-white" data-test="setup-s3-path-style" />
                 Use path-style URLs (MinIO and some providers)
               </label>
+              <div class="sm:col-span-2 mt-2 border-t border-gray-100 dark:border-zinc-800 pt-4" data-test="setup-warm-cache">
+                <label class="flex items-center gap-2 text-xs font-bold text-gray-900 dark:text-zinc-100">
+                  <input v-model="form.storage.warmCache.enabled" type="checkbox" class="accent-black dark:accent-white" data-test="setup-warm-enabled" />
+                  Warm cache
+                </label>
+                <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500">
+                  Keep files under 1 MB on this server's disk too, and serve them from there instead of asking the bucket. Least
+                  recently used files are dropped once the cache is full.
+                </p>
+                <div v-if="form.storage.warmCache.enabled" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label for="warm-max-mb" :class="LABEL">Disk budget (MB)</label>
+                    <input id="warm-max-mb" v-model.number="form.storage.warmCache.maxMb" type="number" min="1" :class="INPUT" data-test="setup-warm-max-mb" />
+                  </div>
+                  <div>
+                    <label for="warm-retries" :class="LABEL">Write retries</label>
+                    <input
+                      id="warm-retries"
+                      v-model.number="form.storage.warmCache.retries"
+                      type="number"
+                      min="0"
+                      max="10"
+                      :class="INPUT"
+                      data-test="setup-warm-retries"
+                    />
+                    <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500">Extra tries of a failed bucket write, waiting 1s, 2s, 4s, … between them.</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
 
