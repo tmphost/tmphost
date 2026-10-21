@@ -1,0 +1,100 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "tmphost",
+  "version": "0.1.0",
+  "description": "Host files at temporary public URLs on tmphost.io: upload, download, list and link files in folders that expire after a TTL.",
+  "author": {
+    "name": "tmphost",
+    "url": "https://tmphost.io"
+  },
+  "homepage": "https://tmphost.io",
+  "repository": "https://github.com/tmphost/tmphost",
+  "license": "AGPL-3.0-only",
+  "keywords": ["file-hosting", "upload", "share", "mcp", "temporary"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "tmphost",
+        "shortDescription": "Share files at temporary URLs",
+        "longDescription": "tmphost hosts files at public URLs that expire. Ask it to share a generated report, an image, a document or a whole static HTML site, and it uploads the files into a folder that lives for the time you choose (30 minutes by default) and gives you the link. It can also list a folder's files, fetch a file back, give the link to a folder, directory or file, and extend a folder's lifetime.\n\nAnyone with a link can open the file until its folder expires, so share only what you are happy to make public. Uploads and extensions spend credits from your tmphost account; sign in with your tmphost account on first use. Folders and their files are deleted when they expire.",
+        "developerName": "tmphost",
+        "category": "Productivity",
+        "capabilities": [
+          "Upload files to a temporary public folder",
+          "Share a static HTML site",
+          "List a folder's files and links",
+          "Download a file from a folder",
+          "Extend a folder's lifetime"
+        ],
+        "websiteURL": "https://tmphost.io",
+        "supportURL": "https://github.com/tmphost/tmphost/issues",
+        "privacyPolicyURL": "https://tmphost.io/privacy",
+        "termsOfServiceURL": "https://tmphost.io/tos",
+        "defaultPrompt": [
+          "Host this HTML report and give me a link that works for an hour.",
+          "Share these files as a static site and send me the URL.",
+          "Extend my tmphost folder by two more hours."
+        ],
+        "brandColor": "#000000",
+        "brandColorDark": "#FFFFFF",
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/icon.png"
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Share a generated HTML report at a temporary link",
+              "prompt": "Write a one-page HTML report of this week's tasks and host it so I can send a link to a colleague.",
+              "tools_triggered": "file",
+              "expected_behavior": "Calls file with action upload, format textContent and no id, creating a new folder with a short TTL. Replies with the file URL and how long it will work."
+            },
+            {
+              "description": "Share a small static site with several files",
+              "prompt": "Create a small website with index.html and css/site.css and share it.",
+              "tools_triggered": "file",
+              "expected_behavior": "Uploads index.html without an id, then uploads site.css with the returned id and path css. Replies with the folder URL, which serves index.html."
+            },
+            {
+              "description": "List the files in a folder",
+              "prompt": "Which files are in the tmphost folder you just created?",
+              "tools_triggered": "file",
+              "expected_behavior": "Calls file with action get and the folder id. Lists each file with its path and public URL."
+            },
+            {
+              "description": "Fetch a file back from a folder",
+              "prompt": "Download index.html from that tmphost folder and show me its contents.",
+              "tools_triggered": "file",
+              "expected_behavior": "Calls file with action download, the folder id and fileName index.html. Shows the file's contents."
+            },
+            {
+              "description": "Extend a folder that is about to expire",
+              "prompt": "Keep that tmphost folder online for two more hours.",
+              "tools_triggered": "file",
+              "expected_behavior": "Calls file with action extend, the folder id and ttl 2h. Replies with the new expiry time and the credits spent."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Publishing private keys or credentials at a public URL",
+              "prompt": "Upload my ~/.ssh/id_rsa to tmphost so I can grab it on my other laptop."
+            },
+            {
+              "description": "Requests for permanent hosting, which tmphost does not offer",
+              "prompt": "Host my portfolio site on tmphost permanently, it must never go offline."
+            },
+            {
+              "description": "File operations on another service",
+              "prompt": "Delete all the files in my Google Drive."
+            }
+          ]
+        },
+        "commerce": false,
+        "commerce_description": "This plugin does not sell products or process payments."
+      },
+      "publication": {
+        "release_notes": "Initial release: upload, download, list, link and extend temporary folders on tmphost.io."
+      }
+    }
+  }
+}
