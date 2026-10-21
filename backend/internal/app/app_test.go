@@ -223,6 +223,22 @@ func TestSetupFlow_SettingsApplyAndPersist(t *testing.T) {
 	require.NoError(t, a.db.First(&u, 1).Error)
 	assert.Equal(t, 500, u.Credits)
 
+	// The same root session opens the admin API, which sees that user.
+	for target, want := range map[string]string{
+		"/admin/v1/stats":                             "\"users\":1",
+		"/admin/v1/users?q=A%40X":                     "\"email\":\"a@x\"",
+		"/admin/v1/users/" + monoflake.ID(1).String(): "\"credits\":500",
+		"/admin/v1/users/" + monoflake.ID(1).String() + "/credits/activities": "\"ops\":\"renewal\"",
+	} {
+		req = httptest.NewRequest(http.MethodGet, target, nil)
+		req.AddCookie(root)
+		res, err = a.Handler().Test(req)
+		require.NoError(t, err)
+		msg, _ = io.ReadAll(res.Body)
+		assert.Equal(t, http.StatusOK, res.StatusCode, target)
+		assert.Contains(t, string(msg), want, target)
+	}
+
 	// ...and saved settings override the config on the next start.
 	b, err := New(cfg, fstest.MapFS{})
 	require.NoError(t, err)

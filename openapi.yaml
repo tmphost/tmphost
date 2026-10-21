@@ -17,7 +17,7 @@ info:
 
     Authenticate API calls with an OAuth access token
     (`Authorization: Bearer <token>`) or, from the web app, the
-    `tmphost_session` cookie. Root-only routes (setup and admin) take the
+    `tmphost_session` cookie. Root-only setup routes take the
     `tmphost_root` cookie set by `POST /api/v1/setup/login`.
 
     Errors from `/api/v1` and `/auth` are JSON `{"error": "<message>"}`;
@@ -47,8 +47,6 @@ tags:
     description: tmphost's own OAuth 2.1 server, for the CLI, MCP clients and API clients.
   - name: Setup
     description: Root-only server settings.
-  - name: Admin
-    description: Root-only administration.
   - name: MCP
     description: The MCP server.
 security:
@@ -423,7 +421,7 @@ paths:
       summary: Sign in as root
       description: |
         Exchanges the root access token for the `tmphost_root` session
-        cookie, which covers the setup and admin routes. Limited to 10
+        cookie, which covers the root-only routes. Limited to 10
         attempts per client IP per minute.
       security: []
       requestBody:
@@ -508,56 +506,6 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServerError"
-
-  /api/v1/admin/credits/grants:
-    post:
-      tags: [Admin]
-      operationId: createCreditGrant
-      summary: Grant credits
-      description: |
-        Grants credits, which expire after 30 days, to one user (`email`) or
-        to every user (`all`).
-      security:
-        - root: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [credits]
-              properties:
-                credits:
-                  type: integer
-                  minimum: 1
-                email:
-                  type: string
-                  format: email
-                all:
-                  type: boolean
-      responses:
-        "201":
-          description: The grant.
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [users, expiresAt]
-                properties:
-                  users:
-                    type: integer
-                    description: How many users got the grant.
-                  expiresAt:
-                    type: string
-                    format: date-time
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/ServerError"
 

@@ -113,6 +113,11 @@ func TestSPAHandler(t *testing.T) {
 	t.Run("unknown api route", func(t *testing.T) {
 		res, _ := fetch(t, f, "/api/v1/nope")
 		assert.Equal(t, http.StatusNotFound, res.StatusCode)
+		res, _ = fetch(t, f, "/admin/v1/nope")
+		assert.Equal(t, http.StatusNotFound, res.StatusCode)
+		// The admin page itself is a client-side route.
+		res, _ = fetch(t, f, "/admin")
+		assert.Equal(t, http.StatusOK, res.StatusCode)
 	})
 }
 

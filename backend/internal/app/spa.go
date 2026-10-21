@@ -50,7 +50,7 @@ func spaHandler(web fs.FS, basePath string) fiber.Handler {
 		index = injectBasePath(index, basePath)
 	}
 	return func(c fiber.Ctx) error {
-		if strings.HasPrefix(c.Path(), api.RoutePrefix+"/") {
+		if strings.HasPrefix(c.Path(), api.RoutePrefix+"/") || strings.HasPrefix(c.Path(), api.AdminPrefix+"/") {
 			return fiber.ErrNotFound
 		}
 		name := strings.TrimPrefix(path.Clean(c.Path()), "/")

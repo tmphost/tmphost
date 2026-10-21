@@ -39,6 +39,8 @@ export default defineConfig({
     proxy: {
       '/api': { target: apiTarget },
       '/auth': { target: apiTarget },
+      // Only the admin API: /admin itself is a page of the app.
+      '/admin/v1': { target: apiTarget },
     },
   },
 })

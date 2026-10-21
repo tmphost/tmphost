@@ -15,6 +15,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/limiter"
 	zlog "github.com/rs/zerolog/log"
 
+	adminctrl "github.com/tmphost/tmphost/backend/internal/controller/admin"
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
 	creditctrl "github.com/tmphost/tmphost/backend/internal/controller/credit"
 	folderctrl "github.com/tmphost/tmphost/backend/internal/controller/folder"
@@ -26,6 +27,10 @@ import (
 
 // RoutePrefix is where the API is mounted.
 const RoutePrefix = "/api/v1"
+
+// AdminPrefix is where the root-only admin API is mounted, apart from the
+// public API.
+const AdminPrefix = "/admin/v1"
 
 // AuthPrefix is where signing in and out is mounted, outside the API:
 // /auth/config, /auth/<provider>/login, the provider's
@@ -50,6 +55,7 @@ type Params struct {
 	Folders folderctrl.Controller
 	OAuth   oauthctrl.Controller
 	Credits creditctrl.Controller
+	Admin   adminctrl.Controller
 	// FileSettings returns the current file settings, which choose how
 	// folders are served.
 	FileSettings func() entity.FileSettings
@@ -72,7 +78,7 @@ func New(p Params) {
 	}
 	user := &User{controller: p.Auth}
 	credit := &Credit{controller: p.Credits}
-	admin := &Admin{credits: p.Credits}
+	admin := &Admin{credits: p.Credits, controller: p.Admin}
 	setup := &Setup{controller: p.Setup, basePath: basePath, cookieSecure: p.CookieSecure}
 	folder := &Folder{controller: p.Folders}
 	public := &Public{controller: p.Folders, settings: p.FileSettings}
@@ -137,9 +143,16 @@ func New(p Params) {
 		LimitReached: func(c fiber.Ctx) error { return sendError(c, fiber.StatusTooManyRequests, "too many attempts") },
 	}), setup.Login)
 	r.Post("/setup/logout", setup.Logout)
-	r.Get("/setup/settings", AuthenticateRoot(p.Setup), setup.Get)
-	r.Put("/setup/settings", AuthenticateRoot(p.Setup), setup.Update)
-	r.Post("/admin/credits/grants", AuthenticateRoot(p.Setup), admin.CreateCreditGrant)
+	root := AuthenticateRoot(p.Setup)
+	r.Get("/setup/settings", root, setup.Get)
+	r.Put("/setup/settings", root, setup.Update)
+
+	a := p.Router.Group(AdminPrefix, root)
+	a.Post("/credits/grants", admin.CreateCreditGrant)
+	a.Get("/stats", admin.GetStats)
+	a.Get("/users", admin.ListUsers)
+	a.Get("/users/:id", admin.GetUser)
+	a.Get("/users/:id/credits/activities", admin.ListUserCreditActivities)
 }
 
 // allowedOriginsCORS lets the allowed origins call the API from a browser,

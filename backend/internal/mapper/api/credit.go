@@ -23,21 +23,30 @@ func FromHTTPRequestToListCreditActivitiesRequestEntity(c fiber.Ctx) *entity.Lis
 	if id == 0 {
 		return nil
 	}
-	rq := &entity.ListCreditActivitiesRequest{UserID: id}
+	before, limit, ok := pageQuery(c)
+	if !ok {
+		return nil
+	}
+	return &entity.ListCreditActivitiesRequest{UserID: id, Before: before, Limit: limit}
+}
+
+// pageQuery reads the optional before cursor (a base62 ID) and limit of a
+// page; ok is false when either is malformed.
+func pageQuery(c fiber.Ctx) (before int64, limit int, ok bool) {
 	if s := c.Query("before"); s != "" {
-		rq.Before = monoflake.IDFromBase62(s).Int64()
-		if rq.Before <= 0 {
-			return nil
+		before = monoflake.IDFromBase62(s).Int64()
+		if before <= 0 {
+			return 0, 0, false
 		}
 	}
 	if s := c.Query("limit"); s != "" {
 		n, err := strconv.Atoi(s)
 		if err != nil || n <= 0 {
-			return nil
+			return 0, 0, false
 		}
-		rq.Limit = n
+		limit = n
 	}
-	return rq
+	return before, limit, true
 }
 
 // FromListCreditActivitiesResponseEntityToHTTPResponse renders a credit
@@ -68,7 +77,7 @@ func FromCreditActivityEntitiesToCreditActivityViews(es []entity.CreditActivity)
 }
 
 // FromHTTPRequestToGrantCreditsRequestEntity reads POST
-// /admin/credits/grants. Checking the amount and target is the
+// /admin/v1/credits/grants. Checking the amount and target is the
 // controller's job.
 func FromHTTPRequestToGrantCreditsRequestEntity(c fiber.Ctx) *entity.GrantCreditsRequest {
 	var rq view.GrantCreditsRequest

@@ -28,6 +28,21 @@ export const CHART_COLORS = { used: '#aec477', balance: '#a8a3d9' }
 // HISTORY_DAYS is how many days the credit charts cover: one renewal period.
 export const HISTORY_DAYS = 30
 
+// OPS_LABELS name what changed a balance, by credit activity ops.
+const OPS_LABELS = {
+  grant: 'Sign-up grant',
+  renewal: 'Renewal',
+  spend: 'Upload',
+  refund: 'Refund',
+  admin_grant: 'Admin grant',
+  expiry: 'Admin grant expired',
+}
+
+// opsLabel names a credit activity's ops; unknown ones show as they are.
+export function opsLabel(ops) {
+  return OPS_LABELS[ops] || ops
+}
+
 // formatChange signs a credit change: +250, -3.
 export function formatChange(n) {
   return n > 0 ? `+${n}` : String(n)

@@ -7,9 +7,9 @@
 // the background before the page offers to switch to it.
 //
 // It routes nothing but the precached build files. Every other request
-// (/api, /auth sign-in redirects, /oauth2, /mcp, uploads) goes straight to
-// the network: caching or answering those with the app shell breaks sign-in
-// and serves stale data.
+// (/api, /admin/v1, /auth sign-in redirects, /oauth2, /mcp, uploads) goes
+// straight to the network: caching or answering those with the app shell
+// breaks sign-in and serves stale data.
 
 import { addPlugins, cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching'
 import { SKIP_WAITING, precacheProgressPlugin, precacheTotal } from './utils/precacheProgress'
