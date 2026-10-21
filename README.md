@@ -2,6 +2,11 @@
 
 Go (Fiber v3, GORM) backend and Vue 3 (Vite, Tailwind) frontend.
 
+The HTTP API (`/api/v1`, sign-in, the OAuth 2.1 server, public file URLs and
+`/mcp`) is described in [openapi.yaml](openapi.yaml) (OpenAPI 3.1). A backend
+test fails when a route is missing from it, so keep it in step with
+`backend/internal/handler/api/api.go`.
+
 ## Sign-in and credits
 
 - Sign in with Google or GitHub (OAuth). Accounts are keyed by verified email,

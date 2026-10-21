@@ -1,0 +1,1582 @@
+# Copyright 2026 Contextual, Inc. https://tmphost.io
+# This notice may not be modified or removed.
+# SPDX-License-Identifier: AGPL-3.0-only
+
+openapi: 3.1.0
+info:
+  title: tmphost API
+  version: 0.1.1
+  summary: Temporary file hosting with expiring folders.
+  description: |
+    tmphost hosts files in folders that expire after a TTL. Every file is
+    served at a public URL until its folder expires.
+
+    The REST API lives under `/api/v1`. Sign-in for the web app lives under
+    `/auth`, and tmphost's own OAuth 2.1 server (for the CLI, MCP clients and
+    other API clients) under `/oauth2` and `/.well-known`.
+
+    Authenticate API calls with an OAuth access token
+    (`Authorization: Bearer <token>`) or, from the web app, the
+    `tmphost_session` cookie. Root-only routes (setup and admin) take the
+    `tmphost_root` cookie set by `POST /api/v1/setup/login`.
+
+    Errors from `/api/v1` and `/auth` are JSON `{"error": "<message>"}`;
+    errors from `/oauth2` follow RFC 6749 (`{"error", "error_description"}`).
+  license:
+    name: AGPL-3.0-only
+    url: https://www.gnu.org/licenses/agpl-3.0.html
+servers:
+  - url: https://app.tmphost.io
+    description: tmphost.io
+  - url: http://localhost:2027
+    description: Local development (`make dev-backend`)
+tags:
+  - name: Users
+    description: The signed-in user.
+  - name: Credits
+    description: The signed-in user's credit history.
+  - name: Folders
+    description: Folders of files that expire together.
+  - name: Files
+    description: Uploading, downloading and deleting a folder's files.
+  - name: Public files
+    description: The public URLs files are served at until they expire.
+  - name: Sign-in
+    description: Web app sign-in with Google, GitHub or a custom OpenID Connect provider.
+  - name: OAuth
+    description: tmphost's own OAuth 2.1 server, for the CLI, MCP clients and API clients.
+  - name: Setup
+    description: Root-only server settings.
+  - name: Admin
+    description: Root-only administration.
+  - name: MCP
+    description: The MCP server.
+security:
+  - oauth2: []
+  - session: []
+
+paths:
+  /api/v1/users/me:
+    get:
+      tags: [Users]
+      operationId: getCurrentUser
+      summary: Get the signed-in user
+      responses:
+        "200":
+          description: The signed-in user and their credit balance.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user:
+                    $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/users/me/credits/activities:
+    get:
+      tags: [Credits]
+      operationId: listCreditActivities
+      summary: List the signed-in user's credit history
+      description: A page of credit activities, newest first.
+      parameters:
+        - name: before
+          in: query
+          description: The `next` cursor of the previous page.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Page size; capped at 200.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: A page of credit activities.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListCreditActivitiesResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /api/v1/limits:
+    get:
+      tags: [Folders]
+      operationId: getLimits
+      summary: Get upload limits and pricing
+      description: |
+        Visitors of the web app may call this without signing in; they get
+        the lower anonymous limits (`anonymous: true`).
+      security:
+        - oauth2: []
+        - session: []
+        - {}
+      responses:
+        "200":
+          description: The caller's upload limits and pricing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Limits"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/folders:
+    get:
+      tags: [Folders]
+      operationId: listFolders
+      summary: List the live folders
+      responses:
+        "200":
+          description: The signed-in user's folders that have not expired.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [folders]
+                properties:
+                  folders:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Folder"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    post:
+      tags: [Folders]
+      operationId: createFolder
+      summary: Create an empty folder
+      description: |
+        Visitors of the web app may create folders without signing in, with
+        the anonymous limits (a shorter maximum TTL and a per-IP quota).
+      security:
+        - oauth2: []
+        - session: []
+        - {}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ttlMinutes:
+                  type: integer
+                  minimum: 0
+                  description: |
+                    Lifetime in minutes; 0 or absent uses the default
+                    (`defaultTtlMinutes` of `GET /api/v1/limits`).
+      responses:
+        "201":
+          description: The new folder.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/InsufficientCredits"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /api/v1/folders/{id}:
+    parameters:
+      - $ref: "#/components/parameters/FolderID"
+    get:
+      tags: [Folders]
+      operationId: getFolder
+      summary: Get a folder and its files
+      responses:
+        "200":
+          description: The folder and its files.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [folder, files]
+                properties:
+                  folder:
+                    $ref: "#/components/schemas/Folder"
+                  files:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/File"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    patch:
+      tags: [Folders]
+      operationId: updateFolder
+      summary: Rename a folder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                  description: The new title; empty resets it to the default.
+      responses:
+        "200":
+          description: The renamed folder.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    delete:
+      tags: [Folders]
+      operationId: deleteFolder
+      summary: Delete a folder and its files
+      responses:
+        "204":
+          description: Deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /api/v1/folders/{id}/extend:
+    parameters:
+      - $ref: "#/components/parameters/FolderID"
+    post:
+      tags: [Folders]
+      operationId: extendFolder
+      summary: Make a folder expire later
+      description: Billed for the added time only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [minutes]
+              properties:
+                minutes:
+                  type: integer
+                  minimum: 1
+                  description: Minutes to add to the folder's lifetime.
+      responses:
+        "200":
+          description: The extended folder and what it cost.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [folder, creditsSpent]
+                properties:
+                  folder:
+                    $ref: "#/components/schemas/Folder"
+                  creditsSpent:
+                    type: integer
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/InsufficientCredits"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /api/v1/folders/{id}/files/{path}:
+    parameters:
+      - $ref: "#/components/parameters/FolderID"
+      - $ref: "#/components/parameters/FilePath"
+    put:
+      tags: [Files]
+      operationId: putFile
+      summary: Upload a file
+      description: |
+        Writes the request body as the file at `path`, adding it or
+        replacing the file already there. Visitors of the web app may upload
+        into their own anonymous folders without signing in.
+      security:
+        - oauth2: []
+        - session: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: The written file and what it cost.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [file, creditsSpent]
+                properties:
+                  file:
+                    $ref: "#/components/schemas/File"
+                  creditsSpent:
+                    type: integer
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/InsufficientCredits"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    get:
+      tags: [Files]
+      operationId: getFile
+      summary: Download a file
+      description: |
+        Always sent as an attachment (`application/octet-stream`). A large
+        file in S3 storage is a `302` redirect to a signed bucket URL that
+        answers the same way.
+      responses:
+        "200":
+          description: The file's bytes.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "302":
+          description: Redirect to a signed storage URL.
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    delete:
+      tags: [Files]
+      operationId: deleteFile
+      summary: Delete a file
+      responses:
+        "204":
+          description: Deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /api/v1/setup/login:
+    post:
+      tags: [Setup]
+      operationId: rootLogin
+      summary: Sign in as root
+      description: |
+        Exchanges the root access token for the `tmphost_root` session
+        cookie, which covers the setup and admin routes. Limited to 10
+        attempts per client IP per minute.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  description: The root access token.
+      responses:
+        "204":
+          description: Signed in; sets the `tmphost_root` cookie.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /api/v1/setup/logout:
+    post:
+      tags: [Setup]
+      operationId: rootLogout
+      summary: Sign out as root
+      security: []
+      responses:
+        "204":
+          description: Signed out; clears the `tmphost_root` cookie.
+
+  /api/v1/setup/settings:
+    get:
+      tags: [Setup]
+      operationId: getSettings
+      summary: Get the settings
+      description: Secrets are always empty; `secretsSet` says which are stored.
+      security:
+        - root: []
+      responses:
+        "200":
+          description: The settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      tags: [Setup]
+      operationId: updateSettings
+      summary: Validate and save the settings
+      description: An empty secret keeps the stored value.
+      security:
+        - root: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [settings]
+              properties:
+                settings:
+                  $ref: "#/components/schemas/Settings"
+      responses:
+        "200":
+          description: The saved settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /api/v1/admin/credits/grants:
+    post:
+      tags: [Admin]
+      operationId: createCreditGrant
+      summary: Grant credits
+      description: |
+        Grants credits, which expire after 30 days, to one user (`email`) or
+        to every user (`all`).
+      security:
+        - root: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [credits]
+              properties:
+                credits:
+                  type: integer
+                  minimum: 1
+                email:
+                  type: string
+                  format: email
+                all:
+                  type: boolean
+      responses:
+        "201":
+          description: The grant.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [users, expiresAt]
+                properties:
+                  users:
+                    type: integer
+                    description: How many users got the grant.
+                  expiresAt:
+                    type: string
+                    format: date-time
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /auth/config:
+    get:
+      tags: [Sign-in]
+      operationId: getAuthConfig
+      summary: List the sign-in providers
+      security: []
+      responses:
+        "200":
+          description: The enabled sign-in providers and the MCP endpoint.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [providers]
+                properties:
+                  providers:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, icon]
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        icon:
+                          type: string
+                  mcpUrl:
+                    type: string
+                    format: uri
+
+  /auth/{provider}/login:
+    get:
+      tags: [Sign-in]
+      operationId: startLogin
+      summary: Start signing in with a provider
+      description: Redirects the browser to the provider's consent screen.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Provider"
+        - name: redirect_url
+          in: query
+          description: Where in the app to land after signing in.
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to the provider.
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /auth/{provider}/callback:
+    get:
+      tags: [Sign-in]
+      operationId: completeLogin
+      summary: Finish signing in
+      description: |
+        The provider redirects here. On success it sets the
+        `tmphost_session` cookie and redirects into the app; on failure it
+        redirects to `/login?error=<code>`.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Provider"
+        - name: code
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect into the app or to the login page.
+
+  /auth/logout:
+    post:
+      tags: [Sign-in]
+      operationId: logout
+      summary: Sign out
+      security: []
+      responses:
+        "204":
+          description: Signed out; clears the `tmphost_session` cookie.
+
+  /auth/device:
+    get:
+      tags: [OAuth]
+      operationId: devicePage
+      summary: Device sign-in page (RFC 8628)
+      description: The HTML page where a user enters a device flow's code.
+      security: []
+      parameters:
+        - name: user_code
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: HTML page.
+          content:
+            text/html: {}
+    post:
+      tags: [OAuth]
+      operationId: deviceConsent
+      summary: Approve or deny a device
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/ConsentForm"
+      responses:
+        "200":
+          description: HTML result page.
+          content:
+            text/html: {}
+
+  /.well-known/oauth-authorization-server:
+    get:
+      tags: [OAuth]
+      operationId: getOAuthServerMetadata
+      summary: Authorization server metadata (RFC 8414)
+      security: []
+      responses:
+        "200":
+          description: The metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthServerMetadata"
+
+  /.well-known/oauth-protected-resource:
+    get:
+      tags: [OAuth]
+      operationId: getProtectedResourceMetadata
+      summary: Protected resource metadata (RFC 9728)
+      security: []
+      responses:
+        "200":
+          description: The metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtectedResourceMetadata"
+
+  /.well-known/oauth-protected-resource/{resource}:
+    get:
+      tags: [OAuth]
+      operationId: getProtectedResourceMetadataForPath
+      summary: Protected resource metadata for a path (RFC 9728)
+      description: E.g. `/.well-known/oauth-protected-resource/mcp`.
+      security: []
+      parameters:
+        - name: resource
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtectedResourceMetadata"
+
+  /oauth2/register:
+    post:
+      tags: [OAuth]
+      operationId: registerClient
+      summary: Dynamic client registration (RFC 7591)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [redirect_uris]
+              properties:
+                client_name:
+                  type: string
+                redirect_uris:
+                  type: array
+                  items:
+                    type: string
+                    format: uri
+                grant_types:
+                  type: array
+                  items:
+                    type: string
+                response_types:
+                  type: array
+                  items:
+                    type: string
+                token_endpoint_auth_method:
+                  type: string
+      responses:
+        "201":
+          description: The registered client.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [client_id, client_id_issued_at, redirect_uris, grant_types, response_types, token_endpoint_auth_method]
+                properties:
+                  client_id:
+                    type: string
+                  client_id_issued_at:
+                    type: integer
+                  client_name:
+                    type: string
+                  redirect_uris:
+                    type: array
+                    items:
+                      type: string
+                  grant_types:
+                    type: array
+                    items:
+                      type: string
+                  response_types:
+                    type: array
+                    items:
+                      type: string
+                  token_endpoint_auth_method:
+                    type: string
+        "400":
+          $ref: "#/components/responses/OAuthError"
+
+  /oauth2/authorize:
+    get:
+      tags: [OAuth]
+      operationId: authorize
+      summary: Authorization endpoint
+      description: |
+        Shows the consent page to a signed-in user, or sends the browser to
+        sign in first. PKCE with S256 is required.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/ResponseType"
+        - $ref: "#/components/parameters/ClientID"
+        - $ref: "#/components/parameters/RedirectURI"
+        - $ref: "#/components/parameters/CodeChallenge"
+        - $ref: "#/components/parameters/CodeChallengeMethod"
+        - $ref: "#/components/parameters/State"
+      responses:
+        "200":
+          description: Consent page.
+          content:
+            text/html: {}
+        "302":
+          description: Redirect to sign in, or back to the client.
+    post:
+      tags: [OAuth]
+      operationId: consent
+      summary: Submit the consent page
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/ConsentForm"
+      responses:
+        "303":
+          description: Redirect back to the client with a code or an error.
+        "400":
+          description: HTML error page.
+          content:
+            text/html: {}
+
+  /oauth2/mcp/authorize:
+    get:
+      tags: [OAuth]
+      operationId: authorizeMCP
+      summary: Authorization endpoint for the MCP domain
+      description: |
+        Same as `/oauth2/authorize`, but the issued code belongs to the MCP
+        domain's issuer and the redirect carries its `iss`.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/ResponseType"
+        - $ref: "#/components/parameters/ClientID"
+        - $ref: "#/components/parameters/RedirectURI"
+        - $ref: "#/components/parameters/CodeChallenge"
+        - $ref: "#/components/parameters/CodeChallengeMethod"
+        - $ref: "#/components/parameters/State"
+      responses:
+        "200":
+          description: Consent page.
+          content:
+            text/html: {}
+        "302":
+          description: Redirect to sign in, or back to the client.
+    post:
+      tags: [OAuth]
+      operationId: consentMCP
+      summary: Submit the MCP consent page
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/ConsentForm"
+      responses:
+        "303":
+          description: Redirect back to the client with a code or an error.
+        "400":
+          description: HTML error page.
+          content:
+            text/html: {}
+
+  /oauth2/token:
+    post:
+      tags: [OAuth]
+      operationId: token
+      summary: Token endpoint
+      description: |
+        Grants `authorization_code` (with `code_verifier`), `refresh_token`
+        and `urn:ietf:params:oauth:grant-type:device_code`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [grant_type, client_id]
+              properties:
+                grant_type:
+                  type: string
+                  enum:
+                    - authorization_code
+                    - refresh_token
+                    - urn:ietf:params:oauth:grant-type:device_code
+                client_id:
+                  type: string
+                code:
+                  type: string
+                redirect_uri:
+                  type: string
+                code_verifier:
+                  type: string
+                refresh_token:
+                  type: string
+                device_code:
+                  type: string
+      responses:
+        "200":
+          description: Issued tokens.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, token_type, expires_in, refresh_token]
+                properties:
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                    const: Bearer
+                  expires_in:
+                    type: integer
+                  refresh_token:
+                    type: string
+        "400":
+          $ref: "#/components/responses/OAuthError"
+        "401":
+          $ref: "#/components/responses/OAuthError"
+
+  /oauth2/device/code:
+    post:
+      tags: [OAuth]
+      operationId: deviceCode
+      summary: Device authorization endpoint (RFC 8628)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [client_id]
+              properties:
+                client_id:
+                  type: string
+      responses:
+        "200":
+          description: A device code to poll `/oauth2/token` with.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [device_code, user_code, verification_uri, verification_uri_complete, expires_in, interval]
+                properties:
+                  device_code:
+                    type: string
+                  user_code:
+                    type: string
+                  verification_uri:
+                    type: string
+                    format: uri
+                  verification_uri_complete:
+                    type: string
+                    format: uri
+                  expires_in:
+                    type: integer
+                  interval:
+                    type: integer
+        "400":
+          $ref: "#/components/responses/OAuthError"
+        "401":
+          $ref: "#/components/responses/OAuthError"
+        "429":
+          $ref: "#/components/responses/OAuthError"
+
+  /files/{user}/{folder}/{path}:
+    get:
+      tags: [Public files]
+      operationId: getPublicFile
+      summary: Open a hosted file
+      description: |
+        The public URL of a file, until its folder expires. A folder's root
+        serves its `index.html`. With subdomains enabled the same files are
+        served at `https://<folder>.<sites domain>/<path>`. Large files in S3
+        storage are a `302` redirect to a signed bucket URL; HTML files never
+        are.
+      security: []
+      parameters:
+        - name: user
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: folder
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/FilePath"
+        - name: format
+          in: query
+          description: "`html` renders a Markdown file as an HTML page."
+          schema:
+            type: string
+            enum: [html]
+      responses:
+        "200":
+          description: The file.
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "302":
+          description: Redirect to a signed storage URL.
+        "404":
+          description: No such file, or the folder has expired.
+
+  /favicon.ico:
+    get:
+      tags: [Public files]
+      operationId: getFavicon
+      summary: The tmphost icon, on every host
+      security: []
+      responses:
+        "200":
+          description: The icon.
+          content:
+            image/x-icon:
+              schema:
+                type: string
+                format: binary
+
+  /mcp:
+    post:
+      tags: [MCP]
+      operationId: mcp
+      summary: MCP server (streamable HTTP)
+      description: |
+        A stateless MCP server with one tool, `file` (actions `upload`,
+        `download`, `get`, `url`, `extend`). Takes an OAuth access token;
+        clients discover the authorization server via
+        `/.well-known/oauth-protected-resource/mcp`.
+      security:
+        - oauth2: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: A JSON-RPC 2.0 message.
+      responses:
+        "200":
+          description: A JSON-RPC 2.0 response.
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Missing or invalid access token.
+
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      description: |
+        tmphost's own OAuth 2.1 server, with PKCE S256 and dynamic client
+        registration. Send the access token as `Authorization: Bearer`.
+      flows:
+        authorizationCode:
+          authorizationUrl: /oauth2/authorize
+          tokenUrl: /oauth2/token
+          refreshUrl: /oauth2/token
+          scopes: {}
+    session:
+      type: apiKey
+      in: cookie
+      name: tmphost_session
+      description: The web app's session, set by `/auth/{provider}/callback`.
+    root:
+      type: apiKey
+      in: cookie
+      name: tmphost_root
+      description: The root session, set by `POST /api/v1/setup/login`.
+
+  parameters:
+    FolderID:
+      name: id
+      in: path
+      required: true
+      description: The folder ID.
+      schema:
+        type: string
+    FilePath:
+      name: path
+      in: path
+      required: true
+      description: The file's path in the folder; it may contain `/`.
+      schema:
+        type: string
+    Provider:
+      name: provider
+      in: path
+      required: true
+      description: A sign-in provider ID from `/auth/config`, e.g. `google`.
+      schema:
+        type: string
+    ResponseType:
+      name: response_type
+      in: query
+      required: true
+      schema:
+        type: string
+        const: code
+    ClientID:
+      name: client_id
+      in: query
+      required: true
+      schema:
+        type: string
+    RedirectURI:
+      name: redirect_uri
+      in: query
+      required: true
+      schema:
+        type: string
+    CodeChallenge:
+      name: code_challenge
+      in: query
+      required: true
+      schema:
+        type: string
+    CodeChallengeMethod:
+      name: code_challenge_method
+      in: query
+      required: true
+      schema:
+        type: string
+        const: S256
+    State:
+      name: state
+      in: query
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: The request is invalid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing or invalid credentials.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InsufficientCredits:
+      description: Not enough credits.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    TooLarge:
+      description: The file is larger than the upload limit.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    TooManyRequests:
+      description: Rate limit or anonymous quota exceeded.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ServerError:
+      description: Internal error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    OAuthError:
+      description: An OAuth error (RFC 6749 §5.2).
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error:
+                type: string
+              error_description:
+                type: string
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    User:
+      type: object
+      required: [id, email, name, picture, provider, credits, creditsLimit, monthlyGrant, creditsRenewAt, createdAt]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        picture:
+          type: string
+        provider:
+          type: string
+        credits:
+          type: integer
+        creditsLimit:
+          type: integer
+        monthlyGrant:
+          type: integer
+        creditsRenewAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    CreditActivity:
+      type: object
+      required: [id, ops, change, current, agent, createdAt]
+      properties:
+        id:
+          type: string
+        ops:
+          type: string
+          enum: [grant, renewal, spend, refund, admin_grant, expiry]
+        change:
+          type: integer
+          description: The signed amount; positive added, negative taken.
+        current:
+          type: integer
+          description: The balance right after the change.
+        agent:
+          type: string
+          description: What made the change, e.g. `Claude Code`, `tmphost CLI` or `Web`; empty for grants, renewals and expiries.
+        createdAt:
+          type: string
+          format: date-time
+
+    ListCreditActivitiesResponse:
+      type: object
+      required: [activities, next]
+      properties:
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreditActivity"
+        next:
+          type: string
+          description: The `before` cursor of the next page; empty on the last.
+
+    Limits:
+      type: object
+      required: [defaultTtlMinutes, maxTtlMinutes, maxUploadBytes, billingBlockMinutes, billingUnitBytes]
+      properties:
+        defaultTtlMinutes:
+          type: integer
+        maxTtlMinutes:
+          type: integer
+        maxUploadBytes:
+          type: integer
+          format: int64
+        billingBlockMinutes:
+          type: integer
+        billingUnitBytes:
+          type: integer
+          format: int64
+        anonymous:
+          type: boolean
+          description: Set for visitors who have not signed in; they pay no credits but have a quota.
+        fileOps:
+          type: integer
+          description: Anonymous quota; files written per window.
+        fileBytes:
+          type: integer
+          format: int64
+          description: Anonymous quota; bytes written per window.
+        fileOpsWindowMinutes:
+          type: integer
+
+    Folder:
+      type: object
+      required: [id, createdAt, expiresAt, url, title, defaultTitle]
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        url:
+          type: string
+          format: uri
+        title:
+          type: string
+          description: The name the owner gave the folder; empty until renamed.
+        defaultTitle:
+          type: string
+          description: Shown while `title` is empty; the only file's name, else the ID.
+        openUrl:
+          type: string
+          format: uri
+          description: What to open or share; the folder URL when it has an index.html, else its only file's URL.
+        agent:
+          type: string
+          description: What created the folder, e.g. `Claude Code`, `tmphost CLI` or `Web`.
+
+    FolderResponse:
+      type: object
+      required: [folder]
+      properties:
+        folder:
+          $ref: "#/components/schemas/Folder"
+
+    File:
+      type: object
+      required: [path, size, updatedAt, url]
+      properties:
+        path:
+          type: string
+        size:
+          type: integer
+          format: int64
+        updatedAt:
+          type: string
+          format: date-time
+        url:
+          type: string
+          format: uri
+        agent:
+          type: string
+          description: What last wrote the file.
+
+    ConsentForm:
+      type: object
+      required: [consent, decision]
+      properties:
+        consent:
+          type: string
+          description: The consent token from the page.
+        decision:
+          type: string
+          enum: [allow, deny]
+
+    OAuthServerMetadata:
+      type: object
+      properties:
+        issuer:
+          type: string
+        authorization_endpoint:
+          type: string
+        token_endpoint:
+          type: string
+        registration_endpoint:
+          type: string
+        device_authorization_endpoint:
+          type: string
+        response_types_supported:
+          type: array
+          items:
+            type: string
+        grant_types_supported:
+          type: array
+          items:
+            type: string
+        code_challenge_methods_supported:
+          type: array
+          items:
+            type: string
+        token_endpoint_auth_methods_supported:
+          type: array
+          items:
+            type: string
+        authorization_response_iss_parameter_supported:
+          type: boolean
+
+    ProtectedResourceMetadata:
+      type: object
+      properties:
+        resource:
+          type: string
+        authorization_servers:
+          type: array
+          items:
+            type: string
+        bearer_methods_supported:
+          type: array
+          items:
+            type: string
+        resource_name:
+          type: string
+
+    Settings:
+      type: object
+      description: Secrets are write-only; they are empty in responses.
+      properties:
+        domain:
+          type: object
+          properties:
+            appUrl:
+              type: string
+            sitesDomain:
+              type: string
+            mcpDomain:
+              type: string
+            allowedOrigins:
+              type: array
+              items:
+                type: string
+        tls:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            port:
+              type: integer
+            email:
+              type: string
+            lego:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                cloudflareApiToken:
+                  type: string
+                  writeOnly: true
+        credits:
+          type: object
+          properties:
+            monthlyGrant:
+              type: integer
+            signupGrant:
+              type: integer
+        database:
+          type: object
+          properties:
+            driver:
+              type: string
+              enum: [sqlite, postgres]
+            sqlite:
+              type: object
+              properties:
+                dsn:
+                  type: string
+            postgres:
+              type: object
+              properties:
+                dsn:
+                  type: string
+                  writeOnly: true
+        storage:
+          type: object
+          properties:
+            driver:
+              type: string
+              enum: [local, s3]
+            local:
+              type: object
+              properties:
+                path:
+                  type: string
+            s3:
+              type: object
+              properties:
+                endpoint:
+                  type: string
+                region:
+                  type: string
+                bucket:
+                  type: string
+                accessKeyId:
+                  type: string
+                secretAccessKey:
+                  type: string
+                  writeOnly: true
+                usePathStyle:
+                  type: boolean
+        files:
+          type: object
+          properties:
+            maxTtlMinutes:
+              type: integer
+            maxUploadMb:
+              type: integer
+            anonymousMaxTtlMinutes:
+              type: integer
+            subdomains:
+              type: boolean
+            publicDomain:
+              type: string
+        auth:
+          type: object
+          properties:
+            google:
+              $ref: "#/components/schemas/OAuthClientSettings"
+            github:
+              $ref: "#/components/schemas/OAuthClientSettings"
+            providers:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  icon:
+                    type: string
+                  clientId:
+                    type: string
+                  clientSecret:
+                    type: string
+                    writeOnly: true
+                  authUrl:
+                    type: string
+
+    OAuthClientSettings:
+      type: object
+      properties:
+        clientId:
+          type: string
+        clientSecret:
+          type: string
+          writeOnly: true
+
+    SettingsResponse:
+      type: object
+      required: [settings, secretsSet, restartRequired]
+      properties:
+        settings:
+          $ref: "#/components/schemas/Settings"
+        secretsSet:
+          type: object
+          description: Which secrets have a stored value.
+          properties:
+            postgresDsn:
+              type: boolean
+            s3SecretAccessKey:
+              type: boolean
+            googleClientSecret:
+              type: boolean
+            githubClientSecret:
+              type: boolean
+            cloudflareApiToken:
+              type: boolean
+            providerClientSecrets:
+              type: object
+              additionalProperties:
+                type: boolean
+        restartRequired:
+          type: boolean
