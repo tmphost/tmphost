@@ -61,6 +61,22 @@ func TestUserRepository_CRUD(t *testing.T) {
 
 	_, err = repo.FindUserByID(ctx, 99)
 	assert.ErrorIs(t, err, ErrNotFound)
+
+	require.NoError(t, repo.UpdateUserPin(ctx, 1, model.PinModeTOTP, "", "secret", true))
+	byID, err = repo.FindUserByID(ctx, 1)
+	require.NoError(t, err)
+	assert.Equal(t, model.PinModeTOTP, byID.PinMode)
+	assert.Equal(t, "secret", byID.TOTPSecret)
+	assert.True(t, byID.AgentPins)
+	assert.Equal(t, 10, byID.Credits, "nothing else changes")
+	// Zero values are written too.
+	require.NoError(t, repo.UpdateUserPin(ctx, 1, model.PinModeOff, "", "", false))
+	byID, err = repo.FindUserByID(ctx, 1)
+	require.NoError(t, err)
+	assert.Equal(t, model.PinModeOff, byID.PinMode)
+	assert.Empty(t, byID.TOTPSecret)
+	assert.False(t, byID.AgentPins)
+	assert.ErrorIs(t, repo.UpdateUserPin(ctx, 99, model.PinModeStatic, "h", "", false), ErrNotFound)
 }
 
 func TestUserRepository_DBErrors(t *testing.T) {
@@ -77,6 +93,7 @@ func TestUserRepository_DBErrors(t *testing.T) {
 
 	_, err = repo.UpdateUser(ctx, model.User{ID: 1, Email: "x"})
 	assert.Error(t, err)
+	assert.Error(t, repo.UpdateUserPin(ctx, 1, model.PinModeOff, "", "", false))
 
 	_, err = repo.ListUsersDueForCreditRenewal(ctx, time.Now(), 10)
 	assert.Error(t, err)

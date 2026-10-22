@@ -28,6 +28,13 @@ type (
 		OpenURL string
 		// Agent names what created the folder; empty if unknown.
 		Agent string
+		// PinMode names the PIN guests must enter: PinModeTOTP or
+		// PinModeStatic for the owner's account PIN, PinModeFolder for the
+		// folder's own; empty when the folder is open.
+		PinMode string
+		// Pin is the folder's own PIN in clear text, only in the answer to
+		// the call that made it.
+		Pin string
 	}
 
 	// File is an uploaded file.
@@ -77,6 +84,10 @@ type (
 		Agent string
 		// TTLMinutes is the folder's lifetime; 0 picks the default.
 		TTLMinutes int
+		// Pin asks for a PIN of the folder's own, returned once in
+		// Folder.Pin. The owner's account PIN, when set, guards the folder
+		// instead.
+		Pin bool
 	}
 
 	// CreateFolderResponse carries the new folder.
@@ -136,6 +147,38 @@ type (
 		CreditsSpent int
 	}
 
+	// FolderPinRequest makes a new PIN for one of a user's folders, or
+	// removes it.
+	FolderPinRequest struct {
+		UserID   int64
+		FolderID int64
+	}
+
+	// FolderPinResponse carries the folder, with its new PIN in Folder.Pin
+	// when one was made.
+	FolderPinResponse struct {
+		Folder Folder
+	}
+
+	// UnlockFolderRequest enters a folder's PIN.
+	UnlockFolderRequest struct {
+		// UserID is the owner named in the folder's path URL; 0 for a
+		// folder host.
+		UserID   int64
+		FolderID int64
+		Pin      string
+		// Client identifies who is guessing (their IP address), for the
+		// limit on wrong PINs.
+		Client string
+	}
+
+	// UnlockFolderResponse carries the token that proves the PIN was
+	// entered, valid until ExpiresAt; empty when the folder needs no PIN.
+	UnlockFolderResponse struct {
+		Token     string
+		ExpiresAt time.Time
+	}
+
 	// DeleteFolderRequest deletes a folder and its files.
 	DeleteFolderRequest struct {
 		UserID   int64
@@ -191,6 +234,13 @@ type (
 		// Format is the ?format= query value; "html" renders a Markdown
 		// file as a page.
 		Format string
+		// PinToken is the token of an earlier UnlockFolder, from the
+		// visitor's cookie; Pin is a PIN they passed along instead.
+		PinToken string
+		Pin      string
+		// Client identifies the visitor (their IP address), for the limit
+		// on wrong PINs.
+		Client string
 	}
 
 	// OpenFileResponse is an open file. The caller closes Body. A large
@@ -202,6 +252,12 @@ type (
 		Size        int64
 		ContentType string
 		ModTime     time.Time
+		// Private marks a file of a PIN-guarded folder, which shared
+		// caches must not keep.
+		Private bool
+		// Unlock is set when the request's Pin unlocked the folder: the
+		// token to keep, so the visitor need not enter it again.
+		Unlock *UnlockFolderResponse
 	}
 
 	// DeleteExpiredFoldersResponse reports how many folders were removed.

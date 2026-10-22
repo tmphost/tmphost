@@ -39,6 +39,8 @@ tags:
     description: Folders of files that expire together.
   - name: Files
     description: Uploading, downloading and deleting a folder's files.
+  - name: PINs
+    description: The 6 digit PINs visitors enter to open a folder.
   - name: Public files
     description: The public URLs files are served at until they expire.
   - name: Sign-in
@@ -102,6 +104,104 @@ paths:
                 $ref: "#/components/schemas/ListCreditActivitiesResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /api/v1/users/me/pin:
+    get:
+      tags: [PINs]
+      operationId: getAccountPin
+      summary: Get the account PIN settings
+      description: |
+        The account PIN guards every folder of the user: visitors enter it
+        before they see a file. `static` is one PIN the user picked, `totp`
+        the codes of an authenticator app. While it is `off`, `agentPins`
+        gives each folder an agent creates a PIN of its own.
+      responses:
+        "200":
+          description: The account PIN settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountPin"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    put:
+      tags: [PINs]
+      operationId: updateAccountPin
+      summary: Change the account PIN settings
+      description: |
+        A new static PIN is 6 digits. A new authenticator secret (from
+        `POST /api/v1/users/me/pin/totp`) comes with its current code, which
+        proves it was scanned. Leaving `pin` or `secret` out keeps the
+        current one of the same mode. Visitors who entered the old PIN
+        have to enter the new one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode:
+                  type: string
+                  enum: ["off", static, totp]
+                pin:
+                  type: string
+                  pattern: "^[0-9]{6}$"
+                  description: The new static PIN.
+                secret:
+                  type: string
+                  description: The new authenticator secret.
+                code:
+                  type: string
+                  pattern: "^[0-9]{6}$"
+                  description: The current code of `secret`.
+                agentPins:
+                  type: boolean
+      responses:
+        "200":
+          description: The new account PIN settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountPin"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /api/v1/users/me/pin/totp:
+    post:
+      tags: [PINs]
+      operationId: newTotpSecret
+      summary: Make an authenticator secret to scan
+      description: Nothing is saved until `PUT /api/v1/users/me/pin` gets it back with a code.
+      responses:
+        "200":
+          description: A new authenticator secret.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [secret, url, qrCode]
+                properties:
+                  secret:
+                    type: string
+                    description: The base32 secret, to type in by hand.
+                  url:
+                    type: string
+                    description: The `otpauth://` URL.
+                  qrCode:
+                    type: string
+                    description: The URL as a QR code, a PNG data URI.
         "401":
           $ref: "#/components/responses/Unauthorized"
         "500":
@@ -175,6 +275,13 @@ paths:
                   description: |
                     Lifetime in minutes; 0 or absent uses the default
                     (`defaultTtlMinutes` of `GET /api/v1/limits`).
+                pin:
+                  type: boolean
+                  description: |
+                    Give the folder a 6 digit PIN of its own, returned once
+                    in `folder.pin`. Ignored while the account PIN guards
+                    every folder. With `agentPins` on, folders that agents
+                    create get one without asking.
       responses:
         "201":
           description: The new folder.
@@ -308,6 +415,54 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "402":
           $ref: "#/components/responses/InsufficientCredits"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /api/v1/folders/{id}/pin:
+    parameters:
+      - $ref: "#/components/parameters/FolderID"
+    post:
+      tags: [PINs]
+      operationId: createFolderPin
+      summary: Give a folder a new PIN
+      description: |
+        Makes a new 6 digit PIN of the folder's own, returned once in
+        `folder.pin`; it replaces any PIN the folder had, and visitors who
+        entered the old one have to enter the new one.
+      responses:
+        "201":
+          description: The folder and its new PIN.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The account PIN already guards the folder.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    delete:
+      tags: [PINs]
+      operationId: deleteFolderPin
+      summary: Remove a folder's own PIN
+      responses:
+        "200":
+          description: The folder.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -941,6 +1096,11 @@ paths:
         served at `https://<folder>.<sites domain>/<path>`. Large files in S3
         storage are a `302` redirect to a signed bucket URL; HTML files never
         are.
+
+        A folder guarded by a PIN (`pinMode` set) answers a page that asks
+        for it, unless the visitor passes `?pin=` or holds the
+        `tmphost_pin` cookie from entering it before. A visitor may enter 2
+        wrong PINs per minute per folder.
       security: []
       parameters:
         - name: user
@@ -960,6 +1120,12 @@ paths:
           schema:
             type: string
             enum: [html]
+        - name: pin
+          in: query
+          description: The folder's PIN; the right one also sets the `tmphost_pin` cookie.
+          schema:
+            type: string
+            pattern: "^[0-9]{6}$"
       responses:
         "200":
           description: The file.
@@ -970,8 +1136,53 @@ paths:
                 format: binary
         "302":
           description: Redirect to a signed storage URL.
+        "401":
+          description: The folder is guarded by a PIN; the HTML page that asks for it.
         "404":
           description: No such file, or the folder has expired.
+        "429":
+          description: Too many wrong PINs; the PIN page, with Retry-After.
+    post:
+      tags: [Public files]
+      operationId: enterFolderPin
+      summary: Enter a folder's PIN
+      description: |
+        What the PIN page posts. The right PIN sets the `tmphost_pin`
+        cookie, scoped to the folder, until it expires, and answers `303`
+        back to the same URL.
+      security: []
+      parameters:
+        - name: user
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: folder
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/FilePath"
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [pin]
+              properties:
+                pin:
+                  type: string
+                  pattern: "^[0-9]{6}$"
+      responses:
+        "303":
+          description: The PIN is right; back to the file.
+        "401":
+          description: A wrong PIN; the PIN page again.
+        "404":
+          description: No such folder, or it has expired.
+        "429":
+          description: Too many wrong PINs; the PIN page, with Retry-After.
 
   /favicon.ico:
     get:
@@ -1283,6 +1494,28 @@ components:
         agent:
           type: string
           description: What created the folder, e.g. `Claude Code`, `tmphost CLI` or `Web`.
+        pinMode:
+          type: string
+          enum: [totp, static, folder]
+          description: |
+            The PIN visitors must enter: the owner's account PIN (`totp` or
+            `static`) or the folder's own (`folder`). Absent when the folder
+            is open.
+        pin:
+          type: string
+          description: The folder's own PIN, only in the answer that made it.
+
+    AccountPin:
+      type: object
+      required: [mode, agentPins]
+      properties:
+        mode:
+          type: string
+          enum: ["off", static, totp]
+          description: The PIN that guards every folder of the user.
+        agentPins:
+          type: boolean
+          description: While `mode` is `off`, each folder an agent creates gets a PIN of its own.
 
     FolderResponse:
       type: object

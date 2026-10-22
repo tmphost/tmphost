@@ -270,3 +270,32 @@ func sign(t *testing.T, claims jwt.Claims) string {
 	require.NoError(t, err)
 	return tok
 }
+
+func TestFolderPinToken(t *testing.T) {
+	now := time.Now()
+	svc := newService(t, func() time.Time { return now })
+
+	tok, err := svc.CreateFolderPinToken("1a2b3c4d", "fp", now.Add(time.Hour))
+	require.NoError(t, err)
+	folder, fp, err := svc.ValidateFolderPinToken(tok)
+	require.NoError(t, err)
+	assert.Equal(t, "1a2b3c4d", folder)
+	assert.Equal(t, "fp", fp)
+
+	// It expires with the folder.
+	later := newService(t, func() time.Time { return now.Add(time.Hour + time.Minute) })
+	_, _, err = later.ValidateFolderPinToken(tok)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+
+	// A session is not a folder PIN token.
+	session, err := svc.CreateSessionToken("abc")
+	require.NoError(t, err)
+	_, _, err = svc.ValidateFolderPinToken(session)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+
+	// Nor is one without a fingerprint.
+	empty, err := svc.CreateFolderPinToken("1a2b3c4d", "", now.Add(time.Hour))
+	require.NoError(t, err)
+	_, _, err = svc.ValidateFolderPinToken(empty)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+}

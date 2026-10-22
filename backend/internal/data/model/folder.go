@@ -27,6 +27,9 @@ type Folder struct {
 	// without asking the storage. It is nil (NULL) for a folder created
 	// before the list was kept; those are listed from storage.
 	Files FolderFiles `gorm:"type:text"`
+	// PinHash is the bcrypt hash of the folder's own PIN; empty for none.
+	// The owner's account PIN, when set, guards the folder instead.
+	PinHash string `gorm:"type:varchar(100);not null;default:''"`
 }
 
 // FolderFiles maps the paths of a folder's files to what they hold. It is

@@ -63,6 +63,8 @@ tmphost file download --id rs --path docs readme.txt -o readme.txt
 tmphost file download --id rs a.txt -o -       # to stdout
 
 tmphost file extend --id rs --ttl 2h           # expire 2 hours later
+tmphost file upload report.pdf --pin           # new folder with a PIN, printed once
+tmphost file pin --id rs                       # give folder rs a new PIN
 
 tmphost file ls                                # your live folders
 tmphost file rm --id rs docs/readme.txt        # one file
@@ -75,11 +77,12 @@ tmphost whoami
 | `tmphost login [--server URL]` | Sign in with the browser |
 | `tmphost logout` | Forget the saved tokens |
 | `tmphost whoami` | Show the user, credits and renewal time |
-| `tmphost file upload <local path>... [--id ID \| --ttl 30m] [--path DIR] [--name NAME]` | Upload files and print their URLs and the folder id |
+| `tmphost file upload <local path>... [--id ID \| --ttl 30m [--pin]] [--path DIR] [--name NAME]` | Upload files and print their URLs and the folder id |
 | `tmphost file download --id ID [--path DIR] <fileName> [-o OUT] [--force] [--format FORMAT]` | Download a file (`-o -` for stdout) |
 | `tmphost file get --id ID` | List a folder's files |
 | `tmphost file url --id ID [--path DIR] [fileName]` | Print a folder, directory or file URL |
 | `tmphost file extend --id ID --ttl DURATION` | Make a folder expire later, for credits |
+| `tmphost file pin --id ID` | Give a folder a new 6 digit PIN and print it once |
 | `tmphost file ls` | List your live folders |
 | `tmphost file rm --id ID [path]` | Delete a folder, or one file |
 

@@ -241,6 +241,36 @@ export function extendFolder(id, minutes) {
   })
 }
 
+// createFolderPin gives a folder a new PIN of its own and returns the
+// folder, with the PIN in folder.pin: the only time it is shown.
+export async function createFolderPin(id) {
+  const body = await request('POST', `/folders/${encodeURIComponent(id)}/pin`, { fallback: 'Failed to make a PIN' })
+  return body.folder
+}
+
+// deleteFolderPin removes a folder's own PIN and returns the folder.
+export async function deleteFolderPin(id) {
+  const body = await request('DELETE', `/folders/${encodeURIComponent(id)}/pin`, { fallback: 'Failed to remove the PIN' })
+  return body.folder
+}
+
+// fetchAccountPin returns { mode: 'off' | 'static' | 'totp', agentPins }.
+export function fetchAccountPin() {
+  return request('GET', '/users/me/pin', { fallback: 'Failed to load PIN settings' })
+}
+
+// newTotp returns a new authenticator secret to scan, { secret, url, qrCode };
+// saveAccountPin keeps it once it gets the secret back with a code.
+export function newTotp() {
+  return request('POST', '/users/me/pin/totp', { fallback: 'Failed to set up the authenticator' })
+}
+
+// saveAccountPin changes the account PIN: { mode, pin?, secret?, code?,
+// agentPins }. It returns the new { mode, agentPins }.
+export function saveAccountPin(settings) {
+  return request('PUT', '/users/me/pin', { body: settings, fallback: 'Failed to save PIN settings' })
+}
+
 export async function deleteFolder(id) {
   await request('DELETE', `/folders/${encodeURIComponent(id)}`, { fallback: 'Failed to delete folder' })
 }

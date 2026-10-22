@@ -125,6 +125,9 @@ func TestCachedFolders_WritesDrop(t *testing.T) {
 		{"title", func() error { return x.cache.UpdateFolderTitle(ctx, 1, "b") }, func(f model.Folder) {
 			assert.Equal(t, "b", f.Title)
 		}},
+		{"pin", func() error { return x.cache.UpdateFolderPin(ctx, 1, "hash") }, func(f model.Folder) {
+			assert.Equal(t, "hash", f.PinHash)
+		}},
 		{"extend", func() error { return x.cache.ExtendFolder(ctx, 1, now, now.Add(2*time.Hour)) }, func(f model.Folder) {
 			assert.True(t, now.Add(2*time.Hour).Equal(f.ExpiresAt))
 		}},

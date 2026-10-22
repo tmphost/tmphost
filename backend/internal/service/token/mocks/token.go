@@ -6,6 +6,7 @@ package mocks
 
 import (
 	reflect "reflect"
+	time "time"
 
 	gomock "github.com/golang/mock/gomock"
 	token "github.com/tmphost/tmphost/backend/internal/service/token"
@@ -107,6 +108,21 @@ func (m *MockService) CreateDeviceConsentToken(grant token.OAuthGrant) (string, 
 func (mr *MockServiceMockRecorder) CreateDeviceConsentToken(grant interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDeviceConsentToken", reflect.TypeOf((*MockService)(nil).CreateDeviceConsentToken), grant)
+}
+
+// CreateFolderPinToken mocks base method.
+func (m *MockService) CreateFolderPinToken(folderID, fingerprint string, expiresAt time.Time) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateFolderPinToken", folderID, fingerprint, expiresAt)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateFolderPinToken indicates an expected call of CreateFolderPinToken.
+func (mr *MockServiceMockRecorder) CreateFolderPinToken(folderID, fingerprint, expiresAt interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateFolderPinToken", reflect.TypeOf((*MockService)(nil).CreateFolderPinToken), folderID, fingerprint, expiresAt)
 }
 
 // CreateRefreshToken mocks base method.
@@ -242,6 +258,22 @@ func (m *MockService) ValidateDeviceConsentToken(consent string) (token.OAuthGra
 func (mr *MockServiceMockRecorder) ValidateDeviceConsentToken(consent interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateDeviceConsentToken", reflect.TypeOf((*MockService)(nil).ValidateDeviceConsentToken), consent)
+}
+
+// ValidateFolderPinToken mocks base method.
+func (m *MockService) ValidateFolderPinToken(token string) (string, string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ValidateFolderPinToken", token)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(string)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ValidateFolderPinToken indicates an expected call of ValidateFolderPinToken.
+func (mr *MockServiceMockRecorder) ValidateFolderPinToken(token interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateFolderPinToken", reflect.TypeOf((*MockService)(nil).ValidateFolderPinToken), token)
 }
 
 // ValidateRefreshToken mocks base method.

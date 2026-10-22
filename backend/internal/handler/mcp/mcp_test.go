@@ -114,7 +114,7 @@ func TestListTools(t *testing.T) {
 	require.Len(t, rs.Tools, 1)
 	assert.Equal(t, "file", rs.Tools[0].Name)
 	schema, _ := json.Marshal(rs.Tools[0].InputSchema)
-	assert.Contains(t, string(schema), `"enum":["upload","download","get","url","extend"]`)
+	assert.Contains(t, string(schema), `"enum":["upload","download","get","url","extend","pin"]`)
 	assert.Contains(t, string(schema), `"enum":["base64Content","textContent"]`)
 
 	tool := rs.Tools[0]
@@ -157,7 +157,7 @@ func TestUnknownAction(t *testing.T) {
 	// The handler checks too, in case the schema is ever loosened.
 	req := &mcp.CallToolRequest{Extra: &mcp.RequestExtra{TokenInfo: &auth.TokenInfo{UserID: "7"}}}
 	_, _, err := (&tool{}).handle(context.Background(), req, FileInput{Action: "rm"})
-	assert.EqualError(t, err, `unknown action "rm": use upload, download, get, url or extend`)
+	assert.EqualError(t, err, `unknown action "rm": use upload, download, get, url, extend or pin`)
 }
 
 func TestContentFormat(t *testing.T) {
@@ -188,6 +188,39 @@ func TestUpload_NewFolder(t *testing.T) {
 		ID: "000000rs", URL: "https://000000rs.tmp.host/site/index.html", ExpiresAt: "2026-10-18T12:30:00Z",
 		FileName: "index.html", Path: "site", Size: 3, CreditsSpent: 4,
 	}, out)
+}
+
+func TestUpload_NewFolderWithPin(t *testing.T) {
+	e := newEnv(t)
+	pinned := _folder
+	pinned.PinMode, pinned.Pin = entity.PinModeFolder, "123456"
+	gomock.InOrder(
+		e.folders.EXPECT().CreateFolder(gomock.Any(), &entity.CreateFolderRequest{UserID: 7, Agent: "Claude Code", Pin: true}).
+			Return(&entity.CreateFolderResponse{Folder: pinned}, nil),
+		e.folders.EXPECT().PutFiles(gomock.Any(), gomock.Any()).
+			Return(&entity.PutFilesResponse{Files: []entity.File{{Path: "a.txt", Size: 1, URL: "https://000000rs.tmp.host/a.txt"}}, CreditsSpent: 1}, nil),
+	)
+	out, msg := e.call(t, map[string]any{"action": "upload", "fileName": "a.txt", "pin": true, "format": "textContent", "textContent": "x"})
+	require.Empty(t, msg)
+	assert.Equal(t, "folder", out.PinMode)
+	assert.Equal(t, "123456", out.Pin)
+}
+
+func TestPin(t *testing.T) {
+	e := newEnv(t)
+	pinned := _folder
+	pinned.PinMode, pinned.Pin = entity.PinModeFolder, "654321"
+	e.folders.EXPECT().CreateFolderPin(gomock.Any(), &entity.FolderPinRequest{UserID: 7, FolderID: 1000}).Return(&entity.FolderPinResponse{Folder: pinned}, nil)
+	out, msg := e.call(t, map[string]any{"action": "pin", "id": "000000rs"})
+	require.Empty(t, msg)
+	assert.Equal(t, FileOutput{ID: "000000rs", URL: "https://000000rs.tmp.host/", ExpiresAt: "2026-10-18T12:30:00Z", PinMode: "folder", Pin: "654321"}, out)
+
+	_, msg = e.call(t, map[string]any{"action": "pin", "id": "RS"})
+	assert.Contains(t, msg, "id must be a folder id")
+
+	e.folders.EXPECT().CreateFolderPin(gomock.Any(), gomock.Any()).Return(nil, folderctrl.ErrAccountPin)
+	_, msg = e.call(t, map[string]any{"action": "pin", "id": "000000rs"})
+	assert.Contains(t, msg, "the account pin guards this folder")
 }
 
 func TestUpload_ExistingFolder(t *testing.T) {
@@ -230,7 +263,8 @@ func TestUpload_Errors(t *testing.T) {
 		"no text":        {map[string]any{"fileName": "a", "format": text}, "textContent is required with format textContent"},
 		"base64 as text": {map[string]any{"fileName": "a", "format": text, "textContent": "x", "base64Content": content}, "base64Content needs format base64Content"},
 		"bad format":     {map[string]any{"fileName": "a", "format": "hex", "base64Content": content}, "enum"},
-		"ttl with id":    {map[string]any{"fileName": "a", "base64Content": content, "id": "000000rs", "ttl": "1h"}, "ttl only applies"},
+		"ttl with id":    {map[string]any{"fileName": "a", "base64Content": content, "id": "000000rs", "ttl": "1h"}, "ttl and pin only apply"},
+		"pin with id":    {map[string]any{"fileName": "a", "base64Content": content, "id": "000000rs", "pin": true}, "ttl and pin only apply"},
 		"bad id":         {map[string]any{"fileName": "a", "base64Content": content, "id": "RS"}, "id must be a folder id"},
 		"bad ttl":        {map[string]any{"fileName": "a", "base64Content": content, "ttl": "soon"}, "whole minutes"},
 		"fractional ttl": {map[string]any{"fileName": "a", "base64Content": content, "ttl": "90s"}, "whole minutes"},

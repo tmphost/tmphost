@@ -128,6 +128,12 @@ func (c *cachedFolders) UpdateFolderTitle(ctx context.Context, id int64, title s
 	return c.FolderRepository.UpdateFolderTitle(ctx, id, title)
 }
 
+func (c *cachedFolders) UpdateFolderPin(ctx context.Context, id int64, hash string) error {
+	c.drop(id)
+	defer c.drop(id)
+	return c.FolderRepository.UpdateFolderPin(ctx, id, hash)
+}
+
 func (c *cachedFolders) ExtendFolder(ctx context.Context, id int64, now, expiresAt time.Time) error {
 	c.drop(id)
 	defer c.drop(id)

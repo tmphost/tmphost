@@ -195,3 +195,30 @@ func TestFileExtend(t *testing.T) {
 	assert.Equal(t, 1, h.run("file", "extend", "--ttl", "1h"))
 	assert.Contains(t, h.stderr.String(), `required flag(s) "id" not set`)
 }
+
+func TestFilePin(t *testing.T) {
+	h := newHarness(t)
+	h.reply("POST /api/v1/folders/rs/pin", 201, `{"folder":{"id":"rs","expiresAt":"2026-10-18T12:30:00Z","url":"https://rs.tmphost.test/","pinMode":"folder","pin":"123456"}}`)
+	h.reply("POST /api/v1/folders/ac/pin", 409, `{"error":"the account pin guards this folder"}`)
+
+	assert.Equal(t, 0, h.run("file", "pin", "--id", "rs"))
+	assert.Equal(t, "id:      rs\nurl:     https://rs.tmphost.test/\npin:     123456 (shown only once; or open https://rs.tmphost.test/?pin=123456)\n", h.stdout.String())
+
+	assert.Equal(t, 0, h.run("file", "pin", "--id", "rs", "--json"))
+	assert.Equal(t, map[string]any{"id": "rs", "url": "https://rs.tmphost.test/", "expiresAt": "2026-10-18T12:30:00Z", "pinMode": "folder", "pin": "123456"}, h.decode())
+
+	assert.Equal(t, 1, h.run("file", "pin", "--id", "ac"))
+	assert.Equal(t, "error: the account pin guards this folder\n", h.stderr.String())
+
+	assert.Equal(t, 1, h.run("file", "pin"))
+	assert.Contains(t, h.stderr.String(), `required flag(s) "id" not set`)
+}
+
+func TestFileGet_pinMode(t *testing.T) {
+	h := newHarness(t)
+	h.reply("GET /api/v1/folders/rs", 200, `{"folder":{"id":"rs","expiresAt":"2026-10-18T12:30:00Z","url":"https://rs.tmphost.test/","pinMode":"static"},"files":[]}`)
+	assert.Equal(t, 0, h.run("file", "get", "--id", "rs"))
+	assert.Contains(t, h.stdout.String(), "pin:     required (your account PIN)\n")
+	assert.Equal(t, "your authenticator app's code", pinModeName("totp"))
+	assert.Equal(t, "the folder's own PIN", pinModeName("folder"))
+}

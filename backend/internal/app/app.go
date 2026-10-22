@@ -22,6 +22,7 @@ import (
 	zlog "github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 
+	"github.com/tmphost/tmphost/backend/internal/controller/accountpin"
 	adminctrl "github.com/tmphost/tmphost/backend/internal/controller/admin"
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
 	"github.com/tmphost/tmphost/backend/internal/controller/credit"
@@ -317,6 +318,9 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		Storage:        store,
 		Anonymous:      quota.New(quota.Params{Limit: folderctrl.AnonymousOps, Window: folderctrl.AnonymousWindow}),
 		AnonymousBytes: quota.New(quota.Params{Limit: folderctrl.AnonymousBytes, Window: folderctrl.AnonymousWindow}),
+		PinAttempts:    quota.New(quota.Params{Limit: folderctrl.PinAttempts, Window: folderctrl.PinWindow}),
+		Tokens:         tokens,
+		Secrets:        enc,
 		Limits:         setup.FileLimits,
 		BaseURL:        baseURL,
 		RedirectOver:   int64(cfg.Storage.Redirect.OverMB) << 20,
@@ -350,6 +354,7 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		Hosts:          hostRouter(h),
 		Auth:           auth,
 		Setup:          setup,
+		AccountPins:    accountpin.New(accountpin.Params{Users: users, Secrets: enc}),
 		Folders:        folders,
 		OAuth:          oauth,
 		Credits:        credits,

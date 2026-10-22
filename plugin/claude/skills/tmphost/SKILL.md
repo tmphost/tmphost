@@ -22,6 +22,8 @@ server; the first call opens the browser so the user can sign in (OAuth).
   file (`id`, `fileName`, optional `path`).
 - `extend`: `id` and `ttl` (the time to add, e.g. `1h`). Returns the new
   `expiresAt` and `creditsSpent`.
+- `pin`: `id`. Gives the folder a new 6 digit PIN that visitors must enter,
+  returned once in `pin`; it replaces the folder's old PIN.
 
 ## Content
 
@@ -40,6 +42,15 @@ server; the first call opens the browser so the user can sign in (OAuth).
    segments.
 3. Give the user the folder URL (`url` with just `id`); `index.html` is served
    for the folder root.
+
+## Protecting a folder with a PIN
+
+When the user wants the files kept from anyone without a code, pass
+`pin: true` on the first upload (or call `pin` with the folder `id`). The
+result's `pin` is shown only once: give it to the user with the URL. Visitors
+enter it once per browser; a link with `?pin=<pin>` appended opens the folder
+without asking. A result with `pinMode` but no `pin` means the user's account
+PIN (or authenticator app) already guards every folder of theirs.
 
 ## Sharing Markdown as a page
 

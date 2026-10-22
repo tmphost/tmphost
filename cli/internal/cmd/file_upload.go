@@ -24,7 +24,7 @@ import (
 func newFileUploadCmd(a *app) *cobra.Command {
 	var o uploadOptions
 	c := &cobra.Command{
-		Use:   "upload <local path>... [--id ID | --ttl 30m] [--path DIR] [--name NAME]",
+		Use:   "upload <local path>... [--id ID | --ttl 30m [--pin]] [--path DIR] [--name NAME]",
 		Short: "Upload files to a temporary public folder",
 		Long: `Upload files to a temporary public folder and print their public URLs.
 
@@ -37,7 +37,8 @@ everything under a directory inside the folder.
 
 Without --id a new folder is created that expires after --ttl. With --id the
 files are added to that folder and keep its expiry; a file already at the same
-path is replaced and keeps its URL, so re-uploading updates it.
+path is replaced and keeps its URL, so re-uploading updates it. --pin gives a
+new folder a 6 digit PIN that visitors must enter, printed only once.
 
 Each file costs one credit per started MB of its size per started billing
 block of the folder's remaining lifetime; the total is checked against your credits up front.`,
@@ -55,7 +56,9 @@ block of the folder's remaining lifetime; the total is checked against your cred
 	c.Flags().DurationVar(&o.ttl, "ttl", 30*time.Minute, "lifetime of a new folder, in whole minutes (e.g. 30m, 2h, 72h)")
 	c.Flags().StringVar(&o.dir, "path", "", "directory inside the folder, such as site/css")
 	c.Flags().StringVar(&o.name, "name", "", "upload a single local file under this file name")
+	c.Flags().BoolVar(&o.pin, "pin", false, "give the new folder a PIN that visitors must enter")
 	c.MarkFlagsMutuallyExclusive("id", "ttl")
+	c.MarkFlagsMutuallyExclusive("id", "pin")
 	return c
 }
 
@@ -65,6 +68,7 @@ type uploadOptions struct {
 	ttlSet bool
 	dir    string
 	name   string
+	pin    bool
 }
 
 // localFile is a file on disk and the slash-separated path it uploads to.
@@ -145,11 +149,11 @@ func (a *app) upload(ctx context.Context, args []string, o uploadOptions) error 
 	}
 
 	if folder == nil {
-		if folder, err = c.CreateFolder(ctx, minutes); err != nil {
+		if folder, err = c.CreateFolder(ctx, minutes, o.pin); err != nil {
 			return err
 		}
 	}
-	res := fileOutput{ID: folder.ID, URL: folder.URL, ExpiresAt: rfc3339(folder.ExpiresAt)}
+	res := fileOutput{ID: folder.ID, URL: folder.URL, ExpiresAt: rfc3339(folder.ExpiresAt), PinMode: folder.PinMode, Pin: folder.Pin}
 	for _, f := range files {
 		put, err := putFile(ctx, c, folder.ID, f)
 		if err != nil {
@@ -170,6 +174,7 @@ func (a *app) upload(ctx context.Context, args []string, o uploadOptions) error 
 	}
 	return a.output(res, func(w io.Writer) {
 		fmt.Fprintf(w, "\nid:      %s\nurl:     %s\nexpires: %s\n", folder.ID, folder.URL, a.expiry(folder.ExpiresAt))
+		printPin(w, res)
 	})
 }
 

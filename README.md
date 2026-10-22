@@ -38,6 +38,16 @@ test fails when a route is missing from it, so keep it in step with
   `{"minutes": N}`), as long as its remaining lifetime stays within the max
   TTL. Each file in it costs the same as an upload, for the added time: 1
   credit per started MB per started 30 minutes. An empty folder is free.
+- Folders can ask visitors for a 6 digit PIN. On the web app's Security
+  page, an account PIN guards every folder: a static PIN, or the codes of an
+  authenticator app (TOTP, set up with a QR code). While it is off, each
+  folder an agent creates can get a random PIN of its own, and any folder
+  can get one on demand (web app, MCP `upload` with `pin` or action `pin`,
+  CLI `--pin` or `tmphost file pin`, `POST /api/v1/folders/:id/pin`); the
+  PIN is stored as a bcrypt hash and shown once. Visitors open a link with
+  `?pin=123456` or enter the PIN on a page, after which a cookie on the
+  folder lets them in until it expires. Two wrong PINs within a minute, per
+  folder and address, answer 429 until the minute is over.
 - Without signing in, the web app's Upload page makes folders that live at
   most `files.anonymousMaxTtlMinutes` (`TMPHOSTIO_FILES_ANONYMOUS_MAX_TTL_MINUTES`,
   10 minutes by default; root can change it on /setup).

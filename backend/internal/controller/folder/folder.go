@@ -39,14 +39,17 @@ import (
 
 	zlog "github.com/rs/zerolog/log"
 
+	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
 	"github.com/tmphost/tmphost/backend/internal/data/model"
 	mappermodel "github.com/tmphost/tmphost/backend/internal/mapper/model"
 	"github.com/tmphost/tmphost/backend/internal/markdown"
+	"github.com/tmphost/tmphost/backend/internal/pin"
 	"github.com/tmphost/tmphost/backend/internal/repository"
 	"github.com/tmphost/tmphost/backend/internal/service/idgen"
 	"github.com/tmphost/tmphost/backend/internal/service/quota"
 	"github.com/tmphost/tmphost/backend/internal/service/storage"
+	"github.com/tmphost/tmphost/backend/internal/service/token"
 )
 
 const (
@@ -86,6 +89,13 @@ const (
 	// MaxTitleLength is how many characters a folder title can have.
 	MaxTitleLength = 100
 
+	// PinAttempts is how many wrong PINs a visitor may enter for a folder
+	// per PinWindow; past them, every PIN is refused until the window
+	// ends.
+	PinAttempts = 2
+	// PinWindow is the window of PinAttempts.
+	PinWindow = time.Minute
+
 	_maxPathLength    = 512
 	_maxSegmentLength = 255
 	_indexFile        = "index.html"
@@ -118,6 +128,17 @@ var (
 	// ErrQuotaExceeded is returned when an anonymous visitor has used up
 	// their quota for the current window.
 	ErrQuotaExceeded = errors.New("anonymous quota exceeded")
+	// ErrPinRequired is returned for a PIN-guarded folder when the visitor
+	// has neither entered its PIN before nor passed one.
+	ErrPinRequired = errors.New("pin required")
+	// ErrWrongPin is returned for a PIN that does not open the folder.
+	ErrWrongPin = errors.New("wrong pin")
+	// ErrPinRateLimited is returned once a visitor has entered
+	// PinAttempts wrong PINs in the current PinWindow.
+	ErrPinRateLimited = errors.New("too many wrong pins")
+	// ErrAccountPin is returned for a folder PIN asked for while the
+	// owner's account PIN guards every folder.
+	ErrAccountPin = errors.New("the account pin guards this folder")
 )
 
 type (
@@ -132,13 +153,23 @@ type (
 		// ExtendFolder makes a folder expire later, charging each of its
 		// files Cost for the added time.
 		ExtendFolder(ctx context.Context, rq *entity.ExtendFolderRequest) (*entity.ExtendFolderResponse, error)
+		// CreateFolderPin gives a folder a new PIN of its own, replacing
+		// any it had; ErrAccountPin while the owner's account PIN is set.
+		CreateFolderPin(ctx context.Context, rq *entity.FolderPinRequest) (*entity.FolderPinResponse, error)
+		// DeleteFolderPin removes a folder's own PIN.
+		DeleteFolderPin(ctx context.Context, rq *entity.FolderPinRequest) (*entity.FolderPinResponse, error)
 		DeleteFolder(ctx context.Context, rq *entity.DeleteFolderRequest) error
 		PutFiles(ctx context.Context, rq *entity.PutFilesRequest) (*entity.PutFilesResponse, error)
 		DeleteFile(ctx context.Context, rq *entity.DeleteFileRequest) error
 		// OpenFile opens one of a user's files.
 		OpenFile(ctx context.Context, rq *entity.OpenFileRequest) (*entity.OpenFileResponse, error)
-		// OpenPublicFile opens a file of a live folder for anyone.
+		// OpenPublicFile opens a file of a live folder for anyone who may
+		// see it: anyone for an open folder, else whoever passes its PIN or
+		// a token UnlockFolder gave them.
 		OpenPublicFile(ctx context.Context, rq *entity.OpenPublicFileRequest) (*entity.OpenFileResponse, error)
+		// UnlockFolder checks a folder's PIN and returns the token that
+		// proves it was entered.
+		UnlockFolder(ctx context.Context, rq *entity.UnlockFolderRequest) (*entity.UnlockFolderResponse, error)
 		// DeleteExpiredFolders removes a batch of expired folders, files
 		// first, so a failure leaves the record for the next run.
 		DeleteExpiredFolders(ctx context.Context) (*entity.DeleteExpiredFoldersResponse, error)
@@ -155,6 +186,14 @@ type (
 		// AnonymousBytes counts the bytes anonymous users upload;
 		// AnonymousBytes per AnonymousWindow.
 		AnonymousBytes quota.Service
+		// PinAttempts counts wrong PINs per folder and visitor;
+		// PinAttempts per PinWindow.
+		PinAttempts quota.Service
+		// Tokens signs the tokens that prove a visitor entered a folder's
+		// PIN.
+		Tokens token.Service
+		// Secrets decrypts the owners' authenticator secrets.
+		Secrets pin.Sealer
 		// NewID returns a new folder ID; idgen.NewFolderID when nil.
 		NewID func() int64
 		// Limits returns the current file settings; they can change at
@@ -178,6 +217,9 @@ type (
 		storage   storage.Service
 		anonymous quota.Service
 		anonBytes quota.Service
+		pins      quota.Service
+		tokens    token.Service
+		secrets   pin.Sealer
 		newID     func() int64
 		limits    func() entity.FileSettings
 		baseURL   string
@@ -196,6 +238,9 @@ func New(p Params) Controller {
 		storage:   p.Storage,
 		anonymous: p.Anonymous,
 		anonBytes: p.AnonymousBytes,
+		pins:      p.PinAttempts,
+		tokens:    p.Tokens,
+		secrets:   p.Secrets,
 		newID:     p.NewID,
 		limits:    p.Limits,
 		baseURL:   strings.TrimRight(p.BaseURL, "/"),
@@ -251,35 +296,53 @@ func (c *controller) CreateFolder(ctx context.Context, rq *entity.CreateFolderRe
 	if ttl < time.Minute || ttl > time.Duration(maxTTL)*time.Minute {
 		return nil, fmt.Errorf("%w: must be between 1 and %d minutes", ErrInvalidTTL, maxTTL)
 	}
+	owner, err := c.owner(ctx, rq.UserID)
+	if err != nil {
+		return nil, err
+	}
 	if rq.Anonymous && !c.anonymous.Take(folderQuotaKey(rq.UserID), 1) {
 		return nil, fmt.Errorf("%w: at most %d new folders per %d minutes", ErrQuotaExceeded, AnonymousOps, int(AnonymousWindow/time.Minute))
 	}
 	now := c.now().UTC()
-	f, err := c.folders.CreateFolder(ctx, model.Folder{
+	m := model.Folder{
 		ID:        c.newID(),
 		CreatedAt: now,
 		UserID:    rq.UserID,
 		ExpiresAt: now.Add(ttl),
 		Agent:     rq.Agent,
 		Files:     model.FolderFiles{},
-	})
+	}
+	// An account PIN guards every folder; a folder's own PIN is only
+	// made without one: on request, or for agents when the owner asked.
+	var clear string
+	if owner.PinMode == model.PinModeOff && (rq.Pin || (owner.AgentPins && !rq.Anonymous && rq.Agent != authctrl.AgentWeb)) {
+		clear = pin.Generate()
+		m.PinHash = pin.Hash(clear)
+	}
+	f, err := c.folders.CreateFolder(ctx, m)
 	if err != nil {
 		if rq.Anonymous {
 			c.anonymous.Give(folderQuotaKey(rq.UserID), 1)
 		}
 		return nil, fmt.Errorf("create folder: %w", err)
 	}
-	return &entity.CreateFolderResponse{Folder: c.folderEntity(f)}, nil
+	folder := c.folderEntity(f, owner)
+	folder.Pin = clear
+	return &entity.CreateFolderResponse{Folder: folder}, nil
 }
 
 func (c *controller) ListFolders(ctx context.Context, rq *entity.ListFoldersRequest) (*entity.ListFoldersResponse, error) {
+	owner, err := c.owner(ctx, rq.UserID)
+	if err != nil {
+		return nil, err
+	}
 	folders, err := c.folders.ListFoldersByUser(ctx, rq.UserID, c.now())
 	if err != nil {
 		return nil, fmt.Errorf("list folders: %w", err)
 	}
 	out := make([]entity.Folder, len(folders))
 	for i, f := range folders {
-		out[i] = c.folderEntity(f)
+		out[i] = c.folderEntity(f, owner)
 		// A folder whose files cannot be listed still shows, under its ID.
 		if objects, err := c.objects(ctx, f); err == nil {
 			c.describe(&out[i], f, objects)
@@ -289,7 +352,7 @@ func (c *controller) ListFolders(ctx context.Context, rq *entity.ListFoldersRequ
 }
 
 func (c *controller) GetFolder(ctx context.Context, rq *entity.GetFolderRequest) (*entity.GetFolderResponse, error) {
-	f, err := c.ownedFolder(ctx, rq.UserID, rq.FolderID)
+	f, owner, err := c.ownedFolderAndOwner(ctx, rq.UserID, rq.FolderID)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +374,7 @@ func (c *controller) GetFolder(ctx context.Context, rq *entity.GetFolderRequest)
 		p := strings.TrimPrefix(o.Key, prefix)
 		files[i] = entity.File{Path: p, Size: o.Size, UpdatedAt: o.ModTime.UTC(), URL: c.fileURL(f, p), Agent: agents[p]}
 	}
-	folder := c.folderEntity(f)
+	folder := c.folderEntity(f, owner)
 	c.describe(&folder, f, objects)
 	return &entity.GetFolderResponse{Folder: folder, Files: files}, nil
 }
@@ -321,7 +384,7 @@ func (c *controller) UpdateFolder(ctx context.Context, rq *entity.UpdateFolderRe
 	if !ValidTitle(title) {
 		return nil, fmt.Errorf("%w: at most %d characters, no control characters", ErrInvalidTitle, MaxTitleLength)
 	}
-	f, err := c.ownedFolder(ctx, rq.UserID, rq.FolderID)
+	f, owner, err := c.ownedFolderAndOwner(ctx, rq.UserID, rq.FolderID)
 	if err != nil {
 		return nil, err
 	}
@@ -333,13 +396,13 @@ func (c *controller) UpdateFolder(ctx context.Context, rq *entity.UpdateFolderRe
 	if err != nil {
 		return nil, fmt.Errorf("list files: %w", err)
 	}
-	folder := c.folderEntity(f)
+	folder := c.folderEntity(f, owner)
 	c.describe(&folder, f, objects)
 	return &entity.UpdateFolderResponse{Folder: folder}, nil
 }
 
 func (c *controller) ExtendFolder(ctx context.Context, rq *entity.ExtendFolderRequest) (*entity.ExtendFolderResponse, error) {
-	f, err := c.ownedFolder(ctx, rq.UserID, rq.FolderID)
+	f, owner, err := c.ownedFolderAndOwner(ctx, rq.UserID, rq.FolderID)
 	if err != nil {
 		return nil, err
 	}
@@ -379,7 +442,7 @@ func (c *controller) ExtendFolder(ctx context.Context, rq *entity.ExtendFolderRe
 		}
 		return nil, fmt.Errorf("extend folder: %w", err)
 	}
-	folder := c.folderEntity(f)
+	folder := c.folderEntity(f, owner)
 	c.describe(&folder, f, objects)
 	return &entity.ExtendFolderResponse{Folder: folder, CreditsSpent: total}, nil
 }
@@ -413,6 +476,54 @@ func (c *controller) describe(e *entity.Folder, f model.Folder, objects []storag
 		e.DefaultTitle = path.Base(p)
 		e.OpenURL = c.fileURL(f, p)
 	}
+}
+
+func (c *controller) CreateFolderPin(ctx context.Context, rq *entity.FolderPinRequest) (*entity.FolderPinResponse, error) {
+	f, owner, err := c.ownedFolderAndOwner(ctx, rq.UserID, rq.FolderID)
+	if err != nil {
+		return nil, err
+	}
+	if owner.PinMode != model.PinModeOff {
+		return nil, ErrAccountPin
+	}
+	clear := pin.Generate()
+	folder, err := c.setFolderPin(ctx, f, owner, pin.Hash(clear))
+	if err != nil {
+		return nil, err
+	}
+	folder.Pin = clear
+	return &entity.FolderPinResponse{Folder: folder}, nil
+}
+
+func (c *controller) DeleteFolderPin(ctx context.Context, rq *entity.FolderPinRequest) (*entity.FolderPinResponse, error) {
+	f, owner, err := c.ownedFolderAndOwner(ctx, rq.UserID, rq.FolderID)
+	if err != nil {
+		return nil, err
+	}
+	folder, err := c.setFolderPin(ctx, f, owner, "")
+	if err != nil {
+		return nil, err
+	}
+	return &entity.FolderPinResponse{Folder: folder}, nil
+}
+
+// setFolderPin stores the hash of f's own PIN and describes the folder
+// after.
+func (c *controller) setFolderPin(ctx context.Context, f model.Folder, owner model.User, hash string) (entity.Folder, error) {
+	if err := c.folders.UpdateFolderPin(ctx, f.ID, hash); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return entity.Folder{}, ErrNotFound
+		}
+		return entity.Folder{}, fmt.Errorf("update folder pin: %w", err)
+	}
+	f.PinHash = hash
+	objects, err := c.objects(ctx, f)
+	if err != nil {
+		return entity.Folder{}, fmt.Errorf("list files: %w", err)
+	}
+	folder := c.folderEntity(f, owner)
+	c.describe(&folder, f, objects)
+	return folder, nil
 }
 
 func (c *controller) DeleteFolder(ctx context.Context, rq *entity.DeleteFolderRequest) error {
@@ -566,7 +677,44 @@ func (c *controller) OpenPublicFile(ctx context.Context, rq *entity.OpenPublicFi
 	if rq.UserID != 0 && f.UserID != rq.UserID {
 		return nil, ErrNotFound
 	}
-	render := rq.Format == markdown.FormatHTML && markdown.IsMarkdown(p)
+	guarded, unlock, err := c.guard(ctx, f, rq.PinToken, rq.Pin, rq.Client)
+	if err != nil {
+		return nil, err
+	}
+	rs, err := c.openPublic(ctx, f, p, rq.Format)
+	if err != nil {
+		return nil, err
+	}
+	rs.Private, rs.Unlock = guarded, unlock
+	return rs, nil
+}
+
+func (c *controller) UnlockFolder(ctx context.Context, rq *entity.UnlockFolderRequest) (*entity.UnlockFolderResponse, error) {
+	f, err := c.liveFolder(ctx, rq.FolderID)
+	if err != nil {
+		return nil, err
+	}
+	if rq.UserID != 0 && f.UserID != rq.UserID {
+		return nil, ErrNotFound
+	}
+	if rq.Pin == "" {
+		return nil, ErrWrongPin
+	}
+	_, unlock, err := c.guard(ctx, f, "", rq.Pin, rq.Client)
+	if err != nil {
+		return nil, err
+	}
+	if unlock == nil {
+		// The folder needs no PIN.
+		return &entity.UnlockFolderResponse{}, nil
+	}
+	return unlock, nil
+}
+
+// openPublic opens the file at p of a live folder for a visitor; format
+// html renders a Markdown file.
+func (c *controller) openPublic(ctx context.Context, f model.Folder, p, format string) (*entity.OpenFileResponse, error) {
+	render := format == markdown.FormatHTML && markdown.IsMarkdown(p)
 	// A Markdown page is rendered here, so it needs the file's bytes.
 	var sign *storage.SignOptions
 	if !render {
@@ -695,6 +843,101 @@ func (c *controller) ownedFolder(ctx context.Context, userID, id int64) (model.F
 	return f, nil
 }
 
+// ownedFolderAndOwner finds one of a user's live folders, and the user,
+// whose account PIN may guard it.
+func (c *controller) ownedFolderAndOwner(ctx context.Context, userID, id int64) (model.Folder, model.User, error) {
+	f, err := c.ownedFolder(ctx, userID, id)
+	if err != nil {
+		return model.Folder{}, model.User{}, err
+	}
+	owner, err := c.owner(ctx, userID)
+	if err != nil {
+		return model.Folder{}, model.User{}, err
+	}
+	return f, owner, nil
+}
+
+// owner finds the user who owns folders, for their PIN settings. An
+// anonymous visitor has no account, so no settings.
+func (c *controller) owner(ctx context.Context, userID int64) (model.User, error) {
+	u, err := c.users.FindUserByID(ctx, userID)
+	if errors.Is(err, repository.ErrNotFound) {
+		return model.User{ID: userID}, nil
+	}
+	if err != nil {
+		return model.User{}, fmt.Errorf("find owner: %w", err)
+	}
+	return u, nil
+}
+
+// lock is what guards a folder: the mode of its PIN, a fingerprint of the
+// PIN as it is stored, and the check of a PIN.
+type lock struct {
+	mode        string
+	fingerprint string
+	match       func(p string) bool
+}
+
+// lockOf returns what guards f, owned by owner: their account PIN, else
+// the folder's own; nil when nothing does.
+func (c *controller) lockOf(f model.Folder, owner model.User) *lock {
+	switch {
+	case owner.PinMode == model.PinModeTOTP:
+		return &lock{mode: entity.PinModeTOTP, fingerprint: pin.Fingerprint(entity.PinModeTOTP, owner.TOTPSecret), match: func(p string) bool {
+			secret, err := pin.OpenSecret(c.secrets, owner.ID, owner.TOTPSecret)
+			if err != nil {
+				zlog.Error().Err(err).Int64("user", owner.ID).Msg("open totp secret")
+				return false
+			}
+			return pin.ValidTOTP(secret, p, c.now())
+		}}
+	case owner.PinMode == model.PinModeStatic:
+		return &lock{mode: entity.PinModeStatic, fingerprint: pin.Fingerprint(entity.PinModeStatic, owner.PinHash), match: func(p string) bool {
+			return pin.Match(owner.PinHash, p)
+		}}
+	case f.PinHash != "":
+		return &lock{mode: entity.PinModeFolder, fingerprint: pin.Fingerprint(entity.PinModeFolder, f.PinHash), match: func(p string) bool {
+			return pin.Match(f.PinHash, p)
+		}}
+	}
+	return nil
+}
+
+// guard lets a visitor of f through when nothing guards it, when their
+// token proves they entered its current PIN, or when p is that PIN; then
+// it returns the token to keep. guarded reports whether a PIN guards f.
+// Each visitor may enter PinAttempts wrong PINs per PinWindow.
+func (c *controller) guard(ctx context.Context, f model.Folder, token, p, client string) (guarded bool, unlock *entity.UnlockFolderResponse, err error) {
+	owner, err := c.owner(ctx, f.UserID)
+	if err != nil {
+		return false, nil, err
+	}
+	l := c.lockOf(f, owner)
+	if l == nil {
+		return false, nil, nil
+	}
+	if id, fp, err := c.tokens.ValidateFolderPinToken(token); err == nil && id == idgen.FormatFolderID(f.ID) && fp == l.fingerprint {
+		return true, nil, nil
+	}
+	if p == "" {
+		return true, nil, ErrPinRequired
+	}
+	key := "pin:" + idgen.FormatFolderID(f.ID) + ":" + client
+	if !c.pins.Take(key, 1) {
+		return true, nil, fmt.Errorf("%w: at most %d per %d seconds", ErrPinRateLimited, PinAttempts, int(PinWindow/time.Second))
+	}
+	if !l.match(p) {
+		return true, nil, ErrWrongPin
+	}
+	// Only wrong PINs count.
+	c.pins.Give(key, 1)
+	signed, err := c.tokens.CreateFolderPinToken(idgen.FormatFolderID(f.ID), l.fingerprint, f.ExpiresAt)
+	if err != nil {
+		return true, nil, fmt.Errorf("sign pin token: %w", err)
+	}
+	return true, &entity.UnlockFolderResponse{Token: signed, ExpiresAt: f.ExpiresAt.UTC()}, nil
+}
+
 // open opens a file. With sign, a file over the redirect size comes as a
 // signed URL that answers with sign's headers, when the storage signs.
 // The size comes from the folder's Files, so deciding takes no request to
@@ -765,8 +1008,11 @@ func (c *controller) deleteFolder(ctx context.Context, f model.Folder) error {
 	return nil
 }
 
-func (c *controller) folderEntity(f model.Folder) entity.Folder {
+func (c *controller) folderEntity(f model.Folder, owner model.User) entity.Folder {
 	e := mappermodel.FromFolderModelToFolderEntity(f)
+	if l := c.lockOf(f, owner); l != nil {
+		e.PinMode = l.mode
+	}
 	e.CreatedAt, e.ExpiresAt = e.CreatedAt.UTC(), e.ExpiresAt.UTC()
 	e.URL = c.fileURL(f, "")
 	e.DefaultTitle = idgen.FormatFolderID(f.ID)

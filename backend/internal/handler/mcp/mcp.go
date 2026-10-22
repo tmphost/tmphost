@@ -37,6 +37,7 @@ const (
 	ActionGet      = "get"
 	ActionURL      = "url"
 	ActionExtend   = "extend"
+	ActionPin      = "pin"
 )
 
 // The content formats: which field carries a file's content.
@@ -47,10 +48,11 @@ const (
 
 const _toolDescription = `Temporary file hosting on tmphost.io. Files live in folders that expire after a TTL; each file is served at a public URL until then.
 Actions:
-- upload: store a file (fileName, its content in base64Content or textContent as format says, optional path inside the folder). Without id a new folder is created with ttl (default 30m); with id the file goes into that folder, and a file already at that path is replaced in place (an update; its url stays the same). Returns id and url. Costs 1 credit per started MB of the file per started 30 minutes of the folder's remaining lifetime.
+- upload: store a file (fileName, its content in base64Content or textContent as format says, optional path inside the folder). Without id a new folder is created with ttl (default 30m), and pin true gives it a 6 digit PIN visitors must enter; with id the file goes into that folder, and a file already at that path is replaced in place (an update; its url stays the same). Returns id and url, and pinMode when a PIN guards the folder, with pin when this call made it. Costs 1 credit per started MB of the file per started 30 minutes of the folder's remaining lifetime.
 - download: read a file (id, fileName, optional path). Returns its content in base64Content or, for UTF-8 text, in textContent as format says.
 - get: list a folder's files (id).
 - url: build the public URL of a folder (id), a directory (id, path) or a file (id, fileName, optional path).
+- pin: give a folder (id) a new 6 digit PIN, returned in pin; it replaces the folder's old PIN. Fails when the owner's account PIN already guards every folder.
 - extend: make a folder (id) expire ttl later, such as 1h; its remaining lifetime can't exceed the max TTL. Returns the new expiresAt. Costs, for each file in the folder, 1 credit per started MB per started 30 minutes of the added time; an empty folder is free.
 Paths are slash-separated directories inside the folder, at most 5 levels deep.
 format is base64Content (the default, for any file) or textContent (UTF-8 text such as HTML, CSS or JSON, sent as is).`
@@ -63,7 +65,8 @@ const _instructions = `tmphost.io hosts files for a limited time: use it to shar
 - Uploads and extend spend the user's credits by size and lifetime, so pick the shortest ttl that fits and don't re-upload unchanged files.
 - Anything uploaded is public to whoever has the URL until the folder expires: never upload secrets or private data unless the user asks to.
 - Give the user the url from the result; use get to list a folder and url to build links without uploading.
-- To share a Markdown file (.md) as a readable web page, give its url with ?format=html appended.`
+- To share a Markdown file (.md) as a readable web page, give its url with ?format=html appended.
+- A folder can be guarded by a 6 digit PIN that visitors enter once (pinMode in the result). When the result carries pin, give it to the user with the url: it is shown only once. A link with ?pin=<pin> appended opens the folder without asking. Pass pin true on the first upload, or use action pin, when the user wants the files kept from anyone without the PIN.`
 
 type (
 	// Params are the transport's dependencies.
@@ -80,12 +83,13 @@ type (
 
 	// FileInput is the file tool's arguments.
 	FileInput struct {
-		Action   string `json:"action" jsonschema:"what to do: upload, download, get, url or extend"`
+		Action   string `json:"action" jsonschema:"what to do: upload, download, get, url, extend or pin"`
 		ID       string `json:"id,omitempty" jsonschema:"folder id; upload without it creates a new folder, with it adds or replaces files in that folder"`
 		TTL      string `json:"ttl,omitempty" jsonschema:"upload: lifetime of a new folder, such as 30m or 2h (default 30m); extend: time to add, such as 1h"`
 		FileName string `json:"fileName,omitempty" jsonschema:"file name, without directories"`
 		Path     string `json:"path,omitempty" jsonschema:"directory inside the folder, such as site/css, at most 5 levels; empty for the folder root"`
 		Format   string `json:"format,omitempty" jsonschema:"which field carries the content: base64Content (default) or textContent; upload and download only"`
+		Pin      bool   `json:"pin,omitempty" jsonschema:"upload without id: give the new folder a 6 digit PIN visitors must enter"`
 		// Base64Content and TextContent are pointers so an empty file can
 		// be told apart from a missing field.
 		Base64Content *string `json:"base64Content,omitempty" jsonschema:"base64 file content; upload with format base64Content"`
@@ -101,6 +105,11 @@ type (
 		Path         string `json:"path,omitempty"`
 		Size         int64  `json:"size,omitempty"`
 		CreditsSpent int    `json:"creditsSpent,omitempty"`
+		// PinMode names the PIN visitors must enter: totp or static for
+		// the owner's account PIN, folder for the folder's own.
+		PinMode string `json:"pinMode,omitempty"`
+		// Pin is the folder's own PIN, only from the call that made it.
+		Pin string `json:"pin,omitempty"`
 		// Base64Content and TextContent are pointers so an empty file
 		// still carries its (empty) content field.
 		Base64Content *string    `json:"base64Content,omitempty"`
@@ -188,7 +197,7 @@ func annotations() *mcp.ToolAnnotations {
 func inputSchema() *jsonschema.Schema {
 	// FileInput is a plain struct, so inference cannot fail.
 	s, _ := jsonschema.For[FileInput](nil)
-	s.Properties["action"].Enum = []any{ActionUpload, ActionDownload, ActionGet, ActionURL, ActionExtend}
+	s.Properties["action"].Enum = []any{ActionUpload, ActionDownload, ActionGet, ActionURL, ActionExtend, ActionPin}
 	s.Properties["format"].Enum = []any{FormatBase64, FormatText}
 	return s
 }
@@ -211,8 +220,10 @@ func (t *tool) handle(ctx context.Context, req *mcp.CallToolRequest, in FileInpu
 		out, err = t.url(ctx, userID, in)
 	case ActionExtend:
 		out, err = t.extend(ctx, userID, agent, in)
+	case ActionPin:
+		out, err = t.pin(ctx, userID, in)
 	default:
-		err = fmt.Errorf("unknown action %q: use upload, download, get, url or extend", in.Action)
+		err = fmt.Errorf("unknown action %q: use upload, download, get, url, extend or pin", in.Action)
 	}
 	return nil, out, err
 }
@@ -248,6 +259,7 @@ func (t *tool) upload(ctx context.Context, userID int64, agent string, in FileIn
 	}
 	if created != nil {
 		out.ExpiresAt = formatTime(created.ExpiresAt)
+		out.PinMode, out.Pin = created.PinMode, created.Pin
 	}
 	return out, nil
 }
@@ -297,8 +309,8 @@ func contentFormat(format string) (string, error) {
 // id is given. created is the new folder, if any.
 func (t *tool) uploadFolder(ctx context.Context, userID int64, agent string, in FileInput) (int64, *entity.Folder, error) {
 	if in.ID != "" {
-		if in.TTL != "" {
-			return 0, nil, errors.New("ttl only applies to a new folder: leave out id or ttl")
+		if in.TTL != "" || in.Pin {
+			return 0, nil, errors.New("ttl and pin only apply to a new folder: leave out id, or use action pin")
 		}
 		id, err := folderID(in.ID)
 		return id, nil, err
@@ -310,7 +322,7 @@ func (t *tool) uploadFolder(ctx context.Context, userID int64, agent string, in 
 			return 0, nil, err
 		}
 	}
-	rs, err := t.folders.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: userID, Agent: agent, TTLMinutes: minutes})
+	rs, err := t.folders.CreateFolder(ctx, &entity.CreateFolderRequest{UserID: userID, Agent: agent, TTLMinutes: minutes, Pin: in.Pin})
 	if err != nil {
 		return 0, nil, err
 	}
@@ -343,6 +355,18 @@ func (t *tool) extend(ctx context.Context, userID int64, agent string, in FileIn
 		return FileOutput{}, err
 	}
 	return FileOutput{ID: in.ID, URL: rs.Folder.URL, ExpiresAt: formatTime(rs.Folder.ExpiresAt), CreditsSpent: rs.CreditsSpent}, nil
+}
+
+func (t *tool) pin(ctx context.Context, userID int64, in FileInput) (FileOutput, error) {
+	id, err := folderID(in.ID)
+	if err != nil {
+		return FileOutput{}, err
+	}
+	rs, err := t.folders.CreateFolderPin(ctx, &entity.FolderPinRequest{UserID: userID, FolderID: id})
+	if err != nil {
+		return FileOutput{}, err
+	}
+	return FileOutput{ID: in.ID, URL: rs.Folder.URL, ExpiresAt: formatTime(rs.Folder.ExpiresAt), PinMode: rs.Folder.PinMode, Pin: rs.Folder.Pin}, nil
 }
 
 func (t *tool) download(ctx context.Context, userID int64, in FileInput) (FileOutput, error) {
@@ -390,7 +414,7 @@ func (t *tool) get(ctx context.Context, userID int64, in FileInput) (FileOutput,
 	for i, f := range rs.Files {
 		files[i] = FileInfo{FileName: f.Path[strings.LastIndex(f.Path, "/")+1:], Path: dirOf(f.Path), Size: f.Size, URL: f.URL, Agent: f.Agent}
 	}
-	return FileOutput{ID: in.ID, URL: rs.Folder.URL, ExpiresAt: formatTime(rs.Folder.ExpiresAt), Files: files}, nil
+	return FileOutput{ID: in.ID, URL: rs.Folder.URL, ExpiresAt: formatTime(rs.Folder.ExpiresAt), PinMode: rs.Folder.PinMode, Files: files}, nil
 }
 
 func (t *tool) url(ctx context.Context, userID int64, in FileInput) (FileOutput, error) {

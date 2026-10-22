@@ -302,6 +302,37 @@ describe('files api', () => {
     fetch.mockResolvedValueOnce(json({}, 500))
     await expect(api.extendFolder('f2', 60)).rejects.toThrow('Failed to extend folder (500)')
 
+    fetch.mockResolvedValueOnce(json({ folder: { id: 'f2', pinMode: 'folder', pin: '123456' } }, 201))
+    expect(await api.createFolderPin('f2')).toEqual({ id: 'f2', pinMode: 'folder', pin: '123456' })
+    expect(fetch).toHaveBeenLastCalledWith('/api/v1/folders/f2/pin', { method: 'POST', credentials: 'same-origin' })
+    fetch.mockResolvedValueOnce(json({}, 500))
+    await expect(api.createFolderPin('f2')).rejects.toThrow('Failed to make a PIN (500)')
+
+    fetch.mockResolvedValueOnce(json({ folder: { id: 'f2', pinMode: 'off' } }))
+    expect(await api.deleteFolderPin('f2')).toEqual({ id: 'f2', pinMode: 'off' })
+    expect(fetch).toHaveBeenLastCalledWith('/api/v1/folders/f2/pin', { method: 'DELETE', credentials: 'same-origin' })
+    fetch.mockResolvedValueOnce(json({}, 500))
+    await expect(api.deleteFolderPin('f2')).rejects.toThrow('Failed to remove the PIN (500)')
+
+    fetch.mockResolvedValueOnce(json({ mode: 'off', agentPins: false }))
+    expect(await api.fetchAccountPin()).toEqual({ mode: 'off', agentPins: false })
+    expect(fetch).toHaveBeenLastCalledWith('/api/v1/users/me/pin', { method: 'GET', credentials: 'same-origin' })
+
+    fetch.mockResolvedValueOnce(json({ secret: 'S', url: 'otpauth://x', qrCode: 'data:' }))
+    expect(await api.newTotp()).toEqual({ secret: 'S', url: 'otpauth://x', qrCode: 'data:' })
+    expect(fetch).toHaveBeenLastCalledWith('/api/v1/users/me/pin/totp', { method: 'POST', credentials: 'same-origin' })
+
+    fetch.mockResolvedValueOnce(json({ mode: 'static', agentPins: true }))
+    expect(await api.saveAccountPin({ mode: 'static', pin: '123456', agentPins: true })).toEqual({ mode: 'static', agentPins: true })
+    expect(fetch).toHaveBeenLastCalledWith('/api/v1/users/me/pin', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"mode":"static","pin":"123456","agentPins":true}',
+    })
+    fetch.mockResolvedValueOnce(json({ error: 'wrong code' }, 400))
+    await expect(api.saveAccountPin({ mode: 'totp' })).rejects.toThrow('wrong code')
+
     fetch.mockResolvedValueOnce(json(null, 204))
     expect(await api.deleteFolder('f2')).toBeUndefined()
     expect(fetch).toHaveBeenLastCalledWith('/api/v1/folders/f2', { method: 'DELETE', credentials: 'same-origin' })
