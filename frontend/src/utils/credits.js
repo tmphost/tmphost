@@ -4,7 +4,8 @@
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-// creditsPercent is the share of the monthly grant still available (0-100).
+// creditsPercent is how full the credit meter is (0-100); the API sets
+// creditsLimit to 10k, or the next 10k step above the balance.
 export function creditsPercent(user) {
   if (!user || !user.creditsLimit) return 0
   const pct = Math.round((user.credits / user.creditsLimit) * 100)
