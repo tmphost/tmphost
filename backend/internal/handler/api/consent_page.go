@@ -10,6 +10,8 @@ import (
 	"encoding/base64"
 	"html/template"
 
+	"github.com/gofiber/fiber/v3"
+
 	"github.com/tmphost/tmphost/backend/internal/data/entity"
 	mapper "github.com/tmphost/tmphost/backend/internal/mapper/api"
 )
@@ -28,8 +30,8 @@ var _themeScriptHash = func() string {
 	return "'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
 }()
 
-// _pageTemplate is the consent page, the device sign-in pages and the error
-// page, styled like the web app's sign-in card. Without _themeScript's choice, the theme follows
+// _pageTemplate is the consent page, the device sign-in pages, the folder
+// PIN page and the error page, styled like the web app's sign-in card. Without _themeScript's choice, the theme follows
 // the system's.
 var _pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
 <html lang="en">
@@ -37,7 +39,7 @@ var _pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>{{if or .Consent .DeviceConsent}}Allow access to tmphost.io?{{else if .DeviceEntry}}Sign in a device to tmphost.io{{else}}tmphost.io{{end}}</title>
+<title>{{if or .Consent .DeviceConsent}}Allow access to tmphost.io?{{else if .DeviceEntry}}Sign in a device to tmphost.io{{else if .PinEntry}}Enter PIN · tmphost.io{{else}}tmphost.io{{end}}</title>
 <script>` + _themeScript + `</script>
 <style>
 :root {
@@ -134,6 +136,15 @@ input:focus-visible { outline: 2px solid var(--muted); outline-offset: 2px; }
     <input id="user_code" name="user_code" value="{{.UserCode}}" placeholder="XXXX-XXXX" maxlength="16" autocomplete="off" autocapitalize="characters" spellcheck="false" autofocus required data-test="device-code-input">
     <button type="submit" class="allow" data-test="device-continue">Continue</button>
   </form>
+{{end}}{{else if .PinEntry}}{{with .PinEntry}}
+  <h1>Enter PIN</h1>
+  <p class="lead">This folder is protected. Enter its 6 digit PIN to open it.</p>
+  {{if .Error}}<p class="note error" role="alert" data-test="pin-error">{{.Error}}</p>{{end}}
+  <form method="post" class="entry">
+    <label for="pin">PIN</label>
+    <input id="pin" name="pin" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" placeholder="000000" autocomplete="one-time-code" spellcheck="false" autofocus required data-test="pin-input">
+    <button type="submit" class="allow" data-test="pin-submit">Open</button>
+  </form>
 {{end}}{{else if .DeviceConsent}}{{with .DeviceConsent}}
   <h1 data-test="consent-client">{{.ClientName}}</h1>
   <p class="lead">on another device wants to use your tmphost.io account.</p>
@@ -174,8 +185,14 @@ type (
 		DeviceEntry   *deviceEntry
 		DeviceConsent *entity.DeviceConsent
 		DeviceDone    *entity.ConsentDeviceResponse
+		PinEntry      *pinEntry
 		Error         string
 		Allow         string
+	}
+
+	// pinEntry is the form a visitor types a folder's PIN into.
+	pinEntry struct {
+		Error string
 	}
 
 	// deviceEntry is the form a user types a device's code into.
@@ -202,8 +219,24 @@ func deviceDonePage(rs *entity.ConsentDeviceResponse) []byte {
 	return renderPage(pageData{DeviceDone: rs})
 }
 
+func pinPage(msg string) []byte {
+	return renderPage(pageData{PinEntry: &pinEntry{Error: msg}})
+}
+
 func errorPage(msg string) []byte {
 	return renderPage(pageData{Error: msg})
+}
+
+// sendPage answers with one of the pages, locked down: no scripts but the
+// theme one, never framed or cached.
+func sendPage(c fiber.Ctx, status int, html []byte) error {
+	c.Set(fiber.HeaderContentType, fiber.MIMETextHTMLCharsetUTF8)
+	c.Set(fiber.HeaderContentSecurityPolicy, _pageCSP)
+	c.Set(fiber.HeaderXFrameOptions, "DENY")
+	c.Set(fiber.HeaderCacheControl, "no-store")
+	c.Set(fiber.HeaderReferrerPolicy, "no-referrer")
+	c.Set(fiber.HeaderXContentTypeOptions, "nosniff")
+	return c.Status(status).Send(html)
 }
 
 func renderPage(data pageData) []byte {

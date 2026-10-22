@@ -167,6 +167,20 @@ func (mr *MockFolderRepositoryMockRecorder) SaveFiles(ctx, folderID, agent, file
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveFiles", reflect.TypeOf((*MockFolderRepository)(nil).SaveFiles), ctx, folderID, agent, files)
 }
 
+// UpdateFolderPin mocks base method.
+func (m *MockFolderRepository) UpdateFolderPin(ctx context.Context, id int64, hash string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateFolderPin", ctx, id, hash)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateFolderPin indicates an expected call of UpdateFolderPin.
+func (mr *MockFolderRepositoryMockRecorder) UpdateFolderPin(ctx, id, hash interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFolderPin", reflect.TypeOf((*MockFolderRepository)(nil).UpdateFolderPin), ctx, id, hash)
+}
+
 // UpdateFolderTitle mocks base method.
 func (m *MockFolderRepository) UpdateFolderTitle(ctx context.Context, id int64, title string) error {
 	m.ctrl.T.Helper()

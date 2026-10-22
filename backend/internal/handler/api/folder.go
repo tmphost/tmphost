@@ -89,6 +89,33 @@ func (h *Folder) Extend(c fiber.Ctx) error {
 	return sendJSON(c, fiber.StatusOK, mapper.FromExtendFolderResponseEntityToHTTPResponse(rs))
 }
 
+// CreatePin gives a folder a new PIN of its own, answered once.
+func (h *Folder) CreatePin(c fiber.Ctx) error {
+	rq := mapper.FromHTTPRequestToFolderPinRequestEntity(c)
+	if rq == nil {
+		return fiber.ErrBadRequest
+	}
+	rs, err := h.controller.CreateFolderPin(c.Context(), rq)
+	if err != nil {
+		return sendFolderError(c, err)
+	}
+	c.Set(fiber.HeaderCacheControl, "no-store")
+	return sendJSON(c, fiber.StatusCreated, mapper.FromFolderPinResponseEntityToHTTPResponse(rs))
+}
+
+// DeletePin removes a folder's own PIN.
+func (h *Folder) DeletePin(c fiber.Ctx) error {
+	rq := mapper.FromHTTPRequestToFolderPinRequestEntity(c)
+	if rq == nil {
+		return fiber.ErrBadRequest
+	}
+	rs, err := h.controller.DeleteFolderPin(c.Context(), rq)
+	if err != nil {
+		return sendFolderError(c, err)
+	}
+	return sendJSON(c, fiber.StatusOK, mapper.FromFolderPinResponseEntityToHTTPResponse(rs))
+}
+
 // Delete deletes a folder and its files.
 func (h *Folder) Delete(c fiber.Ctx) error {
 	rq := mapper.FromHTTPRequestToDeleteFolderRequestEntity(c)
@@ -162,6 +189,8 @@ func sendFolderError(c fiber.Ctx, err error) error {
 		return sendError(c, fiber.StatusPaymentRequired, err.Error())
 	case errors.Is(err, folderctrl.ErrQuotaExceeded):
 		return sendError(c, fiber.StatusTooManyRequests, err.Error())
+	case errors.Is(err, folderctrl.ErrAccountPin):
+		return sendError(c, fiber.StatusConflict, err.Error())
 	default:
 		logServerError(c, err)
 		return sendError(c, fiber.StatusInternalServerError, "storage failed")

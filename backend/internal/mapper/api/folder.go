@@ -39,7 +39,7 @@ func FromHTTPRequestToCreateFolderRequestEntity(c fiber.Ctx) *entity.CreateFolde
 			return nil
 		}
 	}
-	return &entity.CreateFolderRequest{UserID: userID, Anonymous: localAnonymous(c), Agent: localAgent(c), TTLMinutes: rq.TTLMinutes}
+	return &entity.CreateFolderRequest{UserID: userID, Anonymous: localAnonymous(c), Agent: localAgent(c), TTLMinutes: rq.TTLMinutes, Pin: rq.Pin}
 }
 
 // FromHTTPRequestToListFoldersRequestEntity reads GET /folders.
@@ -80,6 +80,16 @@ func FromHTTPRequestToExtendFolderRequestEntity(c fiber.Ctx) *entity.ExtendFolde
 		return nil
 	}
 	return &entity.ExtendFolderRequest{UserID: rq.UserID, Agent: localAgent(c), FolderID: rq.FolderID, Minutes: body.Minutes}
+}
+
+// FromHTTPRequestToFolderPinRequestEntity reads POST and DELETE
+// /folders/:id/pin.
+func FromHTTPRequestToFolderPinRequestEntity(c fiber.Ctx) *entity.FolderPinRequest {
+	rq := FromHTTPRequestToGetFolderRequestEntity(c)
+	if rq == nil {
+		return nil
+	}
+	return &entity.FolderPinRequest{UserID: rq.UserID, FolderID: rq.FolderID}
 }
 
 // FromHTTPRequestToDeleteFolderRequestEntity reads DELETE /folders/:id.
@@ -137,7 +147,9 @@ func FromHTTPRequestToOpenPublicFileRequestEntity(c fiber.Ctx, domain string) *e
 	if err != nil {
 		return nil
 	}
-	return &entity.OpenPublicFileRequest{FolderID: folderID, Path: p, Format: c.Query("format")}
+	rq := &entity.OpenPublicFileRequest{FolderID: folderID, Path: p, Format: c.Query("format")}
+	readPin(c, rq)
+	return rq
 }
 
 // FromHTTPRequestToOpenPublicFileByPathRequestEntity reads a request to
@@ -157,7 +169,28 @@ func FromHTTPRequestToOpenPublicFileByPathRequestEntity(c fiber.Ctx) *entity.Ope
 	if p != "" && strings.HasSuffix(c.Path(), "/") {
 		p += "/"
 	}
-	return &entity.OpenPublicFileRequest{UserID: userID, FolderID: folderID, Path: p, Format: c.Query("format")}
+	rq := &entity.OpenPublicFileRequest{UserID: userID, FolderID: folderID, Path: p, Format: c.Query("format")}
+	readPin(c, rq)
+	return rq
+}
+
+// readPin reads what a visitor proves a folder's PIN with: the token in
+// their cookie, and a PIN they enter (posted from the PIN page) or pass in
+// ?pin=.
+func readPin(c fiber.Ctx, rq *entity.OpenPublicFileRequest) {
+	rq.PinToken = c.Cookies(PinCookie)
+	rq.Pin = c.Query("pin")
+	if c.Method() == fiber.MethodPost {
+		// FormValue would prefer the query.
+		rq.Pin = string(c.Request().PostArgs().Peek("pin"))
+	}
+	rq.Client = c.IP()
+}
+
+// FromOpenPublicFileRequestEntityToUnlockFolderRequestEntity turns a
+// visitor's request with a PIN into one that enters it.
+func FromOpenPublicFileRequestEntityToUnlockFolderRequestEntity(rq *entity.OpenPublicFileRequest) *entity.UnlockFolderRequest {
+	return &entity.UnlockFolderRequest{UserID: rq.UserID, FolderID: rq.FolderID, Pin: rq.Pin, Client: rq.Client}
 }
 
 // FromGetLimitsResponseEntityToHTTPResponse renders GET /limits.
@@ -205,6 +238,12 @@ func FromExtendFolderResponseEntityToHTTPResponse(rs *entity.ExtendFolderRespons
 	return marshal(view.ExtendFolderResponse{Folder: FromFolderEntityToFolderView(rs.Folder), CreditsSpent: rs.CreditsSpent})
 }
 
+// FromFolderPinResponseEntityToHTTPResponse renders POST and DELETE
+// /folders/:id/pin.
+func FromFolderPinResponseEntityToHTTPResponse(rs *entity.FolderPinResponse) []byte {
+	return marshal(view.FolderResponse{Folder: FromFolderEntityToFolderView(rs.Folder)})
+}
+
 // FromPutFilesResponseEntityToHTTPResponse renders PUT /folders/:id/files/*,
 // which writes exactly one file.
 func FromPutFilesResponseEntityToHTTPResponse(rs *entity.PutFilesResponse) []byte {
@@ -222,6 +261,8 @@ func FromFolderEntityToFolderView(e entity.Folder) view.Folder {
 		DefaultTitle: e.DefaultTitle,
 		OpenURL:      e.OpenURL,
 		Agent:        e.Agent,
+		PinMode:      e.PinMode,
+		Pin:          e.Pin,
 	}
 }
 

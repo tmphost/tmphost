@@ -25,10 +25,12 @@ import (
 	"github.com/tmphost/tmphost/backend/internal/markdown"
 	"github.com/tmphost/tmphost/backend/internal/repository"
 	mockrepo "github.com/tmphost/tmphost/backend/internal/repository/mocks"
+	"github.com/tmphost/tmphost/backend/internal/service/encryption"
 	"github.com/tmphost/tmphost/backend/internal/service/idgen"
 	"github.com/tmphost/tmphost/backend/internal/service/quota"
 	"github.com/tmphost/tmphost/backend/internal/service/storage"
 	mockstorage "github.com/tmphost/tmphost/backend/internal/service/storage/mocks"
+	"github.com/tmphost/tmphost/backend/internal/service/token"
 )
 
 var (
@@ -45,6 +47,12 @@ type env struct {
 	storage *mockstorage.MockService
 	nextID  int64
 	limits  entity.FileSettings
+	// owner is the user FindUserByID returns, under the ID asked for;
+	// ownerErr fails it.
+	owner    model.User
+	ownerErr error
+	tokens   token.Service
+	secrets  encryption.Service
 }
 
 func newEnv(t *testing.T) *env {
@@ -56,12 +64,28 @@ func newEnv(t *testing.T) *env {
 		storage: mockstorage.NewMockService(mc),
 		limits:  entity.FileSettings{MaxTTLMinutes: 120, MaxUploadMB: 1, AnonymousMaxTTLMinutes: 10, Subdomains: true, PublicDomain: "tmp.host"},
 	}
+	var err error
+	e.tokens, err = token.New(token.Config{Secret: "test-secret", Now: func() time.Time { return _now }})
+	require.NoError(t, err)
+	e.secrets, err = encryption.New(strings.Repeat("k", 32))
+	require.NoError(t, err)
+	e.users.EXPECT().FindUserByID(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, id int64) (model.User, error) {
+		if e.ownerErr != nil {
+			return model.User{}, e.ownerErr
+		}
+		u := e.owner
+		u.ID = id
+		return u, nil
+	}).AnyTimes()
 	e.ctrl = New(Params{
 		Folders:        e.folders,
 		Users:          e.users,
 		Storage:        e.storage,
 		Anonymous:      quota.New(quota.Params{Limit: AnonymousOps, Window: AnonymousWindow, Now: func() time.Time { return _now }}),
 		AnonymousBytes: quota.New(quota.Params{Limit: AnonymousBytes, Window: AnonymousWindow, Now: func() time.Time { return _now }}),
+		PinAttempts:    quota.New(quota.Params{Limit: PinAttempts, Window: PinWindow, Now: func() time.Time { return _now }}),
+		Tokens:         e.tokens,
+		Secrets:        e.secrets,
 		NewID:          func() int64 { return e.nextID },
 		Limits:         func() entity.FileSettings { return e.limits },
 		BaseURL:        "https://tmphost.io/base/",

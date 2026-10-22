@@ -54,6 +54,12 @@ export const routes = [
     meta: { title: 'Credits' },
   },
   {
+    path: '/security',
+    name: 'security',
+    component: () => import('./views/SecurityView.vue'),
+    meta: { title: 'Security' },
+  },
+  {
     path: '/connect',
     name: 'connect',
     component: () => import('./views/ConnectView.vue'),

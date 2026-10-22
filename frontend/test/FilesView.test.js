@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { RouterLinkStub, config, flushPromises, mount } from '@vue/test-utils'
 import { ref } from 'vue'
 
 vi.mock('../src/api', () => ({
@@ -16,12 +16,16 @@ vi.mock('../src/api', () => ({
   deleteFile: vi.fn(),
   renameFolder: vi.fn(),
   extendFolder: vi.fn(),
+  createFolderPin: vi.fn(),
+  deleteFolderPin: vi.fn(),
 }))
 
 import {
   createFolder,
+  createFolderPin,
   deleteFile,
   deleteFolder,
+  deleteFolderPin,
   extendFolder,
   fetchFolder,
   fetchLimits,
@@ -32,6 +36,8 @@ import {
 import FilesView from '../src/views/FilesView.vue'
 import { useToasts } from '../src/composables/useToasts'
 import { dataTransfer, dirEntry, fileEntry } from './dropEntries'
+
+config.global.stubs = { RouterLink: RouterLinkStub }
 
 const NOW = Date.parse('2026-10-18T12:00:00Z')
 const limits = { defaultTtlMinutes: 30, maxTtlMinutes: 432000, maxUploadBytes: 1000, billingBlockMinutes: 30, billingUnitBytes: 100 }
@@ -741,6 +747,71 @@ describe('FilesView', () => {
     await flushPromises()
     expect(lastToast()).toMatchObject({ type: 'error', message: 'Failed to delete folder (500)' })
     expect(wrapper.find('[data-test="folder-new"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="delete-modal"]').exists()).toBe(false)
+  })
+
+  it('shows what guards a folder in its file list', async () => {
+    listFolders.mockResolvedValue([
+      { ...folders[0], id: 'a', pinMode: 'static' },
+      { ...folders[0], id: 'b', pinMode: 'totp' },
+      { ...folders[0], id: 'c', pinMode: 'folder' },
+      { ...folders[0], id: 'd', pinMode: 'off' },
+      { ...folders[0], id: 'e' },
+    ])
+    fetchFolder.mockResolvedValue({ folder: folders[0], files: [] })
+    const wrapper = await mountView()
+    for (const id of ['a', 'b', 'c', 'd', 'e']) await wrapper.find(`[data-test="folder-${id}"] [data-test="folder-toggle"]`).trigger('click')
+    await flushPromises()
+    const row = (id) => wrapper.find(`[data-test="folder-${id}"] [data-test="folder-pin"]`)
+    expect(row('a').find('[data-test="folder-pin-label"]').text()).toBe('Guarded by your account PIN')
+    expect(row('a').findComponent(RouterLinkStub).props('to')).toBe('/security')
+    expect(row('a').find('[data-test="folder-pin-new"]').exists()).toBe(false)
+    expect(row('b').find('[data-test="folder-pin-label"]').text()).toBe('Guarded by your authenticator app')
+    expect(row('c').find('[data-test="folder-pin-label"]').text()).toBe('PIN protected')
+    expect(row('c').find('[data-test="folder-pin-new"]').text()).toBe('New PIN')
+    expect(row('c').find('[data-test="folder-pin-remove"]').exists()).toBe(true)
+    for (const id of ['d', 'e']) {
+      expect(row(id).find('[data-test="folder-pin-label"]').text()).toBe('No PIN: anyone with the link can open it')
+      expect(row(id).find('[data-test="folder-pin-new"]').text()).toBe('Add PIN')
+      expect(row(id).find('[data-test="folder-pin-remove"]').exists()).toBe(false)
+      expect(row(id).find('[data-test="folder-pin-security"]').exists()).toBe(false)
+    }
+  })
+
+  it('adds a PIN to a folder in a modal', async () => {
+    fetchFolder.mockResolvedValue({ folder: folders[0], files: [] })
+    const wrapper = await mountView()
+    await wrapper.find('[data-test="folder-old"] [data-test="folder-toggle"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-test="folder-old"] [data-test="folder-pin-new"]').trigger('click')
+    expect(wrapper.find('#pin-modal-title').text()).toBe('Add a PIN to old')
+    createFolderPin.mockResolvedValueOnce({ ...folders[0], pinMode: 'folder', pin: '123456' })
+    await wrapper.find('[data-test="pin-confirm"]').trigger('click')
+    await flushPromises()
+    expect(createFolderPin).toHaveBeenCalledWith('old')
+    expect(wrapper.find('[data-test="pin-value"]').text()).toBe('123456')
+    expect(wrapper.find('[data-test="folder-old"] [data-test="folder-pin-label"]').text()).toBe('PIN protected')
+    expect(wrapper.find('[data-test="folder-old"]').text()).not.toContain('123456')
+    await wrapper.find('[data-test="pin-done"]').trigger('click')
+    expect(wrapper.find('[data-test="pin-modal"]').exists()).toBe(false)
+  })
+
+  it('removes a folder PIN after confirmation', async () => {
+    listFolders.mockResolvedValue([{ ...folders[0], pinMode: 'folder' }])
+    fetchFolder.mockResolvedValue({ folder: folders[0], files: [] })
+    const wrapper = await mountView()
+    await wrapper.find('[data-test="folder-old"] [data-test="folder-toggle"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-test="folder-old"] [data-test="folder-pin-remove"]').trigger('click')
+    expect(wrapper.find('#delete-modal-title').text()).toBe('Remove PIN?')
+    expect(wrapper.find('[data-test="delete-modal-message"]').text()).toBe('Folder old opens for anyone with the link again.')
+    expect(wrapper.find('[data-test="delete-modal-confirm"]').text()).toBe('Remove')
+    deleteFolderPin.mockResolvedValueOnce({ ...folders[0], pinMode: 'off' })
+    await wrapper.find('[data-test="delete-modal-confirm"]').trigger('click')
+    await flushPromises()
+    expect(deleteFolderPin).toHaveBeenCalledWith('old')
+    expect(lastToast()).toMatchObject({ type: 'success', message: 'PIN removed' })
+    expect(wrapper.find('[data-test="folder-old"] [data-test="folder-pin-new"]').text()).toBe('Add PIN')
     expect(wrapper.find('[data-test="delete-modal"]').exists()).toBe(false)
   })
 })

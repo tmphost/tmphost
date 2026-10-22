@@ -45,6 +45,11 @@ type Folder struct {
 	CreatedAt time.Time `json:"createdAt"`
 	ExpiresAt time.Time `json:"expiresAt"`
 	URL       string    `json:"url"`
+	// PinMode names the PIN visitors must enter: totp or static for the
+	// account PIN, folder for the folder's own; empty when it is open.
+	PinMode string `json:"pinMode,omitempty"`
+	// Pin is the folder's own PIN, only from the call that made it.
+	Pin string `json:"pin,omitempty"`
 }
 
 // File is a file inside a folder.
@@ -127,11 +132,13 @@ func (c *Client) Limits(ctx context.Context) (*Limits, error) {
 	return &out, nil
 }
 
-// CreateFolder creates an empty folder that expires after ttlMinutes.
-func (c *Client) CreateFolder(ctx context.Context, ttlMinutes int) (*Folder, error) {
+// CreateFolder creates an empty folder that expires after ttlMinutes;
+// with pin, it gets a PIN of its own, in Folder.Pin.
+func (c *Client) CreateFolder(ctx context.Context, ttlMinutes int, pin bool) (*Folder, error) {
 	in := struct {
-		TTLMinutes int `json:"ttlMinutes"`
-	}{ttlMinutes}
+		TTLMinutes int  `json:"ttlMinutes"`
+		Pin        bool `json:"pin,omitempty"`
+	}{ttlMinutes, pin}
 	var out struct {
 		Folder Folder `json:"folder"`
 	}
@@ -171,6 +178,17 @@ func (c *Client) ExtendFolder(ctx context.Context, id string, minutes int) (*Ext
 		return nil, err
 	}
 	return &out, nil
+}
+
+// CreateFolderPin gives a folder a new PIN of its own, in Folder.Pin.
+func (c *Client) CreateFolderPin(ctx context.Context, id string) (*Folder, error) {
+	var out struct {
+		Folder Folder `json:"folder"`
+	}
+	if err := c.doJSON(ctx, http.MethodPost, "/folders/"+url.PathEscape(id)+"/pin", nil, &out); err != nil {
+		return nil, err
+	}
+	return &out.Folder, nil
 }
 
 // DeleteFolder deletes a folder and everything in it.

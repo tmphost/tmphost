@@ -33,6 +33,11 @@ type (
 		FindUserByEmail(ctx context.Context, email string) (model.User, error)
 		CreateUser(ctx context.Context, u model.User) (model.User, error)
 		UpdateUser(ctx context.Context, u model.User) (model.User, error)
+		// UpdateUserPin sets a user's account PIN (its mode, the hash of a
+		// static PIN, the encrypted TOTP secret) and whether folders agents
+		// create get PINs of their own. It returns ErrNotFound for an
+		// unknown user.
+		UpdateUserPin(ctx context.Context, id int64, mode uint8, pinHash, totpSecret string, agentPins bool) error
 		// ListUsersDueForCreditRenewal returns up to limit users whose
 		// credit renewal time is at or before now, oldest first.
 		ListUsersDueForCreditRenewal(ctx context.Context, now time.Time, limit int) ([]model.User, error)
@@ -106,6 +111,22 @@ func (r *userRepository) UpdateUser(ctx context.Context, u model.User) (model.Us
 		return model.User{}, err
 	}
 	return u, nil
+}
+
+func (r *userRepository) UpdateUserPin(ctx context.Context, id int64, mode uint8, pinHash, totpSecret string, agentPins bool) error {
+	res := r.db.WithContext(ctx).Model(&model.User{}).Where("id = ?", id).Updates(map[string]any{
+		"pin_mode":    mode,
+		"pin_hash":    pinHash,
+		"totp_secret": totpSecret,
+		"agent_pins":  agentPins,
+	})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *userRepository) ListUsersDueForCreditRenewal(ctx context.Context, now time.Time, limit int) ([]model.User, error) {

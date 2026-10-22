@@ -30,6 +30,9 @@ const (
 	// LocalAgent is the fiber.Ctx local naming what made the request:
 	// the OAuth client of an access token, or the web app.
 	LocalAgent = "agent"
+	// PinCookie holds a visitor's token for a PIN-guarded folder, on the
+	// folder's own host, or below its path.
+	PinCookie = "tmphost_pin"
 )
 
 // FromHTTPRequestToStartLoginRequestEntity reads GET /auth/:provider/login.

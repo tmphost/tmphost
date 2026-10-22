@@ -50,6 +50,21 @@ func (mr *MockControllerMockRecorder) CreateFolder(ctx, rq interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateFolder", reflect.TypeOf((*MockController)(nil).CreateFolder), ctx, rq)
 }
 
+// CreateFolderPin mocks base method.
+func (m *MockController) CreateFolderPin(ctx context.Context, rq *entity.FolderPinRequest) (*entity.FolderPinResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateFolderPin", ctx, rq)
+	ret0, _ := ret[0].(*entity.FolderPinResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateFolderPin indicates an expected call of CreateFolderPin.
+func (mr *MockControllerMockRecorder) CreateFolderPin(ctx, rq interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateFolderPin", reflect.TypeOf((*MockController)(nil).CreateFolderPin), ctx, rq)
+}
+
 // DeleteExpiredFolders mocks base method.
 func (m *MockController) DeleteExpiredFolders(ctx context.Context) (*entity.DeleteExpiredFoldersResponse, error) {
 	m.ctrl.T.Helper()
@@ -91,6 +106,21 @@ func (m *MockController) DeleteFolder(ctx context.Context, rq *entity.DeleteFold
 func (mr *MockControllerMockRecorder) DeleteFolder(ctx, rq interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFolder", reflect.TypeOf((*MockController)(nil).DeleteFolder), ctx, rq)
+}
+
+// DeleteFolderPin mocks base method.
+func (m *MockController) DeleteFolderPin(ctx context.Context, rq *entity.FolderPinRequest) (*entity.FolderPinResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteFolderPin", ctx, rq)
+	ret0, _ := ret[0].(*entity.FolderPinResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteFolderPin indicates an expected call of DeleteFolderPin.
+func (mr *MockControllerMockRecorder) DeleteFolderPin(ctx, rq interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFolderPin", reflect.TypeOf((*MockController)(nil).DeleteFolderPin), ctx, rq)
 }
 
 // ExtendFolder mocks base method.
@@ -195,6 +225,21 @@ func (m *MockController) PutFiles(ctx context.Context, rq *entity.PutFilesReques
 func (mr *MockControllerMockRecorder) PutFiles(ctx, rq interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutFiles", reflect.TypeOf((*MockController)(nil).PutFiles), ctx, rq)
+}
+
+// UnlockFolder mocks base method.
+func (m *MockController) UnlockFolder(ctx context.Context, rq *entity.UnlockFolderRequest) (*entity.UnlockFolderResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnlockFolder", ctx, rq)
+	ret0, _ := ret[0].(*entity.UnlockFolderResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UnlockFolder indicates an expected call of UnlockFolder.
+func (mr *MockControllerMockRecorder) UnlockFolder(ctx, rq interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnlockFolder", reflect.TypeOf((*MockController)(nil).UnlockFolder), ctx, rq)
 }
 
 // UpdateFolder mocks base method.

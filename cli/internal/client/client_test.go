@@ -86,13 +86,26 @@ func TestLimits(t *testing.T) {
 
 func TestCreateFolder(t *testing.T) {
 	c, req, body := serve(t, 201, `{"folder":{"id":"f1","url":"https://h/p/f1/","expiresAt":"2026-10-18T12:00:00Z"}}`)
-	f, err := c.CreateFolder(context.Background(), 60)
+	f, err := c.CreateFolder(context.Background(), 60, false)
 	require.NoError(t, err)
 	assert.Equal(t, &Folder{ID: "f1", URL: "https://h/p/f1/", ExpiresAt: ts}, f)
 	assert.Equal(t, "POST", req.Method)
 	assert.Equal(t, "/api/v1/folders", req.URL.Path)
 	assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
 	assert.JSONEq(t, `{"ttlMinutes":60}`, *body)
+
+	_, err = c.CreateFolder(context.Background(), 60, true)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"ttlMinutes":60,"pin":true}`, *body)
+}
+
+func TestCreateFolderPin(t *testing.T) {
+	c, req, _ := serve(t, 201, `{"folder":{"id":"f1","pinMode":"folder","pin":"123456"}}`)
+	f, err := c.CreateFolderPin(context.Background(), "f1")
+	require.NoError(t, err)
+	assert.Equal(t, &Folder{ID: "f1", PinMode: "folder", Pin: "123456"}, f)
+	assert.Equal(t, "POST", req.Method)
+	assert.Equal(t, "/api/v1/folders/f1/pin", req.URL.Path)
 }
 
 func TestListFolders(t *testing.T) {
@@ -181,14 +194,15 @@ func TestMethodErrors(t *testing.T) {
 	c, _, _ := serve(t, 401, `{"error":"invalid token"}`)
 	ctx := context.Background()
 	calls := map[string]func() error{
-		"Me":           func() error { _, err := c.Me(ctx); return err },
-		"Limits":       func() error { _, err := c.Limits(ctx); return err },
-		"CreateFolder": func() error { _, err := c.CreateFolder(ctx, 1); return err },
-		"ListFolders":  func() error { _, err := c.ListFolders(ctx); return err },
-		"GetFolder":    func() error { _, err := c.GetFolder(ctx, "f"); return err },
-		"ExtendFolder": func() error { _, err := c.ExtendFolder(ctx, "f", 1); return err },
-		"DeleteFolder": func() error { return c.DeleteFolder(ctx, "f") },
-		"DeleteFile":   func() error { return c.DeleteFile(ctx, "f", "a") },
+		"Me":              func() error { _, err := c.Me(ctx); return err },
+		"Limits":          func() error { _, err := c.Limits(ctx); return err },
+		"CreateFolder":    func() error { _, err := c.CreateFolder(ctx, 1, false); return err },
+		"CreateFolderPin": func() error { _, err := c.CreateFolderPin(ctx, "f"); return err },
+		"ListFolders":     func() error { _, err := c.ListFolders(ctx); return err },
+		"GetFolder":       func() error { _, err := c.GetFolder(ctx, "f"); return err },
+		"ExtendFolder":    func() error { _, err := c.ExtendFolder(ctx, "f", 1); return err },
+		"DeleteFolder":    func() error { return c.DeleteFolder(ctx, "f") },
+		"DeleteFile":      func() error { return c.DeleteFile(ctx, "f", "a") },
 	}
 	for name, call := range calls {
 		err := call()
@@ -258,7 +272,7 @@ func TestRetryAfterRefresh(t *testing.T) {
 	// A JSON body is replayed too.
 	tokens = &rotatingTokens{}
 	c = New(retryServer(t), tokens)
-	_, err = c.CreateFolder(ctx, 30)
+	_, err = c.CreateFolder(ctx, 30, false)
 	require.NoError(t, err)
 }
 

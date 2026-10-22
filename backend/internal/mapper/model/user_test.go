@@ -31,3 +31,21 @@ func TestFromUserModelToUserEntity_SignupBalanceAboveGrant(t *testing.T) {
 	assert.Equal(t, 1000, got.CreditsLimit)
 	assert.Equal(t, 250, got.MonthlyGrant)
 }
+
+func TestFromUserModelToAccountPinEntity(t *testing.T) {
+	assert.Equal(t, entity.AccountPin{Mode: entity.PinModeOff}, FromUserModelToAccountPinEntity(model.User{}))
+	assert.Equal(t, entity.AccountPin{Mode: entity.PinModeStatic, AgentPins: true}, FromUserModelToAccountPinEntity(model.User{PinMode: model.PinModeStatic, AgentPins: true}))
+	assert.Equal(t, entity.AccountPin{Mode: entity.PinModeTOTP}, FromUserModelToAccountPinEntity(model.User{PinMode: model.PinModeTOTP}))
+	assert.Equal(t, entity.AccountPin{Mode: entity.PinModeOff}, FromUserModelToAccountPinEntity(model.User{PinMode: 99}), "unknown reads as off")
+}
+
+func TestFromPinModeEntityToPinModeModel(t *testing.T) {
+	for name, want := range map[string]uint8{entity.PinModeOff: model.PinModeOff, entity.PinModeStatic: model.PinModeStatic, entity.PinModeTOTP: model.PinModeTOTP} {
+		got := FromPinModeEntityToPinModeModel(name)
+		if assert.NotNil(t, got, name) {
+			assert.Equal(t, want, *got, name)
+		}
+	}
+	assert.Nil(t, FromPinModeEntityToPinModeModel(entity.PinModeFolder), "not an account mode")
+	assert.Nil(t, FromPinModeEntityToPinModeModel(""))
+}

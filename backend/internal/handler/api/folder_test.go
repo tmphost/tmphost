@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tmphost/tmphost/backend/internal/brand"
+	mockaccountpin "github.com/tmphost/tmphost/backend/internal/controller/accountpin/mocks"
 	mockauth "github.com/tmphost/tmphost/backend/internal/controller/auth/mocks"
 	mockcredit "github.com/tmphost/tmphost/backend/internal/controller/credit/mocks"
 	folderctrl "github.com/tmphost/tmphost/backend/internal/controller/folder"
@@ -40,6 +41,7 @@ type filesEnv struct {
 	folders  *mockfolder.MockController
 	oauth    *mockoauth.MockController
 	credits  *mockcredit.MockController
+	pins     *mockaccountpin.MockController
 	settings entity.FileSettings
 }
 
@@ -53,10 +55,11 @@ func newFilesApp(t *testing.T) *filesEnv {
 	e := &filesEnv{
 		app: fiber.New(), auth: auth, folders: mockfolder.NewMockController(mc), oauth: mockoauth.NewMockController(mc),
 		credits:  mockcredit.NewMockController(mc),
+		pins:     mockaccountpin.NewMockController(mc),
 		settings: entity.FileSettings{Subdomains: true, PublicDomain: "tmp.host"},
 	}
 	New(Params{
-		Router: e.app, Auth: auth, Setup: mocksetup.NewMockController(mc), Folders: e.folders, OAuth: e.oauth, Credits: e.credits,
+		Router: e.app, Auth: auth, Setup: mocksetup.NewMockController(mc), Folders: e.folders, OAuth: e.oauth, Credits: e.credits, AccountPins: e.pins,
 		FileSettings: func() entity.FileSettings { return e.settings }, BasePath: "/base",
 		// Only tmp.host and httptest's example.com pass the host check.
 		Hosts: func(c fiber.Ctx) error {
@@ -356,7 +359,7 @@ func TestPublic(t *testing.T) {
 		return res, string(b)
 	}
 
-	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: "site/a b.html"}).
+	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: "site/a b.html", Client: "0.0.0.0"}).
 		Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader("<p>")), Size: 3, ContentType: "text/html; charset=utf-8", ModTime: _at}, nil)
 	res, body := get(http.MethodGet, "000000RS.TMP.HOST", "/site/a%20b.html")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
@@ -366,12 +369,12 @@ func TestPublic(t *testing.T) {
 	assert.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"))
 	assert.Equal(t, "Sun, 18 Oct 2026 12:00:00 GMT", res.Header.Get("Last-Modified"))
 
-	res, _ = get(http.MethodPost, "000000rs.tmp.host", "/")
+	res, _ = get(http.MethodPut, "000000rs.tmp.host", "/")
 	assert.Equal(t, http.StatusMethodNotAllowed, res.StatusCode)
 
 	// A large file in the bucket is a redirect, for HEAD too.
 	signed := "https://bucket.s3.example/u7/000000rs/big.png?X-Amz-Signature=abc"
-	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: "big.png"}).
+	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: "big.png", Client: "0.0.0.0"}).
 		Return(&entity.OpenFileResponse{RedirectURL: signed, Size: 2 << 20, ContentType: "image/png"}, nil).Times(2)
 	for _, method := range []string{http.MethodGet, http.MethodHead} {
 		res, body = get(method, "000000rs.tmp.host", "/big.png")
@@ -382,19 +385,19 @@ func TestPublic(t *testing.T) {
 		assert.Empty(t, body)
 	}
 
-	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: ""}).Return(nil, folderctrl.ErrNotFound)
+	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: "", Client: "0.0.0.0"}).Return(nil, folderctrl.ErrNotFound)
 	res, body = get(http.MethodGet, "000000rs.tmp.host", "/")
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 	assert.Equal(t, "Not found. The file may have expired.", body)
 	assert.Contains(t, res.Header.Get("Content-Type"), "text/plain")
 
 	// A folder without its own favicon.ico shows ours; one with it, its own.
-	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: "favicon.ico"}).Return(nil, folderctrl.ErrNotFound)
+	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: "favicon.ico", Client: "0.0.0.0"}).Return(nil, folderctrl.ErrNotFound)
 	res, body = get(http.MethodGet, "000000rs.tmp.host", "/favicon.ico")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, brand.FaviconType, res.Header.Get("Content-Type"))
 	assert.Equal(t, string(brand.Favicon), body)
-	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: "favicon.ico"}).
+	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: "favicon.ico", Client: "0.0.0.0"}).
 		Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader("own")), Size: 3, ContentType: "image/x-icon", ModTime: _at}, nil)
 	_, body = get(http.MethodGet, "000000rs.tmp.host", "/favicon.ico")
 	assert.Equal(t, "own", body)
@@ -434,14 +437,14 @@ func TestPublic_Path(t *testing.T) {
 		return res, string(b)
 	}
 
-	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: "site/a b.html"}).
+	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: "site/a b.html", Client: "0.0.0.0"}).
 		Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader("<p>")), Size: 3, ContentType: "text/html; charset=utf-8", ModTime: _at}, nil)
 	res, body := get(http.MethodGet, "/files/7/000000rs/site/a%20b.html")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "<p>", body)
 	assert.Equal(t, _sandbox, res.Header.Get("Content-Security-Policy"))
 
-	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: ""}).Return(nil, folderctrl.ErrNotFound)
+	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: "", Client: "0.0.0.0"}).Return(nil, folderctrl.ErrNotFound)
 	res, body = get(http.MethodGet, "/files/7/000000rs/")
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 	assert.Equal(t, "Not found. The file may have expired.", body)

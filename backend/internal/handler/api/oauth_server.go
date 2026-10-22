@@ -21,8 +21,8 @@ const (
 	ResourceMetadataPath = "/.well-known/oauth-protected-resource"
 )
 
-// _pageCSP locks the consent page down: no scripts but the theme one, no
-// frames around it, inline styles only.
+// _pageCSP locks the consent and PIN pages down: no scripts but the theme
+// one, no frames around them, inline styles only.
 var _pageCSP = "default-src 'none'; script-src " + _themeScriptHash + "; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; frame-ancestors 'none'"
 
 // OAuth is tmphost's own OAuth server, for MCP clients and the CLI.
@@ -205,13 +205,7 @@ func (h *OAuth) errorPage(c fiber.Ctx, status int, msg string) error {
 }
 
 func (h *OAuth) page(c fiber.Ctx, status int, html []byte) error {
-	c.Set(fiber.HeaderContentType, fiber.MIMETextHTMLCharsetUTF8)
-	c.Set(fiber.HeaderContentSecurityPolicy, _pageCSP)
-	c.Set(fiber.HeaderXFrameOptions, "DENY")
-	c.Set(fiber.HeaderCacheControl, "no-store")
-	c.Set(fiber.HeaderReferrerPolicy, "no-referrer")
-	c.Set(fiber.HeaderXContentTypeOptions, "nosniff")
-	return c.Status(status).Send(html)
+	return sendPage(c, status, html)
 }
 
 var errServerError = errors.New("server_error")

@@ -15,6 +15,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/limiter"
 	zlog "github.com/rs/zerolog/log"
 
+	"github.com/tmphost/tmphost/backend/internal/controller/accountpin"
 	adminctrl "github.com/tmphost/tmphost/backend/internal/controller/admin"
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
 	creditctrl "github.com/tmphost/tmphost/backend/internal/controller/credit"
@@ -56,6 +57,8 @@ type Params struct {
 	OAuth   oauthctrl.Controller
 	Credits creditctrl.Controller
 	Admin   adminctrl.Controller
+	// AccountPins handles the users' account PINs.
+	AccountPins accountpin.Controller
 	// FileSettings returns the current file settings, which choose how
 	// folders are served.
 	FileSettings func() entity.FileSettings
@@ -81,7 +84,8 @@ func New(p Params) {
 	admin := &Admin{credits: p.Credits, controller: p.Admin}
 	setup := &Setup{controller: p.Setup, basePath: basePath, cookieSecure: p.CookieSecure}
 	folder := &Folder{controller: p.Folders}
-	public := &Public{controller: p.Folders, settings: p.FileSettings}
+	public := &Public{controller: p.Folders, settings: p.FileSettings, cookieSecure: p.CookieSecure}
+	accountPin := &AccountPin{controller: p.AccountPins}
 	oauth := &OAuth{controller: p.OAuth, basePath: basePath}
 
 	// Folder hosts are answered before any route, so no app route is ever
@@ -122,6 +126,9 @@ func New(p Params) {
 	authn := Authenticate(p.Auth)
 	r.Get("/users/me", authn, user.Get)
 	r.Get("/users/me/credits/activities", authn, credit.List)
+	r.Get("/users/me/pin", authn, accountPin.Get)
+	r.Put("/users/me/pin", authn, accountPin.Update)
+	r.Post("/users/me/pin/totp", authn, accountPin.NewTOTP)
 
 	// Visitors of the web app may upload without signing in, with lower
 	// limits.
@@ -133,6 +140,8 @@ func New(p Params) {
 	r.Patch("/folders/:id", authn, folder.Update)
 	r.Delete("/folders/:id", authn, folder.Delete)
 	r.Post("/folders/:id/extend", authn, folder.Extend)
+	r.Post("/folders/:id/pin", authn, folder.CreatePin)
+	r.Delete("/folders/:id/pin", authn, folder.DeletePin)
 	r.Put("/folders/:id/files/*", anyone, folder.PutFile)
 	r.Get("/folders/:id/files/*", authn, folder.GetFile)
 	r.Delete("/folders/:id/files/*", authn, folder.DeleteFile)

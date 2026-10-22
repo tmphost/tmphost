@@ -152,13 +152,18 @@ func newUploadHarness(t *testing.T) (*harness, *fakeUploads) {
 	h.reply("GET /api/v1/users/me", 200, meJSON)
 	h.mux.HandleFunc("POST /api/v1/folders", func(w http.ResponseWriter, r *http.Request) {
 		var in struct {
-			TTLMinutes int `json:"ttlMinutes"`
+			TTLMinutes int  `json:"ttlMinutes"`
+			Pin        bool `json:"pin"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&in)
 		f.ttl = in.TTLMinutes
 		exp := now.Add(time.Duration(in.TTLMinutes) * time.Minute).Format(time.RFC3339)
 		w.WriteHeader(201)
-		fmt.Fprintf(w, `{"folder":{"id":"rs","expiresAt":%q,"url":"https://rs-u1.tmphost.test/"}}`, exp)
+		pin := ""
+		if in.Pin {
+			pin = `,"pinMode":"folder","pin":"123456"`
+		}
+		fmt.Fprintf(w, `{"folder":{"id":"rs","expiresAt":%q,"url":"https://rs-u1.tmphost.test/"%s}}`, exp, pin)
 	})
 	h.reply("GET /api/v1/folders/ab", 200, `{"folder":{"id":"ab","expiresAt":"2026-10-18T12:45:00Z","url":"https://ab-u1.tmphost.test/"},"files":[]}`)
 	h.reply("GET /api/v1/folders/dd", 200, `{"folder":{"id":"dd","expiresAt":"2026-10-18T11:00:00Z","url":"https://dd-u1.tmphost.test/"},"files":[]}`)
@@ -217,6 +222,23 @@ func TestUpload_singleFileJSON(t *testing.T) {
 	assert.Equal(t, float64(1), v["creditsSpent"])
 	assert.Equal(t, "2026-10-18T14:00:00Z", v["expiresAt"])
 	assert.Len(t, v["files"], 1)
+}
+
+func TestUpload_pin(t *testing.T) {
+	h, _ := newUploadHarness(t)
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{"a.txt": "abc"})
+
+	assert.Equal(t, 0, h.run("file", "upload", filepath.Join(root, "a.txt"), "--pin"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), "pin:     123456 (shown only once; or open https://rs-u1.tmphost.test/a.txt?pin=123456)\n")
+
+	assert.Equal(t, 0, h.run("file", "upload", filepath.Join(root, "a.txt"), "--pin", "--json"), h.stderr.String())
+	v := h.decode()
+	assert.Equal(t, "folder", v["pinMode"])
+	assert.Equal(t, "123456", v["pin"])
+
+	assert.Equal(t, 1, h.run("file", "upload", filepath.Join(root, "a.txt"), "--pin", "--id", "ab"))
+	assert.Contains(t, h.stderr.String(), "none of the others can be")
 }
 
 func TestUpload_existingFolder(t *testing.T) {

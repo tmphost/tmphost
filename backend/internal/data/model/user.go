@@ -24,4 +24,24 @@ type User struct {
 	// CreditsRenewAt is when the daily renewal job next resets the balance
 	// to the monthly grant. Always 00:00 UTC.
 	CreditsRenewAt time.Time `gorm:"index"`
+	// PinMode is the account PIN that guards every folder of the user:
+	// PinModeOff, PinModeStatic or PinModeTOTP.
+	PinMode uint8 `gorm:"not null;default:0"`
+	// PinHash is the bcrypt hash of the static PIN.
+	PinHash string `gorm:"type:varchar(100);not null;default:''"`
+	// TOTPSecret is the authenticator app secret, encrypted with the
+	// master key and base64 encoded.
+	TOTPSecret string `gorm:"column:totp_secret;type:text;not null;default:''"`
+	// AgentPins gives each folder an agent creates a PIN of its own, while
+	// no account PIN is set.
+	AgentPins bool `gorm:"not null;default:false"`
 }
+
+// The account PIN modes.
+const (
+	PinModeOff uint8 = iota
+	// PinModeStatic guards folders with one PIN the user picked.
+	PinModeStatic
+	// PinModeTOTP guards folders with the codes of an authenticator app.
+	PinModeTOTP
+)

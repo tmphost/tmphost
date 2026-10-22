@@ -176,6 +176,7 @@ func TestNotLoggedIn(t *testing.T) {
 		{"whoami"}, {"file", "ls"}, {"file", "get", "--id", "rs"}, {"file", "url", "--id", "rs"},
 		{"file", "rm", "--id", "rs"}, {"file", "upload", "."}, {"file", "download", "--id", "rs", "a"},
 		{"file", "extend", "--id", "rs", "--ttl", "1h"},
+		{"file", "pin", "--id", "rs"},
 	} {
 		assert.Equal(t, 1, h.run(args...), args)
 		assert.Equal(t, `error: not logged in to `+h.srv.URL+`: run "tmphost login"`+"\n", h.stderr.String(), args)

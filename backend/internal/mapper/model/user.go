@@ -27,3 +27,31 @@ func FromUserModelToUserEntity(m model.User, creditsLimit int) entity.User {
 		CreatedAt:      m.CreatedAt,
 	}
 }
+
+// _pinModes names the account PIN modes.
+var _pinModes = map[uint8]string{
+	model.PinModeOff:    entity.PinModeOff,
+	model.PinModeStatic: entity.PinModeStatic,
+	model.PinModeTOTP:   entity.PinModeTOTP,
+}
+
+// FromUserModelToAccountPinEntity maps a stored user's PIN settings to
+// the domain. An unknown mode reads as off.
+func FromUserModelToAccountPinEntity(m model.User) entity.AccountPin {
+	mode, ok := _pinModes[m.PinMode]
+	if !ok {
+		mode = entity.PinModeOff
+	}
+	return entity.AccountPin{Mode: mode, AgentPins: m.AgentPins}
+}
+
+// FromPinModeEntityToPinModeModel maps an account PIN mode to its stored
+// value; nil for a mode that is not one.
+func FromPinModeEntityToPinModeModel(mode string) *uint8 {
+	for m, name := range _pinModes {
+		if name == mode {
+			return &m
+		}
+	}
+	return nil
+}

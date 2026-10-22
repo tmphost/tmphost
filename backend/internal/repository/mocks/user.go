@@ -225,3 +225,17 @@ func (mr *MockUserRepositoryMockRecorder) UpdateUser(ctx, u interface{}) *gomock
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUser", reflect.TypeOf((*MockUserRepository)(nil).UpdateUser), ctx, u)
 }
+
+// UpdateUserPin mocks base method.
+func (m *MockUserRepository) UpdateUserPin(ctx context.Context, id int64, mode uint8, pinHash, totpSecret string, agentPins bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserPin", ctx, id, mode, pinHash, totpSecret, agentPins)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateUserPin indicates an expected call of UpdateUserPin.
+func (mr *MockUserRepositoryMockRecorder) UpdateUserPin(ctx, id, mode, pinHash, totpSecret, agentPins interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserPin", reflect.TypeOf((*MockUserRepository)(nil).UpdateUserPin), ctx, id, mode, pinHash, totpSecret, agentPins)
+}

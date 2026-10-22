@@ -48,6 +48,8 @@ const (
 	_codeAudience    = "oauth:code"
 	_accessAudience  = "oauth:access"
 	_refreshAudience = "oauth:refresh"
+	// A folder PIN token proves its holder entered the folder's PIN.
+	_folderPinAudience = "folder:pin"
 )
 
 // ErrInvalidToken is returned for any token that fails validation.
@@ -101,6 +103,12 @@ type (
 		// ValidateRefreshToken returns the user and client of a refresh
 		// token.
 		ValidateRefreshToken(refresh string) (OAuthGrant, error)
+		// CreateFolderPinToken signs that its holder entered a folder's
+		// PIN, the one fingerprint names, valid until expiresAt.
+		CreateFolderPinToken(folderID, fingerprint string, expiresAt time.Time) (string, error)
+		// ValidateFolderPinToken returns the folder and the PIN fingerprint
+		// a folder PIN token is for.
+		ValidateFolderPinToken(token string) (folderID, fingerprint string, err error)
 	}
 
 	// OAuthClient is a dynamically registered OAuth client.
@@ -146,6 +154,11 @@ type (
 	clientClaims struct {
 		jwt.RegisteredClaims
 		OAuthClient
+	}
+
+	folderPinClaims struct {
+		jwt.RegisteredClaims
+		Fingerprint string `json:"pfp"`
 	}
 
 	grantClaims struct {
@@ -298,6 +311,23 @@ func tokenGrant(grant OAuthGrant) OAuthGrant {
 
 func (s *service) ValidateRefreshToken(refresh string) (OAuthGrant, error) {
 	return s.parseGrant(refresh, _refreshAudience)
+}
+
+func (s *service) CreateFolderPinToken(folderID, fingerprint string, expiresAt time.Time) (string, error) {
+	claims := folderPinClaims{RegisteredClaims: s.registered(folderID, _folderPinAudience, 0), Fingerprint: fingerprint}
+	claims.ExpiresAt = jwt.NewNumericDate(expiresAt)
+	return s.sign(claims)
+}
+
+func (s *service) ValidateFolderPinToken(token string) (string, string, error) {
+	var claims folderPinClaims
+	if err := s.parse(token, &claims, _folderPinAudience); err != nil {
+		return "", "", err
+	}
+	if claims.Subject == "" || claims.Fingerprint == "" {
+		return "", "", ErrInvalidToken
+	}
+	return claims.Subject, claims.Fingerprint, nil
 }
 
 func (s *service) signGrant(grant OAuthGrant, audience string, ttl time.Duration) (string, error) {

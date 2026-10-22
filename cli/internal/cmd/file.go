@@ -27,6 +27,10 @@ type fileOutput struct {
 	Path         string `json:"path,omitempty"`
 	Size         int64  `json:"size,omitempty"`
 	CreditsSpent int    `json:"creditsSpent,omitempty"`
+	// PinMode and Pin mirror the tool's: the PIN visitors must enter, and
+	// the folder's own PIN from the call that made it.
+	PinMode string `json:"pinMode,omitempty"`
+	Pin     string `json:"pin,omitempty"`
 	// Base64Content and TextContent are pointers so an empty file still
 	// carries its (empty) content field.
 	Base64Content *string    `json:"base64Content,omitempty"`
@@ -133,12 +137,12 @@ func newFileCmd(a *app) *cobra.Command {
 		Short: "Upload, download and share files (mirrors the MCP file tool)",
 		Long: `Upload, download and share files in temporary folders.
 
-The upload, download, get, url and extend subcommands mirror the actions of
-the server's MCP "file" tool: --id, --ttl and --path are its id, ttl and path
-arguments, and the file name is its fileName. ls and rm are extras for
-managing folders.`,
+The upload, download, get, url, extend and pin subcommands mirror the actions
+of the server's MCP "file" tool: --id, --ttl, --path and --pin are its id,
+ttl, path and pin arguments, and the file name is its fileName. ls and rm are
+extras for managing folders.`,
 	}
-	c.AddCommand(newFileUploadCmd(a), newFileDownloadCmd(a), newFileGetCmd(a), newFileURLCmd(a), newFileExtendCmd(a), newFileLsCmd(a), newFileRmCmd(a))
+	c.AddCommand(newFileUploadCmd(a), newFileDownloadCmd(a), newFileGetCmd(a), newFileURLCmd(a), newFileExtendCmd(a), newFilePinCmd(a), newFileLsCmd(a), newFileRmCmd(a))
 	return c
 }
 
@@ -157,7 +161,7 @@ func newFileGetCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			out := fileOutput{ID: d.Folder.ID, URL: d.Folder.URL, ExpiresAt: rfc3339(d.Folder.ExpiresAt), Files: make([]fileInfo, len(d.Files))}
+			out := fileOutput{ID: d.Folder.ID, URL: d.Folder.URL, ExpiresAt: rfc3339(d.Folder.ExpiresAt), PinMode: d.Folder.PinMode, Files: make([]fileInfo, len(d.Files))}
 			for i, f := range d.Files {
 				out.Files[i] = toFileInfo(f)
 			}
@@ -172,6 +176,7 @@ func newFileGetCmd(a *app) *cobra.Command {
 					table(w, "FILE NAME\tPATH\tSIZE\tAGENT\tURL", rows)
 				}
 				fmt.Fprintf(w, "\nid:      %s\nurl:     %s\nexpires: %s\n", out.ID, out.URL, a.expiry(d.Folder.ExpiresAt))
+				printPin(w, out)
 			})
 		},
 	}
@@ -270,6 +275,60 @@ started 30 minutes of the added time; an empty folder is free.`,
 	_ = c.MarkFlagRequired("id")
 	_ = c.MarkFlagRequired("ttl")
 	return c
+}
+
+func newFilePinCmd(a *app) *cobra.Command {
+	var id string
+	c := &cobra.Command{
+		Use:   "pin --id ID",
+		Short: "Give a folder a new PIN that visitors must enter",
+		Long: `Give a folder a new 6 digit PIN of its own, replacing its old one. Visitors
+enter it once per browser, or open a link with ?pin=<PIN> appended. The PIN is
+shown only now. It fails while your account PIN guards every folder.`,
+		Example: `  tmphost file pin --id 1a2b3c4d`,
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			c, err := a.client()
+			if err != nil {
+				return err
+			}
+			f, err := c.CreateFolderPin(cmd.Context(), id)
+			if err != nil {
+				return err
+			}
+			out := fileOutput{ID: f.ID, URL: f.URL, ExpiresAt: rfc3339(f.ExpiresAt), PinMode: f.PinMode, Pin: f.Pin}
+			return a.output(out, func(w io.Writer) {
+				fmt.Fprintf(w, "id:      %s\nurl:     %s\n", out.ID, out.URL)
+				printPin(w, out)
+			})
+		},
+	}
+	c.Flags().StringVar(&id, "id", "", "folder id")
+	_ = c.MarkFlagRequired("id")
+	return c
+}
+
+// printPin says what guards a folder: its own PIN, shown only once, or the
+// account PIN.
+func printPin(w io.Writer, out fileOutput) {
+	switch {
+	case out.Pin != "":
+		fmt.Fprintf(w, "pin:     %s (shown only once; or open %s?pin=%s)\n", out.Pin, out.URL, out.Pin)
+	case out.PinMode != "":
+		fmt.Fprintf(w, "pin:     required (%s)\n", pinModeName(out.PinMode))
+	}
+}
+
+// pinModeName names a PIN mode for humans.
+func pinModeName(mode string) string {
+	switch mode {
+	case "totp":
+		return "your authenticator app's code"
+	case "static":
+		return "your account PIN"
+	default:
+		return "the folder's own PIN"
+	}
 }
 
 func newFileLsCmd(a *app) *cobra.Command {

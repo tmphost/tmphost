@@ -13,7 +13,7 @@ describes:
 | --- | --- |
 | `plugin.json` | The manifest; the listing, review cases and release notes live under `extensions["com.openai"]` |
 | `mcp.json` | The `tmphost` MCP server, `https://mcp.tmphost.io/mcp` |
-| `skills/tmphost/SKILL.md` | When and how to use the `file` tool's `upload`, `download`, `get`, `url` and `extend` actions |
+| `skills/tmphost/SKILL.md` | When and how to use the `file` tool's `upload`, `download`, `get`, `url`, `extend` and `pin` actions |
 | `assets/icon.png` | The composer icon and listing logo |
 
 ## Install in Codex

@@ -55,7 +55,7 @@ Gemini to spend them unprompted.
 
 | Tool | Actions |
 | --- | --- |
-| `file` | Files in folders that expire after a TTL: `upload` (into a new folder, or with `id` into an existing one; text as `textContent`, anything else as `base64Content`), `download`, `get` (a folder's files and their URLs), `url` (of a folder, directory or file) and `extend` (add time to a folder) |
+| `file` | Files in folders that expire after a TTL: `upload` (into a new folder, or with `id` into an existing one; text as `textContent`, anything else as `base64Content`), `download`, `get` (a folder's files and their URLs), `url` (of a folder, directory or file) `extend` (add time to a folder) and `pin` (give a folder a PIN visitors must enter) |
 
 Each file costs 1 credit per started MB of its size per started 30 minutes of
 its folder's remaining lifetime; extending costs the same for the added time.

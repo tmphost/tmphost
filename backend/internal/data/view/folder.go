@@ -38,6 +38,12 @@ type (
 		// Agent names what created the folder, e.g. "Claude Code",
 		// "tmphost CLI" or "Web".
 		Agent string `json:"agent,omitempty"`
+		// PinMode names the PIN visitors must enter: totp or static for the
+		// owner's account PIN, folder for the folder's own; omitted when
+		// the folder is open.
+		PinMode string `json:"pinMode,omitempty"`
+		// Pin is the folder's own PIN, only in the answer that made it.
+		Pin string `json:"pin,omitempty"`
 	}
 
 	// File is an uploaded file.
@@ -53,6 +59,8 @@ type (
 	// CreateFolderRequest is the POST /folders body.
 	CreateFolderRequest struct {
 		TTLMinutes int `json:"ttlMinutes"`
+		// Pin asks for a PIN of the folder's own.
+		Pin bool `json:"pin"`
 	}
 
 	// UpdateFolderRequest is the PATCH /folders/:id body.

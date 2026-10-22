@@ -208,11 +208,23 @@ func TestFromHTTPRequestToOpenPublicFileRequestEntity(t *testing.T) {
 	}
 	get := func(target string) *http.Request { return httptest.NewRequest(http.MethodGet, target, nil) }
 
-	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "site/a b.html"},
+	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "site/a b.html", Client: "0.0.0.0"},
 		read("Tmp.Host:3000", "000000RS.tmp.host:3000", get("/site/a%20b.html")))
-	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: ""}, read("tmp.host", "000000rs.tmp.host", get("/")))
-	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "a.md", Format: "html"},
+	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "", Client: "0.0.0.0"}, read("tmp.host", "000000rs.tmp.host", get("/")))
+	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "a.md", Format: "html", Client: "0.0.0.0"},
 		read("tmp.host", "000000rs.tmp.host", get("/a.md?format=html")))
+
+	// What proves the folder's PIN: the cookie, and ?pin= or the posted
+	// form.
+	withPin := get("/a.html?pin=111111")
+	withPin.AddCookie(&http.Cookie{Name: PinCookie, Value: "tok"})
+	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "a.html", PinToken: "tok", Pin: "111111", Client: "0.0.0.0"},
+		read("tmp.host", "000000rs.tmp.host", withPin))
+	posted := httptest.NewRequest(http.MethodPost, "/?pin=111111", strings.NewReader("pin=222222"))
+	posted.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	form := read("tmp.host", "000000rs.tmp.host", posted)
+	assert.Equal(t, "222222", form.Pin, "the form wins")
+	assert.Equal(t, &entity.UnlockFolderRequest{FolderID: 1000, Pin: "222222", Client: "0.0.0.0"}, FromOpenPublicFileRequestEntityToUnlockFolderRequestEntity(form))
 
 	for name, tc := range map[string]struct {
 		domain, host string
@@ -243,10 +255,10 @@ func TestFromHTTPRequestToOpenPublicFileByPathRequestEntity(t *testing.T) {
 		})
 		return got
 	}
-	assert.Equal(t, &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: "site/a b.html"}, read("/files/7/000000rs/site/a%20b.html"))
-	assert.Equal(t, &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: ""}, read("/files/7/000000rs/"))
-	assert.Equal(t, &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: "a.md", Format: "html"}, read("/files/7/000000rs/a.md?format=html"))
-	assert.Equal(t, &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: "site/"}, read("/files/7/000000rs/site/"),
+	assert.Equal(t, &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: "site/a b.html", Client: "0.0.0.0"}, read("/files/7/000000rs/site/a%20b.html"))
+	assert.Equal(t, &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: "", Client: "0.0.0.0"}, read("/files/7/000000rs/"))
+	assert.Equal(t, &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: "a.md", Format: "html", Client: "0.0.0.0"}, read("/files/7/000000rs/a.md?format=html"))
+	assert.Equal(t, &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: "site/", Client: "0.0.0.0"}, read("/files/7/000000rs/site/"),
 		"a directory keeps its slash, for its index.html")
 	assert.Nil(t, read("/files/x_y/000000rs/a"), "bad user")
 	assert.Nil(t, read("/files/7/0/a"), "bad folder")

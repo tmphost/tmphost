@@ -8,11 +8,13 @@
 import { computed, inject, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import DeleteModal from '../components/DeleteModal.vue'
 import ExtendModal from '../components/ExtendModal.vue'
+import PinModal from '../components/PinModal.vue'
 import UploadProgress from '../components/UploadProgress.vue'
 import {
   createFolder,
   deleteFile,
   deleteFolder,
+  deleteFolderPin,
   fetchFolder,
   fetchLimits,
   listFolders,
@@ -47,6 +49,14 @@ const ICONS = {
   upload: 'M12 16V4m0 0L7 9m5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3',
   trash: 'M4 7h16M10 11v6m4-6v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V4h6v3',
   clock: 'M12 7v5l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
+  lock: 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z',
+}
+// What guards a folder, by its pinMode.
+const PIN_LABELS = {
+  off: 'No PIN: anyone with the link can open it',
+  folder: 'PIN protected',
+  static: 'Guarded by your account PIN',
+  totp: 'Guarded by your authenticator app',
 }
 
 const { notifyError, notifySuccess } = useToasts()
@@ -91,6 +101,8 @@ const extendingId = ref(null)
 // The pending deletion: { folder } or { folder, file }.
 const pendingDelete = ref(null)
 const deleting = ref(false)
+// The ID of the folder getting a new PIN, shown in PinModal.
+const pinningId = ref(null)
 
 const ttlChoices = computed(() => (limits.value ? ttlOptions(limits.value.maxTtlMinutes) : []))
 // The slider steps through ttlChoices by index; ttl keeps the minutes. It
@@ -134,16 +146,22 @@ const canUpload = computed(
 )
 
 const extendingFolder = computed(() => folders.value.find((f) => f.id === extendingId.value) ?? null)
+const pinningFolder = computed(() => folders.value.find((f) => f.id === pinningId.value) ?? null)
 
 // folderTitle is what a folder is called: its title, else the name of its
 // only file, else its ID.
 const folderTitle = (folder) => folder.title || folder.defaultTitle || folder.id
 
-const deleteTitle = computed(() => (pendingDelete.value?.file ? 'Delete file?' : 'Delete folder?'))
+const deleteTitle = computed(() => {
+  const target = pendingDelete.value
+  if (target?.pin) return 'Remove PIN?'
+  return target?.file ? 'Delete file?' : 'Delete folder?'
+})
 const deleteMessage = computed(() => {
   const target = pendingDelete.value
   if (!target) return ''
   const name = folderTitle(target.folder)
+  if (target.pin) return `Folder ${name} opens for anyone with the link again.`
   if (target.file) return `${target.file.path} is removed from folder ${name}. Its link stops working.`
   return `Folder ${name} and all of its files are removed. Their links stop working.`
 })
@@ -280,6 +298,17 @@ async function loadFiles(id) {
   }
 }
 
+// updateFolder merges a folder the server returned into the list.
+function updateFolder(folder) {
+  folders.value = folders.value.map((f) => (f.id === folder.id ? { ...f, ...folder } : f))
+}
+
+// onPinChanged keeps the folder's new PIN mode; its PIN is shown in
+// PinModal only.
+function onPinChanged(folder) {
+  updateFolder({ ...folder, pin: undefined })
+}
+
 async function onExtended({ folder, creditsSpent, minutes }) {
   folders.value = folders.value.map((f) => (f.id === folder.id ? { ...f, ...folder } : f))
   extendingId.value = null
@@ -316,7 +345,10 @@ async function confirmDelete() {
   const { folder, file } = pendingDelete.value
   deleting.value = true
   try {
-    if (file) {
+    if (pendingDelete.value.pin) {
+      updateFolder(await deleteFolderPin(folder.id))
+      notifySuccess('PIN removed')
+    } else if (file) {
       await deleteFile(folder.id, file.path)
       const entry = expanded.value[folder.id]
       entry.files = entry.files.filter((f) => f.path !== file.path)
@@ -638,6 +670,37 @@ onUnmounted(() => clearInterval(timer))
             <p v-if="folder.agent" class="pb-1 text-[11px] text-gray-400 dark:text-zinc-500" data-test="folder-agent">
               Created by <span class="font-semibold text-gray-600 dark:text-zinc-300">{{ folder.agent }}</span>
             </p>
+            <div class="flex flex-wrap items-center gap-x-2 pb-1 text-[11px] text-gray-400 dark:text-zinc-500" data-test="folder-pin">
+              <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" :d="ICONS.lock" />
+              </svg>
+              <span data-test="folder-pin-label">{{ PIN_LABELS[folder.pinMode] ?? PIN_LABELS.off }}</span>
+              <template v-if="!folder.pinMode || folder.pinMode === 'off' || folder.pinMode === 'folder'">
+                <button
+                  type="button"
+                  class="font-semibold text-gray-600 dark:text-zinc-300 hover:text-gray-900 dark:hover:text-zinc-100 hover:underline"
+                  data-test="folder-pin-new"
+                  @click="pinningId = folder.id"
+                >
+                  {{ folder.pinMode === 'folder' ? 'New PIN' : 'Add PIN' }}
+                </button>
+                <button
+                  v-if="folder.pinMode === 'folder'"
+                  type="button"
+                  class="font-semibold text-gray-600 dark:text-zinc-300 hover:text-rose-600 dark:hover:text-rose-400 hover:underline"
+                  data-test="folder-pin-remove"
+                  @click="pendingDelete = { folder, pin: true }"
+                >
+                  Remove
+                </button>
+              </template>
+              <router-link
+                v-else
+                to="/security"
+                class="font-semibold text-gray-600 dark:text-zinc-300 hover:text-gray-900 dark:hover:text-zinc-100 hover:underline"
+                data-test="folder-pin-security"
+              >Change</router-link>
+            </div>
             <p v-if="expanded[folder.id].loading" class="py-1 text-xs text-gray-400 dark:text-zinc-500">Loading files…</p>
             <p v-else-if="!expanded[folder.id].files.length" class="py-1 text-xs text-gray-400 dark:text-zinc-500">This folder is empty.</p>
             <ul v-else class="divide-y divide-gray-50 dark:divide-zinc-800">
@@ -698,10 +761,17 @@ onUnmounted(() => clearInterval(timer))
       @extended="onExtended"
       @cancel="extendingId = null"
     />
+    <PinModal
+      :folder="pinningFolder"
+      :title="pinningFolder ? folderTitle(pinningFolder) : ''"
+      @changed="onPinChanged"
+      @close="pinningId = null"
+    />
     <DeleteModal
       :open="Boolean(pendingDelete)"
       :title="deleteTitle"
       :message="deleteMessage"
+      :confirm-label="pendingDelete?.pin ? 'Remove' : 'Delete'"
       :busy="deleting"
       @confirm="confirmDelete"
       @cancel="pendingDelete = null"
