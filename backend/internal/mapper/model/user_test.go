@@ -22,14 +22,19 @@ func TestFromUserModelToUserEntity(t *testing.T) {
 	}, 250)
 	assert.Equal(t, entity.User{
 		ID: 7, Email: "a@b.c", Name: "A", Picture: "p", Provider: "google",
-		Credits: 12, CreditsLimit: 250, MonthlyGrant: 250, CreditsRenewAt: now, CreatedAt: now,
+		Credits: 12, CreditsLimit: 10000, MonthlyGrant: 250, CreditsRenewAt: now, CreatedAt: now,
 	}, got)
 }
 
-func TestFromUserModelToUserEntity_SignupBalanceAboveGrant(t *testing.T) {
-	got := FromUserModelToUserEntity(model.User{Credits: 1000}, 250)
-	assert.Equal(t, 1000, got.CreditsLimit)
-	assert.Equal(t, 250, got.MonthlyGrant)
+func TestFromUserModelToUserEntity_CreditsLimitSteps(t *testing.T) {
+	for credits, limit := range map[int]int{
+		-5: 10000, 0: 10000, 1000: 10000, 10000: 10000,
+		10001: 20000, 20000: 20000, 20001: 30000, 95000: 100000,
+	} {
+		got := FromUserModelToUserEntity(model.User{Credits: credits}, 250)
+		assert.Equal(t, limit, got.CreditsLimit, "credits %d", credits)
+		assert.Equal(t, 250, got.MonthlyGrant)
+	}
 }
 
 func TestFromUserModelToAccountPinEntity(t *testing.T) {

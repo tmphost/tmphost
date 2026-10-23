@@ -10,10 +10,13 @@ import (
 	"github.com/tmphost/tmphost/backend/internal/data/model"
 )
 
+// CreditsScale is the balance the credit meter shows as full. A balance
+// above it raises the meter's top to the next multiple of it.
+const CreditsScale = 10000
+
 // FromUserModelToUserEntity maps a stored user to the domain user.
-// creditsLimit is the monthly grant, which is policy rather than data; a
-// balance above it (the sign-up grant or admin grants) is its own limit.
-func FromUserModelToUserEntity(m model.User, creditsLimit int) entity.User {
+// monthlyGrant is policy rather than data.
+func FromUserModelToUserEntity(m model.User, monthlyGrant int) entity.User {
 	return entity.User{
 		ID:             m.ID,
 		Email:          m.Email,
@@ -21,11 +24,17 @@ func FromUserModelToUserEntity(m model.User, creditsLimit int) entity.User {
 		Picture:        m.Picture,
 		Provider:       m.Provider,
 		Credits:        m.Credits,
-		CreditsLimit:   max(creditsLimit, m.Credits),
-		MonthlyGrant:   creditsLimit,
+		CreditsLimit:   creditsLimit(m.Credits),
+		MonthlyGrant:   monthlyGrant,
 		CreditsRenewAt: m.CreditsRenewAt,
 		CreatedAt:      m.CreatedAt,
 	}
+}
+
+// creditsLimit is the top of the credit meter: CreditsScale, or the next
+// multiple of it at or above the balance.
+func creditsLimit(credits int) int {
+	return max(1, (credits+CreditsScale-1)/CreditsScale) * CreditsScale
 }
 
 // _pinModes names the account PIN modes.

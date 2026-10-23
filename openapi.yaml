@@ -1394,6 +1394,7 @@ components:
           type: integer
         creditsLimit:
           type: integer
+          description: Top of the credit meter. 10000, or the next multiple of 10000 at or above credits.
         monthlyGrant:
           type: integer
         creditsRenewAt:

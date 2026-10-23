@@ -201,7 +201,7 @@ func TestCompleteLogin_NewUserGetsSignupCredits(t *testing.T) {
 	assert.Equal(t, "session", rs.SessionToken)
 	assert.Equal(t, "/app/settings", rs.RedirectURL)
 	assert.Equal(t, 1000, rs.User.Credits)
-	assert.Equal(t, 1000, rs.User.CreditsLimit, "the sign-up grant is above the monthly one")
+	assert.Equal(t, 10000, rs.User.CreditsLimit, "the meter tops out at 10k")
 }
 
 func TestCompleteLogin_CreateFails(t *testing.T) {

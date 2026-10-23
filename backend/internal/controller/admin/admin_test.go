@@ -106,7 +106,7 @@ func TestGetStats_Errors(t *testing.T) {
 func TestListUsers(t *testing.T) {
 	ctx := context.Background()
 	c, d := newController(t)
-	users := []model.User{{ID: 3, Email: "c@x", Credits: 900}, {ID: 2, Email: "b@x", Credits: 10}, {ID: 1}}
+	users := []model.User{{ID: 3, Email: "c@x", Credits: 12000}, {ID: 2, Email: "b@x", Credits: 10}, {ID: 1}}
 	d.stats.EXPECT().SearchUsers(ctx, "", int64(0), int64(9), 3).Return(users, nil)
 	d.stats.EXPECT().CreditUsageByUser(ctx, []int64{3, 2}, _since).Return(map[int64]int{3: 7}, nil)
 	d.stats.EXPECT().LiveFoldersByUser(ctx, []int64{3, 2}, _now).Return(map[int64]int{2: 4}, nil)
@@ -118,8 +118,8 @@ func TestListUsers(t *testing.T) {
 	assert.Equal(t, int64(3), rs.Users[0].ID)
 	assert.Equal(t, 7, rs.Users[0].Used)
 	assert.Equal(t, 0, rs.Users[0].Folders)
-	assert.Equal(t, 900, rs.Users[0].CreditsLimit, "a balance above the grant is its own limit")
-	assert.Equal(t, 250, rs.Users[1].CreditsLimit)
+	assert.Equal(t, 20000, rs.Users[0].CreditsLimit, "a balance above 10k raises the limit by 10k")
+	assert.Equal(t, 10000, rs.Users[1].CreditsLimit)
 	assert.Equal(t, 250, rs.Users[1].MonthlyGrant)
 	assert.Equal(t, 4, rs.Users[1].Folders)
 }
