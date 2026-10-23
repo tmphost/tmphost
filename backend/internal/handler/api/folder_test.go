@@ -360,7 +360,7 @@ func TestPublic(t *testing.T) {
 	}
 
 	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{FolderID: 1000, Path: "site/a b.html", Client: "0.0.0.0"}).
-		Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader("<p>")), Size: 3, ContentType: "text/html; charset=utf-8", ModTime: _at}, nil)
+		Return(&entity.OpenFileResponse{Body: io.NopCloser(strings.NewReader("<p>")), Size: 3, ContentType: "text/html; charset=utf-8", ModTime: _at, ETag: `W/"v1"`}, nil)
 	res, body := get(http.MethodGet, "000000RS.TMP.HOST", "/site/a%20b.html")
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "<p>", body)
@@ -368,6 +368,7 @@ func TestPublic(t *testing.T) {
 	assert.Equal(t, _sandbox, res.Header.Get("Content-Security-Policy"))
 	assert.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"))
 	assert.Equal(t, "Sun, 18 Oct 2026 12:00:00 GMT", res.Header.Get("Last-Modified"))
+	assert.Equal(t, `W/"v1"`, res.Header.Get("ETag"))
 
 	res, _ = get(http.MethodPut, "000000rs.tmp.host", "/")
 	assert.Equal(t, http.StatusMethodNotAllowed, res.StatusCode)
@@ -425,6 +426,47 @@ func TestPublic(t *testing.T) {
 	e.settings.Subdomains = false
 	res, _ = get(http.MethodGet, "000000rs.tmp.host", "/api/v1/folders")
 	assert.Equal(t, http.StatusMisdirectedRequest, res.StatusCode)
+}
+
+func TestPublic_NotModified(t *testing.T) {
+	e := newFilesApp(t)
+	at := _at.Add(-time.Hour)
+	req := httptest.NewRequest(http.MethodGet, "/a.css", nil)
+	req.Host = "000000rs.tmp.host"
+	req.Header.Set("If-None-Match", `W/"v1"`)
+	req.Header.Set("If-Modified-Since", "Sun, 18 Oct 2026 11:00:00 GMT")
+	e.folders.EXPECT().OpenPublicFile(gomock.Any(), &entity.OpenPublicFileRequest{
+		FolderID: 1000, Path: "a.css", Client: "0.0.0.0", IfNoneMatch: `W/"v1"`, IfModifiedSince: at,
+	}).Return(&entity.OpenFileResponse{NotModified: true, ETag: `W/"v1"`, ModTime: at, Private: true}, nil)
+	res, err := e.app.Test(req)
+	require.NoError(t, err)
+	b, _ := io.ReadAll(res.Body)
+	assert.Equal(t, http.StatusNotModified, res.StatusCode)
+	assert.Empty(t, b)
+	assert.Equal(t, `W/"v1"`, res.Header.Get("ETag"))
+	assert.Equal(t, "Sun, 18 Oct 2026 11:00:00 GMT", res.Header.Get("Last-Modified"))
+	assert.Equal(t, "private, max-age=60", res.Header.Get("Cache-Control"), "a 304 keeps the cache rules")
+	assert.Empty(t, res.Header.Get("Content-Security-Policy"))
+}
+
+func TestFavicon_NotModified(t *testing.T) {
+	e := newFilesApp(t)
+	req := httptest.NewRequest(http.MethodGet, "/favicon.ico", nil)
+	req.Host = "tmp.host"
+	res, err := e.app.Test(req)
+	require.NoError(t, err)
+	tag := res.Header.Get("ETag")
+	assert.Equal(t, ContentETag(brand.Favicon), tag)
+
+	req.Header.Set("If-None-Match", tag)
+	res, err = e.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusNotModified, res.StatusCode)
+	assert.Equal(t, "public, max-age=86400", res.Header.Get("Cache-Control"))
+}
+
+func TestContentETag(t *testing.T) {
+	assert.Equal(t, `W/"2cf24dba5fb0a30e"`, ContentETag([]byte("hello")))
 }
 
 func TestPublic_Path(t *testing.T) {

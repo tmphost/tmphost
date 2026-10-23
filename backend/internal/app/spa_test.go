@@ -83,6 +83,30 @@ func TestSPAHandler(t *testing.T) {
 		assert.Contains(t, res.Header.Get(fiber.HeaderCacheControl), "immutable")
 	})
 
+	t.Run("a copy the browser holds is not sent again", func(t *testing.T) {
+		for _, target := range []string{"/", "/login", "/sw.js", "/assets/index-abc.js", "/assets/index-abc.js"} {
+			res, body := fetch(t, f, target)
+			tag := res.Header.Get(fiber.HeaderETag)
+			assert.Regexp(t, `^W/"[0-9a-f]{16}"$`, tag, target)
+
+			req := httptest.NewRequest(http.MethodGet, target, nil)
+			req.Header.Set(fiber.HeaderIfNoneMatch, tag)
+			res, err := f.Test(req)
+			require.NoError(t, err)
+			b, _ := io.ReadAll(res.Body)
+			assert.Equal(t, http.StatusNotModified, res.StatusCode, target)
+			assert.Empty(t, b, target)
+			assert.NotEmpty(t, res.Header.Get(fiber.HeaderCacheControl), target)
+
+			req.Header.Set(fiber.HeaderIfNoneMatch, `W/"old"`)
+			res, err = f.Test(req)
+			require.NoError(t, err)
+			b, _ = io.ReadAll(res.Body)
+			assert.Equal(t, http.StatusOK, res.StatusCode, target)
+			assert.Equal(t, body, string(b), target)
+		}
+	})
+
 	t.Run("missing file", func(t *testing.T) {
 		res, _ := fetch(t, f, "/assets/missing.js")
 		assert.Equal(t, http.StatusNotFound, res.StatusCode)

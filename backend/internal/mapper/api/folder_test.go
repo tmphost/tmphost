@@ -214,6 +214,16 @@ func TestFromHTTPRequestToOpenPublicFileRequestEntity(t *testing.T) {
 	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "a.md", Format: "html", Client: "0.0.0.0"},
 		read("tmp.host", "000000rs.tmp.host", get("/a.md?format=html")))
 
+	// The visitor's conditional headers; a malformed date is none.
+	cond := get("/a.css")
+	cond.Header.Set("If-None-Match", `W/"v1", W/"v2"`)
+	cond.Header.Set("If-Modified-Since", "Sun, 18 Oct 2026 12:00:00 GMT")
+	assert.Equal(t, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "a.css", Client: "0.0.0.0",
+		IfNoneMatch: `W/"v1", W/"v2"`, IfModifiedSince: time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)},
+		read("tmp.host", "000000rs.tmp.host", cond))
+	cond.Header.Set("If-Modified-Since", "yesterday")
+	assert.True(t, read("tmp.host", "000000rs.tmp.host", cond).IfModifiedSince.IsZero())
+
 	// What proves the folder's PIN: the cookie, and ?pin= or the posted
 	// form.
 	withPin := get("/a.html?pin=111111")

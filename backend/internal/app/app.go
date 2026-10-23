@@ -18,6 +18,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
+	"github.com/gofiber/fiber/v3/middleware/compress"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	zlog "github.com/rs/zerolog/log"
 	"gorm.io/gorm"
@@ -333,6 +334,7 @@ func New(cfg Config, web fs.FS) (*App, error) {
 	h := newHosts(cfg.App.BaseURL, cfg.App.SitesDomain, cfg.App.MCPDomain)
 	f := fiber.New(fiberConfig(cfg.App, bodyLimit))
 	f.Use(recover.New())
+	f.Use(compress.New(compress.Config{Next: skipCompression}))
 	credits := credit.New(credit.Params{Users: users, Grant: setup.MonthlyGrant})
 	oauth := oauthctrl.New(oauthctrl.Params{
 		Token:       tokens,
@@ -395,6 +397,18 @@ func New(cfg Config, web fs.FS) (*App, error) {
 		a.setupTLS(cfg, enc, h)
 	}
 	return a, nil
+}
+
+// skipCompression leaves alone the MCP endpoint, whose responses may be
+// event streams that must reach the client as they are written, and the
+// sign-in and consent pages, which hold CSRF tokens next to text a third
+// party controls (client names, redirect URIs): compressing those leaks
+// the tokens through the response size (BREACH). Every other text
+// response (pages, scripts, styles, JSON, folder files) is sent
+// compressed when the browser accepts br or gzip.
+func skipCompression(c fiber.Ctx) bool {
+	p := c.Path()
+	return p == MCPPath || strings.HasPrefix(p, "/oauth2/") || strings.HasPrefix(p, api.AuthPrefix+"/")
 }
 
 // mcpEndpointURL is the MCP endpoint on the MCP domain, with the app URL's

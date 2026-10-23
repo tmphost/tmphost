@@ -7,6 +7,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -185,6 +186,9 @@ func readPin(c fiber.Ctx, rq *entity.OpenPublicFileRequest) {
 		rq.Pin = string(c.Request().PostArgs().Peek("pin"))
 	}
 	rq.Client = c.IP()
+	rq.IfNoneMatch = c.Get(fiber.HeaderIfNoneMatch)
+	// A malformed date is no condition at all.
+	rq.IfModifiedSince, _ = http.ParseTime(c.Get(fiber.HeaderIfModifiedSince))
 }
 
 // FromOpenPublicFileRequestEntityToUnlockFolderRequestEntity turns a
