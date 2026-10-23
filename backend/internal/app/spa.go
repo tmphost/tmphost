@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"path"
 	"strings"
+	"sync"
 
 	"github.com/gofiber/fiber/v3"
 
@@ -49,6 +50,10 @@ func spaHandler(web fs.FS, basePath string) fiber.Handler {
 	if err == nil {
 		index = injectBasePath(index, basePath)
 	}
+	indexTag := api.ContentETag(index)
+	// The build never changes while we run, so each file's tag is worked
+	// out once.
+	var tags sync.Map
 	return func(c fiber.Ctx) error {
 		if strings.HasPrefix(c.Path(), api.RoutePrefix+"/") || strings.HasPrefix(c.Path(), api.AdminPrefix+"/") {
 			return fiber.ErrNotFound
@@ -76,7 +81,11 @@ func spaHandler(web fs.FS, basePath string) fiber.Handler {
 				} else {
 					c.Type(strings.TrimPrefix(path.Ext(name), "."))
 				}
-				return c.Send(b)
+				tag, ok := tags.Load(name)
+				if !ok {
+					tag, _ = tags.LoadOrStore(name, api.ContentETag(b))
+				}
+				return api.SendWithETag(c, tag.(string), b)
 			}
 			if path.Ext(name) != "" {
 				return fiber.ErrNotFound
@@ -87,7 +96,7 @@ func spaHandler(web fs.FS, basePath string) fiber.Handler {
 		}
 		c.Set(fiber.HeaderCacheControl, "no-cache")
 		c.Type("html")
-		return c.Send(index)
+		return api.SendWithETag(c, indexTag, index)
 	}
 }
 

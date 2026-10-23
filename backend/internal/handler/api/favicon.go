@@ -14,9 +14,12 @@ import (
 // answers it: the app, the MCP host and folder subdomains.
 const FaviconPath = "/favicon.ico"
 
+// _faviconETag names the icon of this build.
+var _faviconETag = ContentETag(brand.Favicon)
+
 // Favicon sends the tmphost.io icon.
 func Favicon(c fiber.Ctx) error {
 	c.Set(fiber.HeaderContentType, brand.FaviconType)
 	c.Set(fiber.HeaderCacheControl, "public, max-age=86400")
-	return c.Send(brand.Favicon)
+	return SendWithETag(c, _faviconETag, brand.Favicon)
 }

@@ -101,11 +101,15 @@ func (h *Public) send(c fiber.Ctx, rq *entity.OpenPublicFileRequest, missing fib
 		c.Set(fiber.HeaderCacheControl, cache)
 		return c.Redirect().Status(fiber.StatusFound).To(rs.RedirectURL)
 	}
+	c.Set(fiber.HeaderCacheControl, cache)
+	c.Set(fiber.HeaderETag, rs.ETag)
+	c.Set(fiber.HeaderLastModified, rs.ModTime.UTC().Format(http.TimeFormat))
+	if rs.NotModified {
+		return c.SendStatus(fiber.StatusNotModified)
+	}
 	c.Set(fiber.HeaderContentType, rs.ContentType)
 	c.Set(fiber.HeaderContentSecurityPolicy, _sandbox)
 	c.Set(fiber.HeaderXContentTypeOptions, "nosniff")
-	c.Set(fiber.HeaderCacheControl, cache)
-	c.Set(fiber.HeaderLastModified, rs.ModTime.UTC().Format(http.TimeFormat))
 	return c.SendStream(rs.Body, int(rs.Size))
 }
 

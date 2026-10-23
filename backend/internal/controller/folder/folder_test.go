@@ -815,7 +815,7 @@ func TestOpenPublicFile(t *testing.T) {
 			e.storage.EXPECT().Get(ctx, _prefix+tc.key).Return(body, storage.Object{Size: 1, ModTime: _now}, nil)
 			rs, err := e.ctrl.OpenPublicFile(ctx, &entity.OpenPublicFileRequest{UserID: 7, FolderID: 1000, Path: tc.path})
 			require.NoError(t, err)
-			assert.Equal(t, &entity.OpenFileResponse{Body: body, Size: 1, ContentType: tc.contentType, ModTime: _now}, rs)
+			assert.Equal(t, &entity.OpenFileResponse{Body: body, Size: 1, ContentType: tc.contentType, ModTime: _now, ETag: etag(1, _now, false)}, rs)
 		})
 	}
 	t.Run("folder host, which names no owner", func(t *testing.T) {
@@ -846,6 +846,7 @@ func TestOpenPublicFile_MarkdownAsHTML(t *testing.T) {
 		assert.Equal(t, "text/html; charset=utf-8", rs.ContentType)
 		assert.Equal(t, int64(len(page)), rs.Size)
 		assert.Equal(t, _now, rs.ModTime)
+		assert.Equal(t, etag(9, _now, true), rs.ETag, "not the raw file's tag")
 		assert.Contains(t, string(page), "<title>Hello</title>")
 	})
 	t.Run("not markdown", func(t *testing.T) {
@@ -864,6 +865,83 @@ func TestOpenPublicFile_MarkdownAsHTML(t *testing.T) {
 		_, err := open(t, "a.md", "html", io.NopCloser(iotest.ErrReader(errBoom)))
 		assert.ErrorIs(t, err, errBoom)
 	})
+}
+
+func TestOpenPublicFile_Conditional(t *testing.T) {
+	ctx := context.Background()
+	updated := _now.Add(-time.Hour).Add(300 * time.Millisecond)
+	files := model.FolderFiles{"a.txt": {Size: 5, UpdatedAt: updated}, "a.md": {Size: 5, UpdatedAt: updated}}
+	tag := etag(5, updated, false)
+	open := func(t *testing.T, rq *entity.OpenPublicFileRequest) *entity.OpenFileResponse {
+		t.Helper()
+		rq.FolderID = 1000
+		e := newEnv(t)
+		e.folderWithFiles(files)
+		rs, err := e.ctrl.OpenPublicFile(ctx, rq)
+		require.NoError(t, err)
+		return rs
+	}
+	notModified := &entity.OpenFileResponse{NotModified: true, ETag: tag, ModTime: updated}
+
+	// No storage call is expected: the metadata answers these.
+	for name, rq := range map[string]*entity.OpenPublicFileRequest{
+		"same tag":               {Path: "a.txt", IfNoneMatch: tag},
+		"strong form, in list":   {Path: "a.txt", IfNoneMatch: `"x", ` + strings.TrimPrefix(tag, "W/")},
+		"any":                    {Path: "a.txt", IfNoneMatch: "*"},
+		"same second":            {Path: "a.txt", IfModifiedSince: updated.Truncate(time.Second)},
+		"later":                  {Path: "a.txt", IfModifiedSince: _now},
+		"tag wins over the date": {Path: "a.txt", IfNoneMatch: tag, IfModifiedSince: updated.Add(-time.Hour)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, notModified, open(t, rq))
+		})
+	}
+	t.Run("rendered page has its own tag", func(t *testing.T) {
+		rs := open(t, &entity.OpenPublicFileRequest{Path: "a.md", Format: "html", IfNoneMatch: etag(5, updated, true)})
+		assert.True(t, rs.NotModified)
+	})
+
+	for name, rq := range map[string]*entity.OpenPublicFileRequest{
+		"other tag":             {Path: "a.txt", IfNoneMatch: `W/"other"`},
+		"older date":            {Path: "a.txt", IfModifiedSince: updated.Add(-time.Second)},
+		"date loses to the tag": {Path: "a.txt", IfNoneMatch: `W/"other"`, IfModifiedSince: _now},
+		"raw tag for the page":  {Path: "a.md", Format: "html", IfNoneMatch: tag},
+		"unconditional":         {Path: "a.txt"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newEnv(t)
+			e.folderWithFiles(files)
+			e.storage.EXPECT().Get(ctx, _prefix+rq.Path).Return(io.NopCloser(strings.NewReader("hello")), storage.Object{Size: 5, ModTime: _now}, nil)
+			rq.FolderID = 1000
+			rs, err := e.ctrl.OpenPublicFile(ctx, rq)
+			require.NoError(t, err)
+			assert.False(t, rs.NotModified)
+			assert.Equal(t, updated, rs.ModTime, "the metadata's time, not the stored object's")
+			assert.Equal(t, etag(5, updated, rq.Format == "html"), rs.ETag)
+		})
+	}
+
+	t.Run("folder without metadata", func(t *testing.T) {
+		e := newEnv(t)
+		e.liveFolder(time.Hour)
+		body := &closeRecorder{Reader: strings.NewReader("hello")}
+		e.storage.EXPECT().Get(ctx, _prefix+"a.txt").Return(body, storage.Object{Size: 5, ModTime: updated}, nil)
+		rs, err := e.ctrl.OpenPublicFile(ctx, &entity.OpenPublicFileRequest{FolderID: 1000, Path: "a.txt", IfNoneMatch: tag})
+		require.NoError(t, err)
+		assert.Equal(t, notModified, rs)
+		assert.True(t, body.closed, "the opened file is closed")
+	})
+}
+
+// closeRecorder is a file body that records its Close.
+type closeRecorder struct {
+	io.Reader
+	closed bool
+}
+
+func (r *closeRecorder) Close() error {
+	r.closed = true
+	return nil
 }
 
 func TestOpenPublicFile_Errors(t *testing.T) {

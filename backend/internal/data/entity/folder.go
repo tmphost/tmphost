@@ -241,6 +241,11 @@ type (
 		// Client identifies the visitor (their IP address), for the limit
 		// on wrong PINs.
 		Client string
+		// IfNoneMatch and IfModifiedSince are the visitor's conditional
+		// headers (zero when absent): a version they already hold comes
+		// back NotModified.
+		IfNoneMatch     string
+		IfModifiedSince time.Time
 	}
 
 	// OpenFileResponse is an open file. The caller closes Body. A large
@@ -252,6 +257,11 @@ type (
 		Size        int64
 		ContentType string
 		ModTime     time.Time
+		// ETag names this version of a public file.
+		ETag string
+		// NotModified means the visitor's copy is current; there is no
+		// Body.
+		NotModified bool
 		// Private marks a file of a PIN-guarded folder, which shared
 		// caches must not keep.
 		Private bool

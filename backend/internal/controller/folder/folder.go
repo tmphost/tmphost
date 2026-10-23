@@ -32,6 +32,7 @@ import (
 	"path"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -681,7 +682,7 @@ func (c *controller) OpenPublicFile(ctx context.Context, rq *entity.OpenPublicFi
 	if err != nil {
 		return nil, err
 	}
-	rs, err := c.openPublic(ctx, f, p, rq.Format)
+	rs, err := c.openPublic(ctx, f, p, rq)
 	if err != nil {
 		return nil, err
 	}
@@ -712,19 +713,81 @@ func (c *controller) UnlockFolder(ctx context.Context, rq *entity.UnlockFolderRe
 }
 
 // openPublic opens the file at p of a live folder for a visitor; format
-// html renders a Markdown file.
-func (c *controller) openPublic(ctx context.Context, f model.Folder, p, format string) (*entity.OpenFileResponse, error) {
-	render := format == markdown.FormatHTML && markdown.IsMarkdown(p)
+// html renders a Markdown file. A visitor who already holds this version
+// gets NotModified, without the file being read when its metadata is
+// known.
+func (c *controller) openPublic(ctx context.Context, f model.Folder, p string, rq *entity.OpenPublicFileRequest) (*entity.OpenFileResponse, error) {
+	render := rq.Format == markdown.FormatHTML && markdown.IsMarkdown(p)
+	meta, known := f.Files[p]
+	if known {
+		if rs := notModified(rq, meta.Size, meta.UpdatedAt, render); rs != nil {
+			return rs, nil
+		}
+	}
 	// A Markdown page is rendered here, so it needs the file's bytes.
 	var sign *storage.SignOptions
 	if !render {
 		sign = &storage.SignOptions{ContentType: contentType(p)}
 	}
 	rs, err := c.open(ctx, f, p, sign)
-	if err != nil || !render {
-		return rs, err
+	if err != nil {
+		return nil, err
+	}
+	// Folders from before the metadata column have no meta: the stored
+	// object is the version.
+	if !known {
+		meta = model.FolderFile{Size: rs.Size, UpdatedAt: rs.ModTime}
+		if nm := notModified(rq, meta.Size, meta.UpdatedAt, render); nm != nil {
+			_ = rs.Body.Close()
+			return nm, nil
+		}
+	}
+	rs.ETag, rs.ModTime = etag(meta.Size, meta.UpdatedAt, render), meta.UpdatedAt
+	if !render {
+		return rs, nil
 	}
 	return renderMarkdown(rs, p)
+}
+
+// etag names a version of a file by its size and write time; a rendered
+// Markdown page is another representation of the same file. It is weak,
+// so it still matches once the response is compressed.
+func etag(size int64, modTime time.Time, render bool) string {
+	tag := `W/"` + strconv.FormatInt(size, 36) + "-" + strconv.FormatInt(modTime.UnixNano(), 36)
+	if render {
+		tag += "-" + markdown.FormatHTML
+	}
+	return tag + `"`
+}
+
+// notModified answers a conditional request for a version the visitor
+// already holds, or returns nil. If-None-Match wins over
+// If-Modified-Since (RFC 9110 13.2.2).
+func notModified(rq *entity.OpenPublicFileRequest, size int64, modTime time.Time, render bool) *entity.OpenFileResponse {
+	tag := etag(size, modTime, render)
+	switch {
+	case rq.IfNoneMatch != "":
+		if !etagMatches(rq.IfNoneMatch, tag) {
+			return nil
+		}
+	// HTTP dates have whole seconds.
+	case rq.IfModifiedSince.IsZero() || modTime.Truncate(time.Second).After(rq.IfModifiedSince):
+		return nil
+	}
+	return &entity.OpenFileResponse{NotModified: true, ETag: tag, ModTime: modTime}
+}
+
+// etagMatches compares an If-None-Match list with tag the weak way: W/
+// prefixes don't count.
+func etagMatches(list, tag string) bool {
+	tag = strings.TrimPrefix(tag, "W/")
+	for _, t := range strings.Split(list, ",") {
+		t = strings.TrimSpace(t)
+		if t == "*" || strings.TrimPrefix(t, "W/") == tag {
+			return true
+		}
+	}
+	return false
 }
 
 // renderMarkdown replaces the open Markdown file rs with its HTML page.
@@ -740,6 +803,7 @@ func renderMarkdown(rs *entity.OpenFileResponse, p string) (*entity.OpenFileResp
 		Size:        int64(len(page)),
 		ContentType: markdown.ContentType,
 		ModTime:     rs.ModTime,
+		ETag:        rs.ETag,
 	}, nil
 }
 
