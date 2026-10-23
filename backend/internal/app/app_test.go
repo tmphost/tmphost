@@ -768,4 +768,14 @@ func TestFiberConfig(t *testing.T) {
 	assert.True(t, cfg.EnableIPValidation)
 
 	assert.Equal(t, "X-Forwarded-For", fiberConfig(AppConfig{TrustedProxies: "10.0.0.1"}, 10).ProxyHeader)
+
+	cfg = fiberConfig(AppConfig{Cloudflare: true}, 10)
+	assert.True(t, cfg.TrustProxy)
+	assert.Equal(t, _cloudflareRanges, cfg.TrustProxyConfig.Proxies)
+	assert.Equal(t, "CF-Connecting-IP", cfg.ProxyHeader)
+	assert.True(t, cfg.EnableIPValidation)
+
+	cfg = fiberConfig(AppConfig{Cloudflare: true, TrustedProxies: "10.0.0.1", ProxyHeader: "X-Real-IP"}, 10)
+	assert.Equal(t, append([]string{"10.0.0.1"}, _cloudflareRanges...), cfg.TrustProxyConfig.Proxies)
+	assert.Equal(t, "X-Real-IP", cfg.ProxyHeader, "an explicit header wins")
 }

@@ -96,7 +96,11 @@ type (
 		// ranges. Requests from them are attributed to the client IP in
 		// ProxyHeader, which the per-IP limits of anonymous uploads count.
 		TrustedProxies string `yaml:"trustedProxies"`
-		// ProxyHeader is the header a trusted proxy puts the client IP in.
+		// Cloudflare trusts Cloudflare's published edge ranges as proxies
+		// too, and makes CF-Connecting-IP the default ProxyHeader.
+		Cloudflare bool `yaml:"cloudflare"`
+		// ProxyHeader is the header a trusted proxy puts the client IP in:
+		// X-Forwarded-For when empty, or CF-Connecting-IP with Cloudflare.
 		ProxyHeader string `yaml:"proxyHeader"`
 	}
 
@@ -446,6 +450,11 @@ func fiberConfig(app AppConfig, bodyLimit int) fiber.Config {
 			proxies = append(proxies, p)
 		}
 	}
+	header := fiber.HeaderXForwardedFor
+	if app.Cloudflare {
+		proxies = append(proxies, _cloudflareRanges...)
+		header = _headerCFConnectingIP
+	}
 	if len(proxies) == 0 {
 		return cfg
 	}
@@ -453,7 +462,7 @@ func fiberConfig(app AppConfig, bodyLimit int) fiber.Config {
 	cfg.TrustProxyConfig = fiber.TrustProxyConfig{Proxies: proxies}
 	cfg.ProxyHeader = app.ProxyHeader
 	if cfg.ProxyHeader == "" {
-		cfg.ProxyHeader = fiber.HeaderXForwardedFor
+		cfg.ProxyHeader = header
 	}
 	// The header may list several hops; c.IP() then takes the rightmost IP
 	// that is not a trusted proxy, so a client can't spoof its own.
