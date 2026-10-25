@@ -64,6 +64,24 @@ func TestSkillsGet(t *testing.T) {
 	assert.Equal(t, float64(-32602), rpcErr["code"], "an unknown skill is invalid params")
 }
 
+func TestDirectoryRead(t *testing.T) {
+	body, err := _skillFiles.ReadFile("skills/tmphost/SKILL.md")
+	require.NoError(t, err)
+
+	rs := rpc(t, "2026-07-28", "resources/directory/read", params2026(`"uri":"skill://tmphost"`))
+	assert.Equal(t, "complete", rs["resultType"])
+	assert.Equal(t, float64(3600000), rs["ttlMs"])
+	assert.Equal(t, "public", rs["cacheScope"])
+	assert.Equal(t, []any{map[string]any{"uri": _skillURI, "name": "tmphost/SKILL.md", "mimeType": "text/markdown", "size": float64(len(body))}}, rs["resources"])
+	assert.NotContains(t, rs, "nextCursor", "every child fits on one page")
+
+	for _, uri := range []string{_skillURI, "skill://nope", "skill://tmphost/", "skill:"} {
+		_, rpcErr := rpcCall(t, "2026-07-28", "resources/directory/read", params2026(`"uri":"`+uri+`"`))
+		require.NotNil(t, rpcErr, uri)
+		assert.Equal(t, float64(-32602), rpcErr["code"], "%s is not a directory: invalid params", uri)
+	}
+}
+
 // The SKILL.md is a resource; a client with a session reads it the same way.
 func TestSkillResource(t *testing.T) {
 	e := newEnv(t)
@@ -101,6 +119,19 @@ func TestLoadSkills_SupportingFiles(t *testing.T) {
 		uris = append(uris, r.URI)
 	}
 	assert.Equal(t, []string{"skill://a/SKILL.md", "skill://a/assets/data.zzunknown", "skill://a/assets/logo.png", "skill://a/references/guide.md"}, uris, "SKILL.md first")
+
+	dirs := map[string][]string{}
+	for uri, children := range set.dirs {
+		for _, c := range children {
+			dirs[uri] = append(dirs[uri], c.URI+" "+c.MIMEType)
+		}
+	}
+	assert.Equal(t, map[string][]string{
+		"skill://a":            {"skill://a/SKILL.md text/markdown", "skill://a/assets inode/directory", "skill://a/references inode/directory"},
+		"skill://a/assets":     {"skill://a/assets/data.zzunknown application/octet-stream", "skill://a/assets/logo.png image/png"},
+		"skill://a/references": {"skill://a/references/guide.md text/markdown"},
+	}, dirs, "every directory, the root included, lists its direct children in URI order")
+	assert.Equal(t, "a/assets", set.dirs["skill://a"][1].Name)
 
 	for uri, want := range map[string]string{
 		"skill://a/references/guide.md":   "text/markdown",

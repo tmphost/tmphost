@@ -107,8 +107,9 @@ test fails when a route is missing from it, so keep it in step with
   `format` argument asks for it, as UTF-8 `textContent`.
   It also serves the `tmphost` Agent Skill (best practices for the tools)
   through the MCP Skills extension (`io.modelcontextprotocol/skills`,
-  SEP-2640): `skills/list` and `skills/get` describe it, and
-  `resources/read` returns `skill://tmphost/SKILL.md`. The skill lives in
+  SEP-2640): `skills/list` and `skills/get` describe it,
+  `resources/read` returns `skill://tmphost/SKILL.md`, and
+  `resources/directory/read` lists the skill's directories (`directoryRead`). The skill lives in
   [backend/internal/handler/mcp/skills](backend/internal/handler/mcp/skills).
 - Both sign in with tmphost's own OAuth 2.1 server: dynamic client
   registration (`/oauth2/register`), PKCE S256, a consent page

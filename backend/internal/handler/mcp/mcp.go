@@ -250,7 +250,7 @@ func New(p Params) http.Handler {
 // gets it, and older clients negotiate their own.
 func capabilities() *mcp.ServerCapabilities {
 	caps := &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{ListChanged: false}, Resources: &mcp.ResourceCapabilities{ListChanged: false}}
-	caps.AddExtension(ExtensionSkills, nil)
+	caps.AddExtension(ExtensionSkills, map[string]any{"directoryRead": true})
 	return caps
 }
 
