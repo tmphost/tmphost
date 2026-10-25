@@ -27,7 +27,7 @@ func newFileDownloadCmd(a *app) *cobra.Command {
 
 An existing file is not overwritten unless --force is given. "-o -" writes
 the bytes to stdout; combined with --json the content goes in the JSON
-instead, as in the MCP download action: in base64Content by default, or as
+instead, as in the MCP downloadFile tool: in base64Content by default, or as
 UTF-8 text in textContent with --format textContent.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -53,7 +53,7 @@ UTF-8 text in textContent with --format textContent.`,
 	return c
 }
 
-// The content formats of a JSON download, as in the MCP tool.
+// The content formats of a JSON download, as in the MCP downloadFile tool.
 const (
 	formatBase64 = "base64Content"
 	formatText   = "textContent"
@@ -70,7 +70,7 @@ func (a *app) download(ctx context.Context, id, p, out, format string, force boo
 	}
 	defer body.Close()
 	dir, name := splitPath(p)
-	res := fileOutput{ID: id, FileName: name, Path: dir}
+	res := fileOutput{FolderID: id, FileName: name, Path: dir}
 
 	if out == "-" {
 		if !a.json {

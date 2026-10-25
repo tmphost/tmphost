@@ -29,11 +29,11 @@ test fails when a route is missing from it, so keep it in step with
   `files.maxTtlMinutes`, 7200 hours by default). Each file written costs 1
   credit per started MB (1 MiB) of its size per started 30 minutes of the
   folder's remaining lifetime: a 1.01 MB file kept for an hour costs 2 x 2 = 4.
-- Files can be added to an existing folder (web app, MCP `upload` with `id`,
-  CLI `--id`). Uploading to a path that is already there replaces the file
+- Files can be added to an existing folder (web app, MCP `uploadFile` with
+  `folderId`, CLI `--id`). Uploading to a path that is already there replaces the file
   in place, an update: its URL stays the same and the folder keeps its
   expiry. The write is charged like any other.
-- A folder can be extended to expire later (web app, MCP `extend`, CLI
+- A folder can be extended to expire later (web app, MCP `extendFolder`, CLI
   `tmphost file extend`, `POST /api/v1/folders/:id/extend` with
   `{"minutes": N}`), as long as its remaining lifetime stays within the max
   TTL. Each file in it costs the same as an upload, for the added time: 1
@@ -42,8 +42,8 @@ test fails when a route is missing from it, so keep it in step with
   page, an account PIN guards every folder: a static PIN, or the codes of an
   authenticator app (TOTP, set up with a QR code). While it is off, each
   folder an agent creates can get a random PIN of its own, and any folder
-  can get one on demand (web app, MCP `upload` with `pin` or action `pin`,
-  CLI `--pin` or `tmphost file pin`, `POST /api/v1/folders/:id/pin`); the
+  can get one on demand (web app, MCP `uploadFile` with `pin` or
+  `addPinToFolder`, CLI `--pin` or `tmphost file pin`, `POST /api/v1/folders/:id/pin`); the
   PIN is stored as a bcrypt hash and shown once. Visitors open a link with
   `?pin=123456` or enter the PIN on a page, after which a cookie on the
   folder lets them in until it expires. Two wrong PINs within a minute, per
@@ -99,9 +99,10 @@ test fails when a route is missing from it, so keep it in step with
 
 ## MCP, CLI and OAuth
 
-- `/mcp` is a stateless MCP server with one tool, `file` (actions `upload`,
-  `download`, `get`, `url`, `extend`), on the app URL and, when set, on the MCP domain
-  (`https://<mcp domain>/mcp`). The `tmphost` CLI in [cli/](cli/) mirrors it.
+- `/mcp` is a stateless MCP server with one tool per operation:
+  `uploadFile`, `downloadFile`, `listFiles`, `getUrl`, `extendFolder` and
+  `addPinToFolder`, each taking the folder as `folderId`. It runs on the app
+  URL and, when set, on the MCP domain (`https://<mcp domain>/mcp`). The `tmphost` CLI in [cli/](cli/) mirrors it.
   File content travels as `base64Content` (the default) or, when the
   `format` argument asks for it, as UTF-8 `textContent`.
 - Both sign in with tmphost's own OAuth 2.1 server: dynamic client

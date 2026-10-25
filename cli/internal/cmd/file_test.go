@@ -65,7 +65,7 @@ func TestFileGet(t *testing.T) {
 
 	assert.Equal(t, 0, h.run("file", "get", "--id", "rs", "--json"))
 	assert.Equal(t, map[string]any{
-		"id": "rs", "url": "https://rs-u1.tmphost.test/", "expiresAt": "2026-10-18T12:30:00Z",
+		"folderId": "rs", "url": "https://rs-u1.tmphost.test/", "expiresAt": "2026-10-18T12:30:00Z",
 		"files": []any{
 			map[string]any{"fileName": "app.css", "path": "site/css", "size": float64(2048), "url": "https://rs-u1.tmphost.test/site/css/app.css", "agent": "Claude Code"},
 			map[string]any{"fileName": "a.txt", "path": "", "size": float64(3), "url": "https://rs-u1.tmphost.test/a.txt"},
@@ -104,7 +104,7 @@ func TestFileURL(t *testing.T) {
 
 	assert.Equal(t, 0, h.run("file", "url", "--id", "rs", "--path", "site", "a.txt", "--json"))
 	assert.Equal(t, map[string]any{
-		"id": "rs", "url": "https://rs-u1.tmphost.test/site/a.txt", "expiresAt": "2026-10-18T12:30:00Z",
+		"folderId": "rs", "url": "https://rs-u1.tmphost.test/site/a.txt", "expiresAt": "2026-10-18T12:30:00Z",
 		"fileName": "a.txt", "path": "site",
 	}, h.decode())
 
@@ -150,13 +150,13 @@ func TestFileRm(t *testing.T) {
 	assert.Equal(t, "Deleted folder rs.\n", h.stdout.String())
 
 	assert.Equal(t, 0, h.run("file", "rm", "--id", "rs", "--json"))
-	assert.Equal(t, map[string]any{"deleted": true, "id": "rs"}, h.decode())
+	assert.Equal(t, map[string]any{"deleted": true, "folderId": "rs"}, h.decode())
 
 	assert.Equal(t, 0, h.run("file", "rm", "--id", "rs", "/site/index.html"))
 	assert.Equal(t, "Deleted site/index.html from folder rs.\n", h.stdout.String())
 
 	assert.Equal(t, 0, h.run("file", "rm", "--id", "rs", "site/index.html", "--json"))
-	assert.Equal(t, map[string]any{"deleted": true, "id": "rs", "fileName": "index.html", "path": "site"}, h.decode())
+	assert.Equal(t, map[string]any{"deleted": true, "folderId": "rs", "fileName": "index.html", "path": "site"}, h.decode())
 
 	assert.Equal(t, 1, h.run("file", "rm", "--id", "zz"))
 	assert.Equal(t, "error: folder not found\n", h.stderr.String())
@@ -182,7 +182,7 @@ func TestFileExtend(t *testing.T) {
 	assert.Equal(t, "id:      rs\nurl:     https://rs.tmphost.test/\nexpires: "+formatTime(now.Add(150*60e9))+" (in 2h30m)\ncost:    5 credits\n", h.stdout.String())
 
 	assert.Equal(t, 0, h.run("file", "extend", "--id", "rs", "--ttl", "2h", "--json"))
-	assert.Equal(t, map[string]any{"id": "rs", "url": "https://rs.tmphost.test/", "expiresAt": "2026-10-18T14:30:00Z", "creditsSpent": float64(5)}, h.decode())
+	assert.Equal(t, map[string]any{"folderId": "rs", "url": "https://rs.tmphost.test/", "expiresAt": "2026-10-18T14:30:00Z", "creditsSpent": float64(5)}, h.decode())
 
 	assert.Equal(t, 1, h.run("file", "extend", "--id", "zz", "--ttl", "1h"))
 	assert.Equal(t, "error: insufficient credits: 9 needed\n", h.stderr.String())
@@ -205,7 +205,7 @@ func TestFilePin(t *testing.T) {
 	assert.Equal(t, "id:      rs\nurl:     https://rs.tmphost.test/\npin:     123456 (shown only once; or open https://rs.tmphost.test/?pin=123456)\n", h.stdout.String())
 
 	assert.Equal(t, 0, h.run("file", "pin", "--id", "rs", "--json"))
-	assert.Equal(t, map[string]any{"id": "rs", "url": "https://rs.tmphost.test/", "expiresAt": "2026-10-18T12:30:00Z", "pinMode": "folder", "pin": "123456"}, h.decode())
+	assert.Equal(t, map[string]any{"folderId": "rs", "url": "https://rs.tmphost.test/", "expiresAt": "2026-10-18T12:30:00Z", "pinMode": "folder", "pin": "123456"}, h.decode())
 
 	assert.Equal(t, 1, h.run("file", "pin", "--id", "ac"))
 	assert.Equal(t, "error: the account pin guards this folder\n", h.stderr.String())

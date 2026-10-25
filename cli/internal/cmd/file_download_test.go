@@ -54,7 +54,7 @@ func TestFileDownload_toFile(t *testing.T) {
 	assert.Equal(t, "hello", string(b), "overwritten and truncated")
 
 	assert.Equal(t, 0, h.run("file", "download", "--id", "rs", "--path", "site", "a.txt", "-o", "out.txt", "--json"))
-	assert.Equal(t, map[string]any{"id": "rs", "fileName": "a.txt", "path": "site", "size": float64(5)}, h.decode())
+	assert.Equal(t, map[string]any{"folderId": "rs", "fileName": "a.txt", "path": "site", "size": float64(5)}, h.decode())
 	_, err = os.Stat("out.txt")
 	assert.NoError(t, err)
 }
@@ -67,15 +67,15 @@ func TestFileDownload_stdout(t *testing.T) {
 
 	assert.Equal(t, 0, h.run("file", "download", "--id", "rs", "--path", "site", "a.txt", "-o", "-", "--json"))
 	assert.Equal(t, map[string]any{
-		"id": "rs", "fileName": "a.txt", "path": "site", "size": float64(5),
+		"folderId": "rs", "fileName": "a.txt", "path": "site", "size": float64(5),
 		"base64Content": base64.StdEncoding.EncodeToString([]byte("hello")),
 	}, h.decode())
 
 	assert.Equal(t, 0, h.run("file", "download", "--id", "rs", "--path", "site", "a.txt", "-o", "-", "--json", "--format", "textContent"))
-	assert.Equal(t, map[string]any{"id": "rs", "fileName": "a.txt", "path": "site", "size": float64(5), "textContent": "hello"}, h.decode())
+	assert.Equal(t, map[string]any{"folderId": "rs", "fileName": "a.txt", "path": "site", "size": float64(5), "textContent": "hello"}, h.decode())
 
 	assert.Equal(t, 0, h.run("file", "download", "--id", "rs", "empty.txt", "-o", "-", "--json", "--format", "textContent"))
-	assert.Equal(t, map[string]any{"id": "rs", "fileName": "empty.txt", "textContent": ""}, h.decode(), "an empty file still carries its content field")
+	assert.Equal(t, map[string]any{"folderId": "rs", "fileName": "empty.txt", "textContent": ""}, h.decode(), "an empty file still carries its content field")
 
 	assert.Equal(t, 1, h.run("file", "download", "--id", "rs", "bin.dat", "-o", "-", "--json", "--format", "textContent"))
 	assert.Equal(t, "error: bin.dat is not UTF-8 text: use --format base64Content\n", h.stderr.String())

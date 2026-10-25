@@ -17,10 +17,10 @@ import (
 	"github.com/tmphost/tmphost/cli/internal/client"
 )
 
-// fileOutput mirrors the MCP file tool's FileOutput, so scripts read the
-// same fields whether they call the CLI with --json or the tool.
+// fileOutput mirrors the outputs of the MCP tools, so scripts read the same
+// fields whether they call the CLI with --json or a tool.
 type fileOutput struct {
-	ID           string `json:"id,omitempty"`
+	FolderID     string `json:"folderId,omitempty"`
 	URL          string `json:"url,omitempty"`
 	ExpiresAt    string `json:"expiresAt,omitempty"`
 	FileName     string `json:"fileName,omitempty"`
@@ -38,7 +38,7 @@ type fileOutput struct {
 	Files         []fileInfo `json:"files,omitempty"`
 }
 
-// fileInfo mirrors the MCP FileInfo: a file split into directory and name.
+// fileInfo mirrors the MCP listFiles FileInfo: a file split into directory and name.
 type fileInfo struct {
 	FileName string `json:"fileName"`
 	Path     string `json:"path"`
@@ -121,7 +121,7 @@ func validPath(p string) error {
 	return nil
 }
 
-// rfc3339 matches how the MCP tool renders times.
+// rfc3339 matches how the MCP tools render times.
 func rfc3339(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }
@@ -134,13 +134,14 @@ func (a *app) expiry(t time.Time) string {
 func newFileCmd(a *app) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "file",
-		Short: "Upload, download and share files (mirrors the MCP file tool)",
+		Short: "Upload, download and share files (mirrors the MCP tools)",
 		Long: `Upload, download and share files in temporary folders.
 
-The upload, download, get, url, extend and pin subcommands mirror the actions
-of the server's MCP "file" tool: --id, --ttl, --path and --pin are its id,
-ttl, path and pin arguments, and the file name is its fileName. ls and rm are
-extras for managing folders.`,
+The upload, download, get, url, extend and pin subcommands mirror the server's
+MCP tools uploadFile, downloadFile, listFiles, getUrl, extendFolder and
+addPinToFolder: --id is their folderId argument, --path and --pin their path
+and pin, --ttl is uploadFile's ttl and extendFolder's extendBy, and the file
+name is their fileName. ls and rm are extras for managing folders.`,
 	}
 	c.AddCommand(newFileUploadCmd(a), newFileDownloadCmd(a), newFileGetCmd(a), newFileURLCmd(a), newFileExtendCmd(a), newFilePinCmd(a), newFileLsCmd(a), newFileRmCmd(a))
 	return c
@@ -161,7 +162,7 @@ func newFileGetCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			out := fileOutput{ID: d.Folder.ID, URL: d.Folder.URL, ExpiresAt: rfc3339(d.Folder.ExpiresAt), PinMode: d.Folder.PinMode, Files: make([]fileInfo, len(d.Files))}
+			out := fileOutput{FolderID: d.Folder.ID, URL: d.Folder.URL, ExpiresAt: rfc3339(d.Folder.ExpiresAt), PinMode: d.Folder.PinMode, Files: make([]fileInfo, len(d.Files))}
 			for i, f := range d.Files {
 				out.Files[i] = toFileInfo(f)
 			}
@@ -175,7 +176,7 @@ func newFileGetCmd(a *app) *cobra.Command {
 					}
 					table(w, "FILE NAME\tPATH\tSIZE\tAGENT\tURL", rows)
 				}
-				fmt.Fprintf(w, "\nid:      %s\nurl:     %s\nexpires: %s\n", out.ID, out.URL, a.expiry(d.Folder.ExpiresAt))
+				fmt.Fprintf(w, "\nid:      %s\nurl:     %s\nexpires: %s\n", out.FolderID, out.URL, a.expiry(d.Folder.ExpiresAt))
 				printPin(w, out)
 			})
 		},
@@ -227,7 +228,7 @@ The file does not have to exist yet.`,
 			for i, s := range segs {
 				segs[i] = url.PathEscape(s)
 			}
-			out := fileOutput{ID: d.Folder.ID, URL: d.Folder.URL + strings.Join(segs, "/"), ExpiresAt: rfc3339(d.Folder.ExpiresAt), FileName: name, Path: dir}
+			out := fileOutput{FolderID: d.Folder.ID, URL: d.Folder.URL + strings.Join(segs, "/"), ExpiresAt: rfc3339(d.Folder.ExpiresAt), FileName: name, Path: dir}
 			return a.output(out, func(w io.Writer) {
 				fmt.Fprintln(w, out.URL)
 			})
@@ -264,9 +265,9 @@ started 30 minutes of the added time; an empty folder is free.`,
 			if err != nil {
 				return err
 			}
-			out := fileOutput{ID: r.Folder.ID, URL: r.Folder.URL, ExpiresAt: rfc3339(r.Folder.ExpiresAt), CreditsSpent: r.CreditsSpent}
+			out := fileOutput{FolderID: r.Folder.ID, URL: r.Folder.URL, ExpiresAt: rfc3339(r.Folder.ExpiresAt), CreditsSpent: r.CreditsSpent}
 			return a.output(out, func(w io.Writer) {
-				fmt.Fprintf(w, "id:      %s\nurl:     %s\nexpires: %s\ncost:    %d credits\n", out.ID, out.URL, a.expiry(r.Folder.ExpiresAt), out.CreditsSpent)
+				fmt.Fprintf(w, "id:      %s\nurl:     %s\nexpires: %s\ncost:    %d credits\n", out.FolderID, out.URL, a.expiry(r.Folder.ExpiresAt), out.CreditsSpent)
 			})
 		},
 	}
@@ -296,9 +297,9 @@ shown only now. It fails while your account PIN guards every folder.`,
 			if err != nil {
 				return err
 			}
-			out := fileOutput{ID: f.ID, URL: f.URL, ExpiresAt: rfc3339(f.ExpiresAt), PinMode: f.PinMode, Pin: f.Pin}
+			out := fileOutput{FolderID: f.ID, URL: f.URL, ExpiresAt: rfc3339(f.ExpiresAt), PinMode: f.PinMode, Pin: f.Pin}
 			return a.output(out, func(w io.Writer) {
-				fmt.Fprintf(w, "id:      %s\nurl:     %s\n", out.ID, out.URL)
+				fmt.Fprintf(w, "id:      %s\nurl:     %s\n", out.FolderID, out.URL)
 				printPin(w, out)
 			})
 		},
@@ -383,7 +384,7 @@ func newFileRmCmd(a *app) *cobra.Command {
 				if err := c.DeleteFolder(cmd.Context(), id); err != nil {
 					return err
 				}
-				return a.output(map[string]any{"deleted": true, "id": id}, func(w io.Writer) {
+				return a.output(map[string]any{"deleted": true, "folderId": id}, func(w io.Writer) {
 					fmt.Fprintf(w, "Deleted folder %s.\n", id)
 				})
 			}
@@ -391,7 +392,7 @@ func newFileRmCmd(a *app) *cobra.Command {
 				return err
 			}
 			dir, name := splitPath(p)
-			return a.output(map[string]any{"deleted": true, "id": id, "fileName": name, "path": dir}, func(w io.Writer) {
+			return a.output(map[string]any{"deleted": true, "folderId": id, "fileName": name, "path": dir}, func(w io.Writer) {
 				fmt.Fprintf(w, "Deleted %s from folder %s.\n", p, id)
 			})
 		},

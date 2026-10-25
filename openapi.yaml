@@ -1205,8 +1205,9 @@ paths:
       operationId: mcp
       summary: MCP server (streamable HTTP)
       description: |
-        A stateless MCP server with one tool, `file` (actions `upload`,
-        `download`, `get`, `url`, `extend`). Takes an OAuth access token;
+        A stateless MCP server with one tool per operation: `uploadFile`,
+        `downloadFile`, `listFiles`, `getUrl`, `extendFolder` and
+        `addPinToFolder`. Takes an OAuth access token;
         clients discover the authorization server via
         `/.well-known/oauth-protected-resource/mcp`.
       security:
