@@ -1,6 +1,6 @@
 {
   "name": "tmphost",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Host files at temporary public URLs on tmphost.io: upload, download, list and link files in folders that expire after a TTL.",
   "mcpServers": {
     "tmphost": {
