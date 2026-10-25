@@ -181,6 +181,66 @@ func TestInitialize(t *testing.T) {
 	assert.NotEmpty(t, rs.ServerInfo.Description)
 	assertIcons(t, rs.ServerInfo.Icons)
 	assert.Equal(t, _instructions, rs.Instructions)
+	assert.Equal(t, "2026-07-28", rs.ProtocolVersion, "a client that speaks the newest protocol gets it")
+	assert.Equal(t, &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{}}, rs.Capabilities)
+}
+
+// rpc posts one JSON-RPC request as a client speaking version would,
+// returning the result or error object.
+func rpc(t *testing.T, version, method, params string) map[string]any {
+	t.Helper()
+	mc := gomock.NewController(t)
+	authn := mockauth.NewMockController(mc)
+	authn.EXPECT().Authenticate(gomock.Any(), gomock.Any()).Return(&entity.AuthenticateResponse{UserID: 7}, nil)
+	srv := httptest.NewServer(New(Params{Folders: mockfolder.NewMockController(mc), Auth: authn}))
+	defer srv.Close()
+
+	req, _ := http.NewRequest(http.MethodPost, srv.URL, strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"`+method+`","params":`+params+`}`))
+	req.Header.Set("Authorization", "Bearer "+_key)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	if version != "" {
+		req.Header.Set("Mcp-Protocol-Version", version)
+		req.Header.Set("Mcp-Method", method)
+	}
+	res, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = res.Body.Close() }()
+	assert.Empty(t, res.Header.Get("Mcp-Session-Id"), "stateless: no session")
+	var rs struct {
+		Result map[string]any `json:"result"`
+		Error  map[string]any `json:"error"`
+	}
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&rs))
+	require.Nil(t, rs.Error)
+	return rs.Result
+}
+
+// The stateless 2026-07-28 protocol has no handshake: server/discover
+// advertises the versions, newest first, and the capabilities.
+func TestDiscover(t *testing.T) {
+	meta := `{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"}}}`
+	rs := rpc(t, "2026-07-28", "server/discover", meta)
+	assert.Equal(t, []any{"2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"}, rs["supportedVersions"])
+	assert.Equal(t, map[string]any{"tools": map[string]any{}}, rs["capabilities"], "tools only, no list_changed or logging notifications")
+	assert.Equal(t, _instructions, rs["instructions"])
+
+	rs = rpc(t, "2026-07-28", "tools/list", meta)
+	assert.Len(t, rs["tools"], 6, "served without initialize")
+}
+
+// The legacy handshake answers with the client's version when it is
+// known, else the newest that handshake can negotiate.
+func TestInitialize_Negotiation(t *testing.T) {
+	for asked, want := range map[string]string{
+		"2025-06-18": "2025-06-18",
+		"2025-11-25": "2025-11-25",
+		"2099-01-01": "2025-11-25",
+	} {
+		rs := rpc(t, "", "initialize", `{"protocolVersion":"`+asked+`","capabilities":{},"clientInfo":{"name":"test","version":"1"}}`)
+		assert.Equal(t, want, rs["protocolVersion"], asked)
+		assert.Equal(t, map[string]any{"tools": map[string]any{}}, rs["capabilities"], asked)
+	}
 }
 
 func assertIcons(t *testing.T, icons []mcp.Icon) {

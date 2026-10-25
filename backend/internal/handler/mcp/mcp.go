@@ -218,7 +218,7 @@ func New(p Params) http.Handler {
 		Description: "Temporary file hosting: upload files and static sites to public URLs that expire.",
 		WebsiteURL:  "https://tmphost.io",
 		Icons:       icons(),
-	}, &mcp.ServerOptions{Instructions: _instructions})
+	}, &mcp.ServerOptions{Instructions: _instructions, Capabilities: capabilities()})
 	t := &tools{folders: p.Folders}
 	mcp.AddTool(server, &mcp.Tool{Name: ToolUploadFile, Title: "Upload a file", Description: _uploadFileDescription, InputSchema: inputSchema[UploadFileInput](), Annotations: writeAnnotations("Upload a file", true, true), Icons: icons()}, handle(t.uploadFile))
 	mcp.AddTool(server, &mcp.Tool{Name: ToolDownloadFile, Title: "Download a file", Description: _downloadFileDescription, InputSchema: inputSchema[DownloadFileInput](), Annotations: readAnnotations("Download a file"), Icons: icons()}, handle(t.downloadFile))
@@ -236,6 +236,16 @@ func New(p Params) http.Handler {
 		ResourceMetadataURL:    p.ResourceMetadataURL,
 		AllowMissingExpiration: true,
 	})(handler)
+}
+
+// capabilities advertise a stateless server: tools only, and no
+// notifications, as there is no session to send them on (no logging, and
+// the tool list never changes while the server runs). Every protocol version
+// the SDK speaks is offered, newest first, so a client that supports the
+// stateless 2026-07-28 protocol (server/discover, no initialize handshake)
+// gets it, and older clients negotiate their own.
+func capabilities() *mcp.ServerCapabilities {
+	return &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{ListChanged: false}}
 }
 
 // _extraAgent is the token info Extra key that names the OAuth client.
