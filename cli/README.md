@@ -1,8 +1,8 @@
 # tmphost CLI
 
 Upload files to temporary public folders on a tmphost server from the
-terminal. The `tmphost file` commands mirror the `file` tool of the server's
-MCP endpoint.
+terminal. The `tmphost file` commands mirror the tools of the server's MCP
+endpoint.
 
 ## Install
 
@@ -86,8 +86,8 @@ tmphost whoami
 | `tmphost file ls` | List your live folders |
 | `tmphost file rm --id ID [path]` | Delete a folder, or one file |
 
-Global flags: `--json` prints JSON with the same fields as the MCP tool's
-output (`id`, `url`, `expiresAt`, `fileName`, `path`, `size`, `creditsSpent`,
+Global flags: `--json` prints JSON with the same fields as the MCP tools'
+output (`folderId`, `url`, `expiresAt`, `fileName`, `path`, `size`, `creditsSpent`,
 `files`), `--server` picks the server, `--version` prints the version.
 `download -o - --json` puts the file in `base64Content`, or as UTF-8 text in
 `textContent` with `--format textContent`.
@@ -105,8 +105,9 @@ Folder URLs come from the server and may look like
 
 ## MCP
 
-The server offers the same `file` tool (actions `upload`, `download`, `get`,
-`url` and `extend`) at `<server>/mcp` (and on its MCP domain,
+The server offers the same operations as tools (`uploadFile`,
+`downloadFile`, `listFiles`, `getUrl`, `extendFolder` and `addPinToFolder`,
+each taking the folder as `folderId`) at `<server>/mcp` (and on its MCP domain,
 `https://mcp.tmphost.io/mcp` for tmphost.io), for AI agents:
 
 ```json
@@ -125,8 +126,8 @@ they connect.
 
 File content travels in one of two fields, picked by the tool's `format`
 argument: `base64Content` (the default, for any file) or `textContent` (UTF-8
-text sent as is, handy for HTML, CSS or JSON). `upload` reads the field that
-`format` names and `download` fills it; a download as `textContent` fails for
+text sent as is, handy for HTML, CSS or JSON). `uploadFile` reads the field
+that `format` names and `downloadFile` fills it; a download as `textContent` fails for
 a file that isn't UTF-8 text.
 
 ## Development

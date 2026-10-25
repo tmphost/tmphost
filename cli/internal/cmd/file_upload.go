@@ -153,7 +153,7 @@ func (a *app) upload(ctx context.Context, args []string, o uploadOptions) error 
 			return err
 		}
 	}
-	res := fileOutput{ID: folder.ID, URL: folder.URL, ExpiresAt: rfc3339(folder.ExpiresAt), PinMode: folder.PinMode, Pin: folder.Pin}
+	res := fileOutput{FolderID: folder.ID, URL: folder.URL, ExpiresAt: rfc3339(folder.ExpiresAt), PinMode: folder.PinMode, Pin: folder.Pin}
 	for _, f := range files {
 		put, err := putFile(ctx, c, folder.ID, f)
 		if err != nil {
@@ -168,7 +168,7 @@ func (a *app) upload(ctx context.Context, args []string, o uploadOptions) error 
 		a.progress("%s\n", put.File.URL)
 	}
 	if len(res.Files) == 1 {
-		// A single upload reads like the MCP upload action: url is the file's.
+		// A single upload reads like the MCP uploadFile tool: url is the file's.
 		f := res.Files[0]
 		res.URL, res.FileName, res.Path, res.Size = f.URL, f.FileName, f.Path, f.Size
 	}

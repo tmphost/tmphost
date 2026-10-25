@@ -6,7 +6,7 @@ description: Share files at temporary public URLs with tmphost. Use when the use
 # tmphost
 
 tmphost hosts files in folders that expire after a TTL. Every file gets a
-public URL until its folder expires. Use the `file` tool of the `tmphost` MCP
+public URL until its folder expires. Use the tools of the `tmphost` MCP
 server; the first call asks the user to sign in to tmphost (OAuth).
 
 The user's explicit instructions take precedence over this guidance: if they
@@ -21,21 +21,26 @@ ask for a different TTL, folder or file name, use theirs.
   hosting, say that tmphost can't do that rather than uploading.
 - If it is unclear which file or content to share, ask before uploading.
 
-## Actions
+## Tools
 
-- `upload`: `fileName`, the content, and optionally `path` (a directory inside
-  the folder, such as `site/css`). Without `id` it creates a new folder that
-  lives for `ttl` (default `30m`, e.g. `2h`); with `id` the file goes into
-  that existing folder. Returns the folder `id`, the file `url` and
-  `creditsSpent`.
-- `download`: `id`, `fileName`, optional `path`. Returns the content.
-- `get`: `id`. Lists the folder's files with their URLs.
-- `url`: the public URL of a folder (`id`), a directory (`id`, `path`) or a
-  file (`id`, `fileName`, optional `path`).
-- `extend`: `id` and `ttl` (the time to add, e.g. `1h`). Returns the new
-  `expiresAt` and `creditsSpent`.
-- `pin`: `id`. Gives the folder a new 6 digit PIN that visitors must enter,
-  returned once in `pin`; it replaces the folder's old PIN.
+- `uploadFile`: `fileName`, the content, and optionally `path` (a directory
+  inside the folder, such as `site/css`). Without `folderId` it creates a new
+  folder that lives for `ttl` (default `30m`, e.g. `2h`); with `folderId` the
+  file goes into that existing folder. Returns the `folderId`, the file `url`
+  and `creditsSpent`.
+- `downloadFile`: `folderId`, `fileName`, optional `path`. Returns the
+  content.
+- `listFiles`: `folderId`. Lists the folder's files with their URLs.
+- `getUrl`: the public URL of a folder (`folderId`), a directory (`folderId`,
+  `path`) or a file (`folderId`, `fileName`, optional `path`). Its `pinMode`
+  says when a PIN guards the folder; pass the folder's `pin` (from `uploadFile`
+  or `addPinToFolder`) to get a URL with `?pin=` that skips the PIN page. The
+  server only keeps a hash of a PIN, so it can't add one by itself.
+- `extendFolder`: `folderId` and `extendBy` (the time to add, e.g. `1h`).
+  Returns the new `expiresAt` and `creditsSpent`.
+- `addPinToFolder`: `folderId`. Gives the folder a new 6 digit PIN that
+  visitors must enter, returned once in `pin`; it replaces the folder's old
+  PIN.
 
 Only use folder ids that a tool call returned or that the user gave you; never
 guess one.
@@ -50,19 +55,21 @@ guess one.
 
 ## Sharing a site or several files
 
-1. Upload the first file without `id` and note the returned `id`.
-2. Upload the rest with that `id`, keeping their directories in `path`
+1. Upload the first file with `uploadFile` without `folderId` and note the
+   returned `folderId`.
+2. Upload the rest with that `folderId`, keeping their directories in `path`
    (`index.html` at the root, `css/site.css` as `fileName: "site.css"`,
    `path: "css"`). Paths are at most 5 directories deep, with no `.` or `..`
    segments.
-3. Give the user the folder URL (`url` with just `id`); `index.html` is served
-   for the folder root.
+3. Give the user the folder URL (`getUrl` with just `folderId`);
+   `index.html` is served for the folder root.
 
 ## Protecting a folder with a PIN
 
 When the user wants the files kept from anyone without a code, pass
-`pin: true` on the first upload (or call `pin` with the folder `id`). The
-result's `pin` is shown only once: give it to the user with the URL. Visitors
+`pin: true` to the first `uploadFile` (or call `addPinToFolder` with the
+`folderId`). The result's `pin` is shown only once: give it to the user with
+the URL. Visitors
 enter it once per browser; a link with `?pin=<pin>` appended opens the folder
 without asking. A result with `pinMode` but no `pin` means the user's account
 PIN (or authenticator app) already guards every folder of theirs.

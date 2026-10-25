@@ -53,13 +53,18 @@ Gemini to spend them unprompted.
 
 ## Tools
 
-| Tool | Actions |
+| Tool | What it does |
 | --- | --- |
-| `file` | Files in folders that expire after a TTL: `upload` (into a new folder, or with `id` into an existing one; text as `textContent`, anything else as `base64Content`), `download`, `get` (a folder's files and their URLs), `url` (of a folder, directory or file) `extend` (add time to a folder) and `pin` (give a folder a PIN visitors must enter) |
+| `uploadFile` | Uploads a file into a new folder that expires after a TTL, or with `folderId` into an existing one; text as `textContent`, anything else as `base64Content` |
+| `downloadFile` | Reads a file back from a folder |
+| `listFiles` | Lists a folder's files and their URLs |
+| `getUrl` | Builds the public URL of a folder, directory or file; with `pin`, a URL that carries the folder's PIN |
+| `extendFolder` | Adds time to a folder |
+| `addPinToFolder` | Gives a folder a PIN visitors must enter |
 
 Each file costs 1 credit per started MB of its size per started 30 minutes of
 its folder's remaining lifetime; extending costs the same for the added time.
 
 This table is checked against the server in CI (see
-`backend/internal/handler/mcp/plugin_docs_test.go`): a tool or action added to
-the server without being documented here fails the build.
+`backend/internal/handler/mcp/plugin_docs_test.go`): a tool added to the
+server without being documented here fails the build.

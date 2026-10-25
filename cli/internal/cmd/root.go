@@ -76,7 +76,7 @@ func newRoot(a *app) *cobra.Command {
 		Long: `tmphost uploads files to temporary public folders that expire on their own.
 
 Sign in with "tmphost login", which opens the browser. The "file" commands
-mirror the "file" tool of the server's MCP endpoint.`,
+mirror the tools of the server's MCP endpoint.`,
 		Version:       a.opts.Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,

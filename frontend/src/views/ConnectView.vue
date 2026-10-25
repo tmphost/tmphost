@@ -15,6 +15,9 @@ const INSTALL_BASE = 'https://raw.githubusercontent.com/tmphost/tmphost/main'
 // How long the check mark replaces the copy icon.
 const COPIED_MS = 1500
 
+// The MCP server's tools, one per operation.
+const MCP_TOOLS = ['uploadFile', 'downloadFile', 'listFiles', 'getUrl', 'extendFolder', 'addPinToFolder']
+
 const ICON_BUTTON =
   'absolute right-1.5 inline-flex items-center justify-center size-7 rounded-lg text-gray-400 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-zinc-100 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors'
 const ICONS = {
@@ -154,9 +157,8 @@ const active = computed(() => SECTIONS.value.find((section) => section.id === ro
           class="mt-1 text-xs text-gray-500 dark:text-zinc-400"
           data-test="connect-mcp-tool"
         >
-          It exposes one tool, <code class="font-mono text-gray-900 dark:text-zinc-100">file</code>, with the actions
-          <code class="font-mono text-gray-900 dark:text-zinc-100">upload</code>, <code class="font-mono text-gray-900 dark:text-zinc-100">download</code>,
-          <code class="font-mono text-gray-900 dark:text-zinc-100">get</code> and <code class="font-mono text-gray-900 dark:text-zinc-100">url</code>.
+          It exposes the tools
+          <template v-for="(tool, i) in MCP_TOOLS" :key="tool"><code class="font-mono text-gray-900 dark:text-zinc-100">{{ tool }}</code>{{ i === MCP_TOOLS.length - 1 ? '.' : i === MCP_TOOLS.length - 2 ? ' and ' : ', ' }}</template>
         </p>
 
         <div v-for="snippet in active.snippets" :key="snippet.id" class="mt-4">

@@ -5,6 +5,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"image"
 	_ "image/png"
@@ -21,12 +22,20 @@ import (
 // The plugins under plugin/ describe this server's tools to the agent; check
 // they don't drift from what it registers.
 
-var (
-	// `mcp.AddTool(server, &mcp.Tool{Name: "file"`.
-	_toolRe = regexp.MustCompile(`mcp\.AddTool\(server, &mcp\.Tool\{\s*Name:\s*"([^"]+)"`)
-	// A leading table cell holding a backticked identifier.
-	_docRowRe = regexp.MustCompile("(?m)^\\| `([a-zA-Z]+)`")
-)
+// A leading table cell holding a backticked identifier.
+var _docRowRe = regexp.MustCompile("(?m)^\\| `([a-zA-Z]+)`")
+
+// registeredTools names the tools the server lists.
+func registeredTools(t *testing.T) []string {
+	t.Helper()
+	rs, err := newEnv(t).session.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	names := make([]string, len(rs.Tools))
+	for i, tool := range rs.Tools {
+		names[i] = tool.Name
+	}
+	return names
+}
 
 // repoRoot walks up from the test's directory to the one holding the
 // Gemini CLI extension's manifest.
@@ -60,15 +69,14 @@ func matches(re *regexp.Regexp, s string) []string {
 }
 
 func TestPluginDocsListExactlyTheRegisteredTools(t *testing.T) {
-	registered := matches(_toolRe, readFile(t, "mcp.go"))
-	require.NotEmpty(t, registered, "no tools found in mcp.go; has the registration format changed?")
-
+	registered := registeredTools(t)
 	documented := matches(_docRowRe, readFile(t, filepath.Join(repoRoot(t), "plugin", "gemini", "README.md")))
 	assert.ElementsMatch(t, registered, documented)
 }
 
-func TestPluginDocsNameEveryAction(t *testing.T) {
+func TestPluginDocsNameEveryTool(t *testing.T) {
 	root := repoRoot(t)
+	registered := registeredTools(t)
 	docs := []string{
 		"plugin/claude/skills/tmphost/SKILL.md",
 		"plugin/codex/skills/tmphost/SKILL.md",
@@ -79,8 +87,8 @@ func TestPluginDocsNameEveryAction(t *testing.T) {
 	for _, doc := range docs {
 		t.Run(doc, func(t *testing.T) {
 			text := readFile(t, filepath.Join(root, doc))
-			for _, action := range inputSchema().Properties["action"].Enum {
-				assert.Contains(t, text, "`"+action.(string)+"`", "%s doesn't document the %q action", doc, action)
+			for _, tool := range registered {
+				assert.Contains(t, text, "`"+tool+"`", "%s doesn't document the %q tool", doc, tool)
 			}
 		})
 	}
@@ -104,7 +112,7 @@ func TestCodexReviewCasesNameRegisteredTools(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(readFile(t, filepath.Join(repoRoot(t), "plugin", "codex", "plugin.json"))), &manifest))
 
-	registered := matches(_toolRe, readFile(t, "mcp.go"))
+	registered := registeredTools(t)
 	cases := manifest.Extensions.OpenAI.Review.TestCases.Positive
 	require.NotEmpty(t, cases)
 	for i, c := range cases {

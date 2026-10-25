@@ -197,7 +197,7 @@ func TestUpload_newFolder(t *testing.T) {
 
 	assert.Equal(t, 0, h.run("file", "upload", filepath.Join(root, "site")+"/", "--path", "/www/", "--json"), h.stderr.String())
 	assert.Equal(t, map[string]any{
-		"id": "rs", "url": "https://rs-u1.tmphost.test/", "expiresAt": "2026-10-18T12:30:00Z", "creditsSpent": float64(2),
+		"folderId": "rs", "url": "https://rs-u1.tmphost.test/", "expiresAt": "2026-10-18T12:30:00Z", "creditsSpent": float64(2),
 		"files": []any{
 			map[string]any{"fileName": "index.html", "path": "www", "size": float64(4), "url": "https://rs-u1.tmphost.test/www/index.html"},
 			map[string]any{"fileName": "my page.html", "path": "www", "size": float64(1), "url": "https://rs-u1.tmphost.test/www/my page.html"},
@@ -214,7 +214,7 @@ func TestUpload_singleFileJSON(t *testing.T) {
 	assert.Equal(t, 120, f.ttl)
 	assert.Equal(t, map[string]string{"rs/logs/x/today.txt": "abc"}, f.puts)
 	v := h.decode()
-	assert.Equal(t, "rs", v["id"])
+	assert.Equal(t, "rs", v["folderId"])
 	assert.Equal(t, "https://rs-u1.tmphost.test/logs/x/today.txt", v["url"])
 	assert.Equal(t, "today.txt", v["fileName"])
 	assert.Equal(t, "logs/x", v["path"])
@@ -332,7 +332,7 @@ func TestUpload_partialFailure(t *testing.T) {
 	assert.Equal(t, 1, h.run("file", "upload", filepath.Join(root, "site"), "--json"))
 	v := h.decode()
 	assert.Len(t, v["files"], 1)
-	assert.Equal(t, "rs", v["id"])
+	assert.Equal(t, "rs", v["folderId"])
 }
 
 func TestUpload_unreadableFile(t *testing.T) {
