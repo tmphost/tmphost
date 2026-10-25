@@ -222,12 +222,12 @@ func New(p Params) http.Handler {
 		Icons:       icons(),
 	}, &mcp.ServerOptions{Instructions: _instructions, Capabilities: capabilities()})
 	t := &tools{folders: p.Folders}
-	mcp.AddTool(server, &mcp.Tool{Name: ToolUploadFile, Title: "Upload a file", Description: _uploadFileDescription, InputSchema: inputSchema[UploadFileInput](), Annotations: writeAnnotations("Upload a file", true, true), Icons: icons()}, handle(t.uploadFile))
-	mcp.AddTool(server, &mcp.Tool{Name: ToolDownloadFile, Title: "Download a file", Description: _downloadFileDescription, InputSchema: inputSchema[DownloadFileInput](), Annotations: readAnnotations("Download a file"), Icons: icons()}, handle(t.downloadFile))
-	mcp.AddTool(server, &mcp.Tool{Name: ToolListFiles, Title: "List a folder's files", Description: _listFilesDescription, Annotations: readAnnotations("List a folder's files"), Icons: icons()}, handle(t.listFiles))
-	mcp.AddTool(server, &mcp.Tool{Name: ToolGetURL, Title: "Get a public URL", Description: _getURLDescription, Annotations: readAnnotations("Get a public URL"), Icons: icons()}, handle(t.getURL))
-	mcp.AddTool(server, &mcp.Tool{Name: ToolExtendFolder, Title: "Extend a folder", Description: _extendFolderDescription, Annotations: writeAnnotations("Extend a folder", false, true), Icons: icons()}, handle(t.extendFolder))
-	mcp.AddTool(server, &mcp.Tool{Name: ToolAddPinToFolder, Title: "Add a PIN to a folder", Description: _addPinToFolderDescription, Annotations: writeAnnotations("Add a PIN to a folder", true, false), Icons: icons()}, handle(t.addPinToFolder))
+	mcp.AddTool(server, &mcp.Tool{Name: ToolUploadFile, Title: "Upload a file", Description: _uploadFileDescription, InputSchema: schemaFor[UploadFileInput](), OutputSchema: schemaFor[UploadFileOutput](), Annotations: writeAnnotations("Upload a file", true, true), Icons: icons()}, handle(t.uploadFile))
+	mcp.AddTool(server, &mcp.Tool{Name: ToolDownloadFile, Title: "Download a file", Description: _downloadFileDescription, InputSchema: schemaFor[DownloadFileInput](), OutputSchema: schemaFor[DownloadFileOutput](), Annotations: readAnnotations("Download a file"), Icons: icons()}, handle(t.downloadFile))
+	mcp.AddTool(server, &mcp.Tool{Name: ToolListFiles, Title: "List a folder's files", Description: _listFilesDescription, InputSchema: schemaFor[FolderInput](), OutputSchema: schemaFor[ListFilesOutput](), Annotations: readAnnotations("List a folder's files"), Icons: icons()}, handle(t.listFiles))
+	mcp.AddTool(server, &mcp.Tool{Name: ToolGetURL, Title: "Get a public URL", Description: _getURLDescription, InputSchema: schemaFor[GetURLInput](), OutputSchema: schemaFor[GetURLOutput](), Annotations: readAnnotations("Get a public URL"), Icons: icons()}, handle(t.getURL))
+	mcp.AddTool(server, &mcp.Tool{Name: ToolExtendFolder, Title: "Extend a folder", Description: _extendFolderDescription, InputSchema: schemaFor[ExtendFolderInput](), OutputSchema: schemaFor[ExtendFolderOutput](), Annotations: writeAnnotations("Extend a folder", false, true), Icons: icons()}, handle(t.extendFolder))
+	mcp.AddTool(server, &mcp.Tool{Name: ToolAddPinToFolder, Title: "Add a PIN to a folder", Description: _addPinToFolderDescription, InputSchema: schemaFor[FolderInput](), OutputSchema: schemaFor[AddPinToFolderOutput](), Annotations: writeAnnotations("Add a PIN to a folder", true, false), Icons: icons()}, handle(t.addPinToFolder))
 	_skills.register(server)
 
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{
@@ -294,13 +294,40 @@ func writeAnnotations(title string, destructive, openWorld bool) *mcp.ToolAnnota
 	return &mcp.ToolAnnotations{Title: title, DestructiveHint: new(destructive), OpenWorldHint: new(openWorld)}
 }
 
-// inputSchema infers a tool's input schema, limiting format to the known
-// content formats.
-func inputSchema[In any]() *jsonschema.Schema {
-	// The inputs are plain structs, so inference cannot fail.
-	s, _ := jsonschema.For[In](nil)
-	s.Properties["format"].Enum = []any{FormatBase64, FormatText}
+// schemaFor infers a tool's input or output schema, limiting format to the
+// known content formats and spelling nullable fields portably.
+func schemaFor[T any]() *jsonschema.Schema {
+	// The inputs and outputs are plain structs, so inference cannot fail.
+	s, _ := jsonschema.For[T](nil)
+	if f := s.Properties["format"]; f != nil {
+		f.Enum = []any{FormatBase64, FormatText}
+	}
+	singleTypes(s)
 	return s
+}
+
+// singleTypes rewrites every `type` array the inference makes for pointers
+// and slices, such as ["null","string"], into anyOf branches of one type
+// each. Clients that map tool schemas onto a single-type dialect (like
+// Gemini's OpenAPI subset) refuse or mishandle type arrays.
+func singleTypes(s *jsonschema.Schema) {
+	for _, p := range s.Properties {
+		singleTypes(p)
+	}
+	if s.Items != nil {
+		singleTypes(s.Items)
+	}
+	if len(s.Types) < 2 {
+		return
+	}
+	for _, typ := range s.Types {
+		branch := &jsonschema.Schema{Type: typ}
+		if typ == "array" {
+			branch.Items = s.Items
+		}
+		s.AnyOf = append(s.AnyOf, branch)
+	}
+	s.Types, s.Items = nil, nil
 }
 
 // handle adapts a tool method to the SDK, passing it the caller from the

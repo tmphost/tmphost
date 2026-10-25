@@ -172,6 +172,55 @@ func TestListTools(t *testing.T) {
 	}
 }
 
+func TestListTools_SingleTypes(t *testing.T) {
+	rs, err := newEnv(t).session.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	schemas := map[string]map[string]any{}
+	for _, tool := range rs.Tools {
+		for kind, schema := range map[string]any{"input": tool.InputSchema, "output": tool.OutputSchema} {
+			b, _ := json.Marshal(schema)
+			var v map[string]any
+			require.NoError(t, json.Unmarshal(b, &v))
+			assertSingleTypes(t, tool.Name+" "+kind, v)
+			schemas[tool.Name+" "+kind] = v
+		}
+	}
+
+	nullableString := map[string]any{"anyOf": []any{map[string]any{"type": "null"}, map[string]any{"type": "string"}}}
+	download := schemas["downloadFile output"]["properties"].(map[string]any)
+	assert.Equal(t, nullableString, download["base64Content"])
+	assert.Equal(t, nullableString, download["textContent"])
+	upload := schemas["uploadFile input"]["properties"].(map[string]any)
+	assert.Equal(t, nullableString["anyOf"], upload["textContent"].(map[string]any)["anyOf"])
+	assert.NotEmpty(t, upload["textContent"].(map[string]any)["description"], "the description stays on the property")
+
+	files := schemas["listFiles output"]["properties"].(map[string]any)["files"].(map[string]any)
+	branches := files["anyOf"].([]any)
+	require.Len(t, branches, 2)
+	assert.Equal(t, map[string]any{"type": "null"}, branches[0])
+	assert.Equal(t, "array", branches[1].(map[string]any)["type"])
+	assert.Equal(t, "object", branches[1].(map[string]any)["items"].(map[string]any)["type"], "the array branch keeps the items")
+}
+
+// assertSingleTypes fails on any `type` keyword in a schema that is not a
+// single string.
+func assertSingleTypes(t *testing.T, where string, v any) {
+	t.Helper()
+	switch v := v.(type) {
+	case map[string]any:
+		if typ, ok := v["type"]; ok {
+			assert.IsType(t, "", typ, where)
+		}
+		for key, child := range v {
+			assertSingleTypes(t, where+"."+key, child)
+		}
+	case []any:
+		for _, child := range v {
+			assertSingleTypes(t, where, child)
+		}
+	}
+}
+
 func TestInitialize(t *testing.T) {
 	e := newEnv(t)
 	rs := e.session.InitializeResult()
