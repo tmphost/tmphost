@@ -78,6 +78,7 @@ func TestPluginDocsNameEveryTool(t *testing.T) {
 	root := repoRoot(t)
 	registered := registeredTools(t)
 	docs := []string{
+		"backend/internal/handler/mcp/skills/tmphost/SKILL.md",
 		"plugin/claude/skills/tmphost/SKILL.md",
 		"plugin/codex/skills/tmphost/SKILL.md",
 		"plugin/codex/README.md",

@@ -182,12 +182,20 @@ func TestInitialize(t *testing.T) {
 	assertIcons(t, rs.ServerInfo.Icons)
 	assert.Equal(t, _instructions, rs.Instructions)
 	assert.Equal(t, "2026-07-28", rs.ProtocolVersion, "a client that speaks the newest protocol gets it")
-	assert.Equal(t, &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{}}, rs.Capabilities)
+	assert.Equal(t, &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{}, Resources: &mcp.ResourceCapabilities{}, Extensions: map[string]any{ExtensionSkills: map[string]any{}}}, rs.Capabilities)
 }
 
 // rpc posts one JSON-RPC request as a client speaking version would,
-// returning the result or error object.
+// returning the result object.
 func rpc(t *testing.T, version, method, params string) map[string]any {
+	t.Helper()
+	result, rpcErr := rpcCall(t, version, method, params)
+	require.Nil(t, rpcErr)
+	return result
+}
+
+// rpcCall is rpc that returns the error object too.
+func rpcCall(t *testing.T, version, method, params string) (map[string]any, map[string]any) {
 	t.Helper()
 	mc := gomock.NewController(t)
 	authn := mockauth.NewMockController(mc)
@@ -212,8 +220,14 @@ func rpc(t *testing.T, version, method, params string) map[string]any {
 		Error  map[string]any `json:"error"`
 	}
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&rs))
-	require.Nil(t, rs.Error)
-	return rs.Result
+	return rs.Result, rs.Error
+}
+
+// _wantCapabilities is what every handshake advertises.
+var _wantCapabilities = map[string]any{
+	"tools":      map[string]any{},
+	"resources":  map[string]any{},
+	"extensions": map[string]any{"io.modelcontextprotocol/skills": map[string]any{}},
 }
 
 // The stateless 2026-07-28 protocol has no handshake: server/discover
@@ -222,7 +236,7 @@ func TestDiscover(t *testing.T) {
 	meta := `{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"}}}`
 	rs := rpc(t, "2026-07-28", "server/discover", meta)
 	assert.Equal(t, []any{"2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"}, rs["supportedVersions"])
-	assert.Equal(t, map[string]any{"tools": map[string]any{}}, rs["capabilities"], "tools only, no list_changed or logging notifications")
+	assert.Equal(t, _wantCapabilities, rs["capabilities"], "tools and skills, no list_changed or logging notifications")
 	assert.Equal(t, _instructions, rs["instructions"])
 
 	rs = rpc(t, "2026-07-28", "tools/list", meta)
@@ -239,7 +253,7 @@ func TestInitialize_Negotiation(t *testing.T) {
 	} {
 		rs := rpc(t, "", "initialize", `{"protocolVersion":"`+asked+`","capabilities":{},"clientInfo":{"name":"test","version":"1"}}`)
 		assert.Equal(t, want, rs["protocolVersion"], asked)
-		assert.Equal(t, map[string]any{"tools": map[string]any{}}, rs["capabilities"], asked)
+		assert.Equal(t, _wantCapabilities, rs["capabilities"], asked)
 	}
 }
 

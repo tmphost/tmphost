@@ -5,7 +5,8 @@
 // Package mcp is the stateless MCP (streamable HTTP) transport. It offers
 // one tool per operation (uploadFile, downloadFile, listFiles, getUrl,
 // extendFolder, addPinToFolder), mirroring the `tmphost file` CLI commands; each
-// takes only the arguments its operation needs.
+// takes only the arguments its operation needs. It also serves the tmphost
+// Agent Skill through the MCP Skills extension (skills.go).
 package mcp
 
 import (
@@ -66,7 +67,8 @@ const _instructions = `tmphost.io hosts files for a limited time: use it to shar
 - Anything uploaded is public to whoever has the URL until the folder expires: never upload secrets or private data unless the user asks to.
 - Give the user the url from the result; use listFiles to list a folder, downloadFile to read a file back, and getUrl to build links without uploading.
 - To share a Markdown file (.md) as a readable web page, give its url with ?format=html appended.
-- A folder can be guarded by a 6 digit PIN that visitors enter once (pinMode in the result). When the result carries pin, give it to the user with the url: it is shown only once. A link with ?pin=<pin> appended opens the folder without asking (getUrl with pin builds one; the server cannot recover a PIN later). Pass pin true to the first uploadFile, or call addPinToFolder, when the user wants the files kept from anyone without the PIN.`
+- A folder can be guarded by a 6 digit PIN that visitors enter once (pinMode in the result). When the result carries pin, give it to the user with the url: it is shown only once. A link with ?pin=<pin> appended opens the folder without asking (getUrl with pin builds one; the server cannot recover a PIN later). Pass pin true to the first uploadFile, or call addPinToFolder, when the user wants the files kept from anyone without the PIN.
+- The skill at skill://tmphost/SKILL.md (skills/list, resources/read) has the full best practices: load it before a multi-file site, a PIN-guarded folder or an update to shared files.`
 
 type (
 	// Params are the transport's dependencies.
@@ -226,6 +228,7 @@ func New(p Params) http.Handler {
 	mcp.AddTool(server, &mcp.Tool{Name: ToolGetURL, Title: "Get a public URL", Description: _getURLDescription, Annotations: readAnnotations("Get a public URL"), Icons: icons()}, handle(t.getURL))
 	mcp.AddTool(server, &mcp.Tool{Name: ToolExtendFolder, Title: "Extend a folder", Description: _extendFolderDescription, Annotations: writeAnnotations("Extend a folder", false, true), Icons: icons()}, handle(t.extendFolder))
 	mcp.AddTool(server, &mcp.Tool{Name: ToolAddPinToFolder, Title: "Add a PIN to a folder", Description: _addPinToFolderDescription, Annotations: writeAnnotations("Add a PIN to a folder", true, false), Icons: icons()}, handle(t.addPinToFolder))
+	_skills.register(server)
 
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{
 		Stateless:           true,
@@ -238,15 +241,21 @@ func New(p Params) http.Handler {
 	})(handler)
 }
 
-// capabilities advertise a stateless server: tools only, and no
-// notifications, as there is no session to send them on (no logging, and
-// the tool list never changes while the server runs). Every protocol version
+// capabilities advertise a stateless server: tools, and the skill files as
+// resources with the Skills extension, but no notifications, as there is no
+// session to send them on (no logging, and the tool and resource lists never
+// change while the server runs). Every protocol version
 // the SDK speaks is offered, newest first, so a client that supports the
 // stateless 2026-07-28 protocol (server/discover, no initialize handshake)
 // gets it, and older clients negotiate their own.
 func capabilities() *mcp.ServerCapabilities {
-	return &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{ListChanged: false}}
+	caps := &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{ListChanged: false}, Resources: &mcp.ResourceCapabilities{ListChanged: false}}
+	caps.AddExtension(ExtensionSkills, nil)
+	return caps
 }
+
+// _skills are the built-in skills, loaded once.
+var _skills = mustLoadSkills(_skillFiles)
 
 // _extraAgent is the token info Extra key that names the OAuth client.
 const _extraAgent = "agent"
