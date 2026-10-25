@@ -238,7 +238,7 @@ func New(p Params) http.Handler {
 	return auth.RequireBearerToken(verifier(p.Auth), &auth.RequireBearerTokenOptions{
 		ResourceMetadataURL:    p.ResourceMetadataURL,
 		AllowMissingExpiration: true,
-	})(handler)
+	})(negotiate(handler, p.MaxBodyBytes))
 }
 
 // capabilities advertise a stateless server: tools, and the skill files as
