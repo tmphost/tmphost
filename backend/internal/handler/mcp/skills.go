@@ -15,6 +15,8 @@ import (
 	"io/fs"
 	"mime"
 	"path"
+	"slices"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -24,15 +26,19 @@ import (
 )
 
 // ExtensionSkills is the MCP Skills extension (SEP-2640): the server lists
-// its Agent Skills with skills/list and skills/get, and serves their files
-// as resources.
+// its Agent Skills with skills/list and skills/get, serves their files as
+// resources, and lists their directories with resources/directory/read.
 const ExtensionSkills = "io.modelcontextprotocol/skills"
 
 // The skills methods.
 const (
-	MethodSkillsList = "skills/list"
-	MethodSkillsGet  = "skills/get"
+	MethodSkillsList    = "skills/list"
+	MethodSkillsGet     = "skills/get"
+	MethodDirectoryRead = "resources/directory/read"
 )
+
+// MIMETypeDirectory marks a directory resource.
+const MIMETypeDirectory = "inode/directory"
 
 const (
 	// _skillsRoot holds one directory per skill, named after it.
@@ -99,11 +105,29 @@ type (
 		Skill      SkillEntry `json:"skill"`
 	}
 
-	// skillSet is the loaded skills: their entries in name order, and every
-	// file's bytes by URI.
+	// DirectoryReadParams are resources/directory/read's parameters. Every
+	// directory fits on one page, so the cursor is never set by the server.
+	DirectoryReadParams struct {
+		mcp.ParamsBase
+		URI    string `json:"uri"`
+		Cursor string `json:"cursor,omitempty"`
+	}
+
+	// DirectoryReadResult is resources/directory/read's result: the
+	// directory's direct children, subdirectories as directory resources.
+	DirectoryReadResult struct {
+		mcp.ResultBase
+		mcp.Cacheable
+		ResultType string          `json:"resultType"`
+		Resources  []*mcp.Resource `json:"resources"`
+	}
+
+	// skillSet is the loaded skills: their entries in name order, every
+	// file's bytes by URI, and every directory's children by URI.
 	skillSet struct {
 		entries []SkillEntry
 		files   map[string][]byte
+		dirs    map[string][]*mcp.Resource
 	}
 )
 
@@ -125,7 +149,41 @@ func loadSkills(fsys fs.FS, root string) (*skillSet, error) {
 		}
 		set.entries = append(set.entries, entry)
 	}
+	set.index()
 	return set, nil
+}
+
+// index lists every directory of every skill, the skill root included,
+// with its direct children in URI order.
+func (s *skillSet) index() {
+	children := map[string]map[string]*mcp.Resource{}
+	for _, entry := range s.entries {
+		for _, r := range entry.Resources {
+			child := fileResource(r)
+			for dir := path.Dir(strings.TrimPrefix(r.URI, _skillScheme)); dir != "."; dir = path.Dir(dir) {
+				uri := _skillScheme + dir
+				if children[uri] == nil {
+					children[uri] = map[string]*mcp.Resource{}
+				}
+				children[uri][child.URI] = child
+				child = &mcp.Resource{URI: uri, Name: dir, MIMEType: MIMETypeDirectory}
+			}
+		}
+	}
+	s.dirs = map[string][]*mcp.Resource{}
+	for uri, byURI := range children {
+		list := make([]*mcp.Resource, 0, len(byURI))
+		for _, child := range byURI {
+			list = append(list, child)
+		}
+		slices.SortFunc(list, func(a, b *mcp.Resource) int { return strings.Compare(a.URI, b.URI) })
+		s.dirs[uri] = list
+	}
+}
+
+// fileResource is a skill file's resource metadata.
+func fileResource(r SkillResource) *mcp.Resource {
+	return &mcp.Resource{URI: r.URI, Name: r.URI[len(_skillScheme):], MIMEType: skillMIMEType(r.URI), Size: int64(r.Size)}
 }
 
 // loadSkill reads one skill's files, SKILL.md first, into the set.
@@ -193,16 +251,17 @@ func mustLoadSkills(fsys fs.FS) *skillSet {
 }
 
 // register serves the skills on server: their files as resources, and the
-// skills/list and skills/get methods.
+// skills/list, skills/get and resources/directory/read methods.
 func (s *skillSet) register(server *mcp.Server) {
 	for _, entry := range s.entries {
 		for _, r := range entry.Resources {
-			server.AddResource(&mcp.Resource{URI: r.URI, Name: r.URI[len(_skillScheme):], MIMEType: skillMIMEType(r.URI), Size: int64(r.Size)}, s.read)
+			server.AddResource(fileResource(r), s.read)
 		}
 	}
-	// Neither name shadows a standard MCP method, so registering can't fail.
+	// No name shadows a standard MCP method, so registering can't fail.
 	_ = mcp.AddReceivingCustomMethod(server, MethodSkillsList, s.list)
 	_ = mcp.AddReceivingCustomMethod(server, MethodSkillsGet, s.get)
+	_ = mcp.AddReceivingCustomMethod(server, MethodDirectoryRead, s.readDirectory)
 }
 
 // skillMIMEType names a skill file's type from its extension.
@@ -247,4 +306,14 @@ func (s *skillSet) get(_ context.Context, _ *mcp.ServerSession, params *SkillsGe
 		}
 	}
 	return nil, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: fmt.Sprintf("unknown skill %q", params.URI)}
+}
+
+// readDirectory lists a skill directory's direct children. A URI that is
+// not a directory, a file's included, is invalid params, as SEP-2640 says.
+func (s *skillSet) readDirectory(_ context.Context, _ *mcp.ServerSession, params *DirectoryReadParams) (*DirectoryReadResult, error) {
+	children, ok := s.dirs[params.URI]
+	if !ok {
+		return nil, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: fmt.Sprintf("not a directory %q", params.URI)}
+	}
+	return &DirectoryReadResult{Cacheable: cacheable(), ResultType: _resultComplete, Resources: children}, nil
 }

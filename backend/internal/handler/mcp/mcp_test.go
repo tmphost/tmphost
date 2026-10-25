@@ -231,7 +231,7 @@ func TestInitialize(t *testing.T) {
 	assertIcons(t, rs.ServerInfo.Icons)
 	assert.Equal(t, _instructions, rs.Instructions)
 	assert.Equal(t, "2026-07-28", rs.ProtocolVersion, "a client that speaks the newest protocol gets it")
-	assert.Equal(t, &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{}, Resources: &mcp.ResourceCapabilities{}, Extensions: map[string]any{ExtensionSkills: map[string]any{}}}, rs.Capabilities)
+	assert.Equal(t, &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{}, Resources: &mcp.ResourceCapabilities{}, Extensions: map[string]any{ExtensionSkills: map[string]any{"directoryRead": true}}}, rs.Capabilities)
 }
 
 // rpc posts one JSON-RPC request as a client speaking version would,
@@ -276,7 +276,7 @@ func rpcCall(t *testing.T, version, method, params string) (map[string]any, map[
 var _wantCapabilities = map[string]any{
 	"tools":      map[string]any{},
 	"resources":  map[string]any{},
-	"extensions": map[string]any{"io.modelcontextprotocol/skills": map[string]any{}},
+	"extensions": map[string]any{"io.modelcontextprotocol/skills": map[string]any{"directoryRead": true}},
 }
 
 // The stateless 2026-07-28 protocol has no handshake: server/discover
