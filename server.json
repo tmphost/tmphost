@@ -1,0 +1,25 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.tmphost/tmphost",
+  "title": "tmphost",
+  "description": "Host files at temporary public URLs: upload, list and link files in folders that expire.",
+  "websiteUrl": "https://tmphost.io",
+  "repository": {
+    "url": "https://github.com/tmphost/tmphost",
+    "source": "github"
+  },
+  "icons": [
+    {
+      "src": "https://tmphost.io/favicon.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": ["any"]
+    }
+  ],
+  "version": "0.1.2",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.tmphost.io/mcp"
+    }
+  ]
+}
