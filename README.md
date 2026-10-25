@@ -148,19 +148,6 @@ Its listing icon is [plugin/claude/.claude-plugin/icon.png](plugin/claude/.claud
 CI runs `claude plugin validate --strict` on both manifests and checks the
 icon and privacy policy URL.
 
-## MCP Registry
-
-[server.json](server.json) advertises the remote MCP server
-`https://mcp.tmphost.io/mcp` (Streamable HTTP) on the official
-[MCP Registry](https://registry.modelcontextprotocol.io) as
-`io.github.tmphost/tmphost`. CI validates it on pull requests and, on every
-`v*` tag, publishes it with the tag's version through GitHub OIDC
-([.github/workflows/mcp-registry.yml](.github/workflows/mcp-registry.yml)).
-
-```sh
-curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.tmphost/tmphost"
-```
-
 ## Gemini CLI extension
 
 This repository is also a [Gemini CLI](https://github.com/google-gemini/gemini-cli)
