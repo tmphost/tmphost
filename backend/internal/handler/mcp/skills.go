@@ -159,14 +159,14 @@ func (s *skillSet) index() {
 	children := map[string]map[string]*mcp.Resource{}
 	for _, entry := range s.entries {
 		for _, r := range entry.Resources {
-			child := fileResource(r)
+			child := entry.fileResource(r)
 			for dir := path.Dir(strings.TrimPrefix(r.URI, _skillScheme)); dir != "."; dir = path.Dir(dir) {
 				uri := _skillScheme + dir
 				if children[uri] == nil {
 					children[uri] = map[string]*mcp.Resource{}
 				}
 				children[uri][child.URI] = child
-				child = &mcp.Resource{URI: uri, Name: dir, MIMEType: MIMETypeDirectory}
+				child = &mcp.Resource{URI: uri, Name: dir, Description: entry.describe(uri, "directory"), MIMEType: MIMETypeDirectory}
 			}
 		}
 	}
@@ -182,8 +182,19 @@ func (s *skillSet) index() {
 }
 
 // fileResource is a skill file's resource metadata.
-func fileResource(r SkillResource) *mcp.Resource {
-	return &mcp.Resource{URI: r.URI, Name: r.URI[len(_skillScheme):], MIMEType: skillMIMEType(r.URI), Size: int64(r.Size)}
+func (e SkillEntry) fileResource(r SkillResource) *mcp.Resource {
+	return &mcp.Resource{URI: r.URI, Name: r.URI[len(_skillScheme):], Description: e.describe(r.URI, "file"), MIMEType: skillMIMEType(r.URI), Size: int64(r.Size)}
+}
+
+// describe is the description of the skill's resource at uri, a file or a
+// directory: the skill's own description for its SKILL.md and its root,
+// else what the resource is and which skill it belongs to.
+func (e SkillEntry) describe(uri, kind string) string {
+	name := e.Frontmatter["name"].(string)
+	if uri == e.URI || uri == _skillScheme+name {
+		return e.Frontmatter["description"].(string)
+	}
+	return fmt.Sprintf("The %s %s of the %s skill.", strings.TrimPrefix(uri, _skillScheme+name+"/"), kind, name)
 }
 
 // loadSkill reads one skill's files, SKILL.md first, into the set.
@@ -255,7 +266,7 @@ func mustLoadSkills(fsys fs.FS) *skillSet {
 func (s *skillSet) register(server *mcp.Server) {
 	for _, entry := range s.entries {
 		for _, r := range entry.Resources {
-			server.AddResource(fileResource(r), s.read)
+			server.AddResource(entry.fileResource(r), s.read)
 		}
 	}
 	// No name shadows a standard MCP method, so registering can't fail.

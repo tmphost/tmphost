@@ -72,7 +72,7 @@ func TestDirectoryRead(t *testing.T) {
 	assert.Equal(t, "complete", rs["resultType"])
 	assert.Equal(t, float64(3600000), rs["ttlMs"])
 	assert.Equal(t, "public", rs["cacheScope"])
-	assert.Equal(t, []any{map[string]any{"uri": _skillURI, "name": "tmphost/SKILL.md", "mimeType": "text/markdown", "size": float64(len(body))}}, rs["resources"])
+	assert.Equal(t, []any{map[string]any{"uri": _skillURI, "name": "tmphost/SKILL.md", "description": _skills.entries[0].Frontmatter["description"], "mimeType": "text/markdown", "size": float64(len(body))}}, rs["resources"])
 	assert.NotContains(t, rs, "nextCursor", "every child fits on one page")
 
 	for _, uri := range []string{_skillURI, "skill://nope", "skill://tmphost/", "skill:"} {
@@ -90,6 +90,8 @@ func TestSkillResource(t *testing.T) {
 	require.Len(t, list.Resources, 1)
 	assert.Equal(t, _skillURI, list.Resources[0].URI)
 	assert.Equal(t, "tmphost/SKILL.md", list.Resources[0].Name)
+	assert.Equal(t, _skills.entries[0].Frontmatter["description"], list.Resources[0].Description, "the SKILL.md resource has the skill's description")
+	assert.NotEmpty(t, list.Resources[0].Description)
 	assert.Equal(t, "text/markdown", list.Resources[0].MIMEType)
 
 	rs, err := e.session.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: _skillURI})
@@ -132,6 +134,22 @@ func TestLoadSkills_SupportingFiles(t *testing.T) {
 		"skill://a/references": {"skill://a/references/guide.md text/markdown"},
 	}, dirs, "every directory, the root included, lists its direct children in URI order")
 	assert.Equal(t, "a/assets", set.dirs["skill://a"][1].Name)
+
+	descriptions := map[string]string{}
+	for _, children := range set.dirs {
+		for _, c := range children {
+			descriptions[c.URI] = c.Description
+		}
+	}
+	assert.Equal(t, map[string]string{
+		"skill://a/SKILL.md":              "d",
+		"skill://a/assets":                "The assets directory of the a skill.",
+		"skill://a/references":            "The references directory of the a skill.",
+		"skill://a/assets/data.zzunknown": "The assets/data.zzunknown file of the a skill.",
+		"skill://a/assets/logo.png":       "The assets/logo.png file of the a skill.",
+		"skill://a/references/guide.md":   "The references/guide.md file of the a skill.",
+	}, descriptions, "every resource has a description")
+	assert.Equal(t, "d", entry.describe("skill://a", "directory"), "the skill root has the skill's description")
 
 	for uri, want := range map[string]string{
 		"skill://a/references/guide.md":   "text/markdown",
