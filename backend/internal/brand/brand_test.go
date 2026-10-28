@@ -7,6 +7,8 @@ package brand
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,4 +30,18 @@ func TestIcons(t *testing.T) {
 
 func TestDataURI(t *testing.T) {
 	assert.Equal(t, "data:image/png;base64,aGk=", DataURI(IconPNGType, []byte("hi")))
+}
+
+// TestVersion keeps Version in step with the release files the version bump
+// changes.
+func TestVersion(t *testing.T) {
+	for _, path := range []string{"../../../server.json", "../../../frontend/package.json"} {
+		raw, err := os.ReadFile(path)
+		require.NoError(t, err)
+		var file struct {
+			Version string `json:"version"`
+		}
+		require.NoError(t, json.Unmarshal(raw, &file))
+		assert.Equal(t, file.Version, Version, path)
+	}
 }

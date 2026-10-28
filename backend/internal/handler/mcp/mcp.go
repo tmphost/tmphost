@@ -217,6 +217,7 @@ func New(p Params) http.Handler {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:        "tmphost",
 		Title:       "tmphost.io",
+		Version:     brand.Version,
 		Description: "Temporary file hosting: upload files and static sites to public URLs that expire.",
 		WebsiteURL:  "https://tmphost.io",
 		Icons:       icons(),
