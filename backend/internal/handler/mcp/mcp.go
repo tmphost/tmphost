@@ -52,7 +52,7 @@ const (
 const (
 	_uploadFileDescription     = `Store a file in a temporary folder and get its public URL. Without folderId a new folder is created that lives for ttl (default 30m); pin true gives it a 6 digit PIN visitors must enter. With folderId the file goes into that folder, and a file already at that path is replaced in place (its url stays the same). Put the content in base64Content or, for UTF-8 text with format textContent, in textContent. Returns folderId and the file's url; when this call created the folder, also expiresAt, pinMode if a PIN guards it, and pin if this call made the folder's own PIN. Costs 1 credit per started MB of the file per started 30 minutes of the folder's remaining lifetime.`
 	_downloadFileDescription   = `Read a file from one of your folders. Name it by fileName and path as listFiles returns them. Returns the file's folderId, fileName, path and size in bytes, with its content in base64Content or, for UTF-8 text with format textContent, in textContent; a file that is not UTF-8 fails with format textContent.`
-	_listFilesDescription      = `List a folder's files with their paths, sizes and public URLs, and the folder's url and expiry.`
+	_listFilesDescription      = `List the files in one of your folders. Returns the folder's url, expiresAt and pinMode (when a PIN guards it), and files: one entry per file, sorted by full path, with its fileName, the directory path that holds it, its size in bytes, its public url and the agent that last wrote it. Pass a file's fileName and path to downloadFile or getUrl.`
 	_getURLDescription         = `Build the public URL of one of your folders, a directory in it (path) or a file in it (fileName, optional path) without uploading anything; it does not check that the directory or file exists (use listFiles for that). Returns the url, the folder's folderId and expiresAt (the link stops working then), the fileName and path it was built for, and pinMode when a PIN guards the folder. Pass the pin from uploadFile or addPinToFolder to get a url that carries it as ?pin=, so visitors skip the PIN page; the server keeps only a hash of a PIN, so it cannot put one in the url by itself, and it does not check the pin you pass. Fails with pin when no PIN guards the folder or it is guarded by an authenticator (totp) code.`
 	_extendFolderDescription   = `Make a folder expire later by extendBy, such as 1h; its remaining lifetime can't exceed the max TTL. Returns the folder's url, its new expiresAt and the creditsSpent on this call. Costs, for each file in the folder, 1 credit per started MB per started 30 minutes of the added time; an empty folder is free. Fails, adding no time, when the user lacks the credits.`
 	_addPinToFolderDescription = `Give one of your folders a new 6 digit PIN that visitors must enter before they see its files; it replaces the folder's old PIN. Returns the new pin (shown only this once: the server keeps just a hash, so give it to the user now or pass it to getUrl), the folder's url and expiresAt, and pinMode folder. Fails when the owner's account PIN already guards every folder.`
@@ -139,26 +139,26 @@ type (
 
 	// FolderInput is the arguments of the tools that take only a folder.
 	FolderInput struct {
-		FolderID string `json:"folderId" jsonschema:"id of a folder you own, as uploadFile returned it in folderId, such as 1a2b3c4d"`
+		FolderID string `json:"folderId" jsonschema:"id of a folder you own: the 8 lowercase letters and digits that uploadFile returned in folderId, such as 1a2b3c4d"`
 	}
 
 	// ListFilesOutput is listFiles' result.
 	ListFilesOutput struct {
-		FolderID  string     `json:"folderId"`
-		URL       string     `json:"url"`
-		ExpiresAt string     `json:"expiresAt"`
-		PinMode   string     `json:"pinMode,omitempty"`
-		Files     []FileInfo `json:"files"`
+		FolderID  string     `json:"folderId" jsonschema:"the folder's id, as passed in"`
+		URL       string     `json:"url" jsonschema:"the folder's public URL, ending with a slash; it serves index.html when the folder has one at its root"`
+		ExpiresAt string     `json:"expiresAt" jsonschema:"when the folder and its files expire, as an RFC 3339 UTC time"`
+		PinMode   string     `json:"pinMode,omitempty" jsonschema:"the PIN visitors must enter: folder for the folder's own PIN, static or totp for the owner's account PIN; absent when no PIN guards the folder"`
+		Files     []FileInfo `json:"files" jsonschema:"the folder's files, sorted by full path; empty when it has none"`
 	}
 
 	// FileInfo is a file in a listFiles listing.
 	FileInfo struct {
-		FileName string `json:"fileName"`
-		Path     string `json:"path"`
-		Size     int64  `json:"size"`
-		URL      string `json:"url"`
+		FileName string `json:"fileName" jsonschema:"the file's name, without directories"`
+		Path     string `json:"path" jsonschema:"the directory inside the folder that holds the file, such as site/css; empty for the folder root"`
+		Size     int64  `json:"size" jsonschema:"the file's size in bytes"`
+		URL      string `json:"url" jsonschema:"the file's public URL"`
 		// Agent names what last wrote the file.
-		Agent string `json:"agent,omitempty"`
+		Agent string `json:"agent,omitempty" jsonschema:"what last wrote the file: the OAuth client's name, or Web for the web app; absent when unknown"`
 	}
 
 	// GetURLInput is getUrl's arguments.
