@@ -50,7 +50,7 @@ const (
 )
 
 const (
-	_uploadFileDescription     = `Store a file in a temporary folder and get its public URL. Without folderId a new folder is created that lives for ttl (default 30m); pin true gives it a 6 digit PIN visitors must enter. With folderId the file goes into that folder, and a file already at that path is replaced in place (its url stays the same). Put the content in base64Content or, for UTF-8 text with format textContent, in textContent. Returns folderId and url, and pinMode when a PIN guards the folder, with pin when this call made it. Costs 1 credit per started MB of the file per started 30 minutes of the folder's remaining lifetime.`
+	_uploadFileDescription     = `Store a file in a temporary folder and get its public URL. Without folderId a new folder is created that lives for ttl (default 30m); pin true gives it a 6 digit PIN visitors must enter. With folderId the file goes into that folder, and a file already at that path is replaced in place (its url stays the same). Put the content in base64Content or, for UTF-8 text with format textContent, in textContent. Returns folderId and the file's url; when this call created the folder, also expiresAt, pinMode if a PIN guards it, and pin if this call made the folder's own PIN. Costs 1 credit per started MB of the file per started 30 minutes of the folder's remaining lifetime.`
 	_downloadFileDescription   = `Read a file from one of your folders. Name it by fileName and path as listFiles returns them. Returns the file's folderId, fileName, path and size in bytes, with its content in base64Content or, for UTF-8 text with format textContent, in textContent; a file that is not UTF-8 fails with format textContent.`
 	_listFilesDescription      = `List a folder's files with their paths, sizes and public URLs, and the folder's url and expiry.`
 	_getURLDescription         = `Build the public URL of one of your folders, a directory in it (path) or a file in it (fileName, optional path) without uploading anything; it does not check that the directory or file exists (use listFiles for that). Returns the url, the folder's folderId and expiresAt (the link stops working then), the fileName and path it was built for, and pinMode when a PIN guards the folder. Pass the pin from uploadFile or addPinToFolder to get a url that carries it as ?pin=, so visitors skip the PIN page; the server keeps only a hash of a PIN, so it cannot put one in the url by itself, and it does not check the pin you pass. Fails with pin when no PIN guards the folder or it is guarded by an authenticator (totp) code.`
@@ -102,19 +102,19 @@ type (
 
 	// UploadFileOutput is uploadFile's result.
 	UploadFileOutput struct {
-		FolderID     string `json:"folderId"`
-		URL          string `json:"url"`
-		FileName     string `json:"fileName"`
-		Path         string `json:"path"`
-		Size         int64  `json:"size"`
-		CreditsSpent int    `json:"creditsSpent"`
+		FolderID     string `json:"folderId" jsonschema:"id of the folder that holds the file, newly created or as passed in; pass it as folderId to add more files or to the other tools"`
+		URL          string `json:"url" jsonschema:"the file's public URL, working until the folder expires; give it to the user"`
+		FileName     string `json:"fileName" jsonschema:"the file's name, as passed in"`
+		Path         string `json:"path" jsonschema:"the directory inside the folder that holds the file, without leading or trailing slashes; empty for the folder root"`
+		Size         int64  `json:"size" jsonschema:"the stored file's size in bytes"`
+		CreditsSpent int    `json:"creditsSpent" jsonschema:"credits this call took from the user's balance"`
 		// ExpiresAt is set when this call created the folder.
-		ExpiresAt string `json:"expiresAt,omitempty"`
+		ExpiresAt string `json:"expiresAt,omitempty" jsonschema:"when the new folder expires and its URLs stop working, as an RFC 3339 UTC time; absent when the file went into an existing folder (listFiles or getUrl return its expiry)"`
 		// PinMode names the PIN visitors must enter: totp or static for
 		// the owner's account PIN, folder for the folder's own.
-		PinMode string `json:"pinMode,omitempty"`
+		PinMode string `json:"pinMode,omitempty" jsonschema:"set when this call created the folder and a PIN guards it: folder for the folder's own PIN, static or totp for the owner's account PIN; absent otherwise"`
 		// Pin is the folder's own PIN, only from the call that made it.
-		Pin string `json:"pin,omitempty"`
+		Pin string `json:"pin,omitempty" jsonschema:"the new folder's own 6 digit PIN, when this call made one (pinMode folder); give it to the user with the url, it cannot be read back later"`
 	}
 
 	// DownloadFileInput is downloadFile's arguments.
