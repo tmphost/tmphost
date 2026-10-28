@@ -283,8 +283,10 @@ func icons() []mcp.Icon {
 }
 
 // readAnnotations describe a tool that only reads the caller's folders.
+// destructiveHint is set to false rather than left out: platform checks want
+// every hint declared as a boolean.
 func readAnnotations(title string) *mcp.ToolAnnotations {
-	return &mcp.ToolAnnotations{Title: title, ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: new(false)}
+	return &mcp.ToolAnnotations{Title: title, ReadOnlyHint: true, DestructiveHint: new(false), IdempotentHint: true, OpenWorldHint: new(false)}
 }
 
 // writeAnnotations describe a tool that changes a folder and is not safe to
