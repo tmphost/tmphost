@@ -15,6 +15,7 @@ import (
 	oauthctrl "github.com/tmphost/tmphost/backend/internal/controller/oauthserver"
 	setupctrl "github.com/tmphost/tmphost/backend/internal/controller/setup"
 	"github.com/tmphost/tmphost/backend/internal/handler/api"
+	mcphandler "github.com/tmphost/tmphost/backend/internal/handler/mcp"
 	mapper "github.com/tmphost/tmphost/backend/internal/mapper/api"
 )
 
@@ -47,9 +48,10 @@ const (
 
 // _mcpHostPaths are the paths the MCP host answers: the endpoint, the
 // OAuth metadata that MCP clients discover on the endpoint's host, the
-// MCP host issuer's registration and token endpoints, and the favicon. Its authorization
-// endpoint is on the app host, where users sign in.
-var _mcpHostPaths = []string{
+// MCP host issuer's registration and token endpoints, the server's
+// manifest and the favicon. Its authorization endpoint is on the app host,
+// where users sign in.
+var _mcpHostPaths = append([]string{
 	MCPPath,
 	api.ResourceMetadataPath,
 	api.ResourceMetadataPath + MCPPath,
@@ -57,7 +59,7 @@ var _mcpHostPaths = []string{
 	oauthctrl.RegisterPath,
 	oauthctrl.TokenPath,
 	api.FaviconPath,
-}
+}, mcphandler.ManifestPaths...)
 
 func newHosts(appURL, sitesDomain, mcpDomain string) hosts {
 	app := strings.ToLower(setupctrl.AppHost(appURL))

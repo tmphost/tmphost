@@ -17,6 +17,7 @@ import (
 
 	"github.com/tmphost/tmphost/backend/internal/brand"
 	"github.com/tmphost/tmphost/backend/internal/handler/api"
+	mcphandler "github.com/tmphost/tmphost/backend/internal/handler/mcp"
 )
 
 func TestHostsClassify(t *testing.T) {
@@ -230,4 +231,54 @@ func TestMCPEndpointURL(t *testing.T) {
 	assert.Empty(t, mcpEndpointURL("://bad", "mcp.example.com"))
 	assert.Equal(t, "https://mcp.example.com/mcp", mcpEndpointURL("https://app.example.com", "MCP.example.com"))
 	assert.Equal(t, "http://mcp.example.com:2027/mcp", mcpEndpointURL("http://app.example.com:2027", "mcp.example.com"))
+}
+
+// TestMCPDiscovery checks that the app and MCP hosts publish the server's
+// manifest, which names the MCP host's endpoint, and that a browser opening
+// the endpoint gets the setup page for the host it asked.
+func TestMCPDiscovery(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.App.BaseURL = "https://app.example.com"
+	cfg.App.SitesDomain = "example.com"
+	cfg.App.MCPDomain = "mcp.example.com"
+	a, err := New(cfg, fstest.MapFS{})
+	require.NoError(t, err)
+
+	for _, host := range []string{"app.example.com", "mcp.example.com"} {
+		for _, path := range mcphandler.ManifestPaths {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.Host = host
+			res, err := a.Handler().Test(req)
+			require.NoError(t, err)
+			body, _ := io.ReadAll(res.Body)
+			require.Equal(t, http.StatusOK, res.StatusCode, host+path)
+			assert.Equal(t, fiber.MIMEApplicationJSONCharsetUTF8, res.Header.Get(fiber.HeaderContentType))
+			assert.Equal(t, "*", res.Header.Get(fiber.HeaderAccessControlAllowOrigin))
+			assert.Equal(t, string(mcphandler.Manifest("https://mcp.example.com/mcp")), string(body), host+path)
+
+			// A client that holds it gets 304.
+			req = httptest.NewRequest(http.MethodGet, path, nil)
+			req.Host = host
+			req.Header.Set(fiber.HeaderIfNoneMatch, res.Header.Get(fiber.HeaderETag))
+			res, err = a.Handler().Test(req)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusNotModified, res.StatusCode, host+path)
+		}
+
+		req := httptest.NewRequest(http.MethodGet, MCPPath, nil)
+		req.Host = host
+		req.Header.Set(fiber.HeaderAccept, "text/html")
+		res, err := a.Handler().Test(req)
+		require.NoError(t, err)
+		body, _ := io.ReadAll(res.Body)
+		assert.Equal(t, http.StatusOK, res.StatusCode, host)
+		assert.Contains(t, string(body), "claude mcp add --transport http tmphost https://"+host+"/mcp")
+	}
+
+	// Without an MCP domain, the manifest names the app host's endpoint.
+	cfg = testConfig(t)
+	a, err = New(cfg, fstest.MapFS{})
+	require.NoError(t, err)
+	_, body := get(t, a, mcphandler.ManifestPaths[0])
+	assert.Contains(t, body, `"url": "http://localhost:3000/mcp"`)
 }

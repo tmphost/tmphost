@@ -6,6 +6,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -374,9 +375,14 @@ func New(cfg Config, web fs.FS) (*App, error) {
 			Auth:                auth,
 			MaxBodyBytes:        int64(bodyLimit),
 			ResourceMetadataURL: origin + api.ResourceMetadataPath + MCPPath,
+			EndpointURL:         origin + MCPPath,
 		}))
 	}
 	f.All(MCPPath, mcpRouter(h, newMCP(baseURL), newMCP(strings.TrimSuffix(mcpURL, MCPPath))))
+	manifest := mcpManifest(cmp.Or(mcpURL, baseURL+MCPPath))
+	for _, path := range mcphandler.ManifestPaths {
+		f.Get(path, manifest)
+	}
 	f.Get("/*", spaHandler(web, basePath))
 
 	a := &App{
@@ -423,6 +429,20 @@ func mcpEndpointURL(baseURL, mcpDomain string) string {
 		host = net.JoinHostPort(host, port)
 	}
 	return u.Scheme + "://" + host + MCPPath
+}
+
+// mcpManifest answers with the MCP server's manifest, which names endpoint
+// on every host, so clients and directories find the server from any of
+// them.
+func mcpManifest(endpoint string) fiber.Handler {
+	body := mcphandler.Manifest(endpoint)
+	etag := api.ContentETag(body)
+	return func(c fiber.Ctx) error {
+		c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSONCharsetUTF8)
+		c.Set(fiber.HeaderAccessControlAllowOrigin, "*")
+		c.Set(fiber.HeaderCacheControl, "public, max-age=3600")
+		return api.SendWithETag(c, etag, body)
+	}
 }
 
 // mcpRouter serves the MCP endpoint with the resource metadata URL of the

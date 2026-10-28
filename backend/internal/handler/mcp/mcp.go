@@ -81,6 +81,9 @@ type (
 		// ResourceMetadataURL is where clients without a token learn how
 		// to get one (RFC 9728).
 		ResourceMetadataURL string
+		// EndpointURL is the endpoint's public URL, which the setup page
+		// shows people who open it in a browser.
+		EndpointURL string
 	}
 
 	// UploadFileInput is uploadFile's arguments.
@@ -236,10 +239,10 @@ func New(p Params) http.Handler {
 		JSONResponse:        true,
 		MaxRequestBodyBytes: p.MaxBodyBytes,
 	})
-	return auth.RequireBearerToken(verifier(p.Auth), &auth.RequireBearerTokenOptions{
+	return setupPage(renderSetupPage(p.EndpointURL), auth.RequireBearerToken(verifier(p.Auth), &auth.RequireBearerTokenOptions{
 		ResourceMetadataURL:    p.ResourceMetadataURL,
 		AllowMissingExpiration: true,
-	})(negotiate(handler, p.MaxBodyBytes))
+	})(negotiate(handler, p.MaxBodyBytes)))
 }
 
 // capabilities advertise a stateless server: tools, and the skill files as
