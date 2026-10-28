@@ -190,8 +190,10 @@ func TestListTools_SingleTypes(t *testing.T) {
 
 	nullableString := map[string]any{"anyOf": []any{map[string]any{"type": "null"}, map[string]any{"type": "string"}}}
 	download := schemas["downloadFile output"]["properties"].(map[string]any)
-	assert.Equal(t, nullableString, download["base64Content"])
-	assert.Equal(t, nullableString, download["textContent"])
+	for _, field := range []string{"base64Content", "textContent"} {
+		assert.Equal(t, nullableString["anyOf"], download[field].(map[string]any)["anyOf"])
+		assert.NotEmpty(t, download[field].(map[string]any)["description"], "the description stays on the property")
+	}
 	upload := schemas["uploadFile input"]["properties"].(map[string]any)
 	assert.Equal(t, nullableString["anyOf"], upload["textContent"].(map[string]any)["anyOf"])
 	assert.NotEmpty(t, upload["textContent"].(map[string]any)["description"], "the description stays on the property")
