@@ -22,6 +22,10 @@ var (
 	IconPNG []byte
 )
 
+// Version is the tmphost release, as in server.json and frontend/package.json;
+// the MCP server reports it in its serverInfo.
+const Version = "0.1.3"
+
 // Media types of the icons.
 const (
 	FaviconType = "image/x-icon"

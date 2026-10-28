@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tmphost/tmphost/backend/internal/brand"
 	authctrl "github.com/tmphost/tmphost/backend/internal/controller/auth"
 	mockauth "github.com/tmphost/tmphost/backend/internal/controller/auth/mocks"
 	folderctrl "github.com/tmphost/tmphost/backend/internal/controller/folder"
@@ -227,6 +228,8 @@ func TestInitialize(t *testing.T) {
 	rs := e.session.InitializeResult()
 	assert.Equal(t, "tmphost", rs.ServerInfo.Name)
 	assert.Equal(t, "tmphost.io", rs.ServerInfo.Title)
+	assert.NotEmpty(t, rs.ServerInfo.Version)
+	assert.Equal(t, brand.Version, rs.ServerInfo.Version)
 	assert.Equal(t, "https://tmphost.io", rs.ServerInfo.WebsiteURL)
 	assert.NotEmpty(t, rs.ServerInfo.Description)
 	assertIcons(t, rs.ServerInfo.Icons)
@@ -288,6 +291,9 @@ func TestDiscover(t *testing.T) {
 	assert.Equal(t, []any{"2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"}, rs["supportedVersions"])
 	assert.Equal(t, _wantCapabilities, rs["capabilities"], "tools and skills, no list_changed or logging notifications")
 	assert.Equal(t, _instructions, rs["instructions"])
+	serverInfo := rs["_meta"].(map[string]any)["io.modelcontextprotocol/serverInfo"].(map[string]any)
+	assert.Equal(t, "tmphost", serverInfo["name"])
+	assert.Equal(t, brand.Version, serverInfo["version"], "the release, in every 2026-07-28 result")
 
 	rs = rpc(t, "2026-07-28", "tools/list", meta)
 	assert.Len(t, rs["tools"], 6, "served without initialize")
@@ -304,6 +310,7 @@ func TestInitialize_Negotiation(t *testing.T) {
 		rs := rpc(t, "", "initialize", `{"protocolVersion":"`+asked+`","capabilities":{},"clientInfo":{"name":"test","version":"1"}}`)
 		assert.Equal(t, want, rs["protocolVersion"], asked)
 		assert.Equal(t, _wantCapabilities, rs["capabilities"], asked)
+		assert.Equal(t, brand.Version, rs["serverInfo"].(map[string]any)["version"], asked)
 	}
 }
 
