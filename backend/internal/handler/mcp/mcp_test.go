@@ -157,6 +157,7 @@ func TestListTools(t *testing.T) {
 		a := byName[name].Annotations
 		assert.True(t, a.ReadOnlyHint, name)
 		assert.True(t, a.IdempotentHint, name)
+		assert.Equal(t, new(false), a.DestructiveHint, name)
 		assert.Equal(t, new(false), a.OpenWorldHint, name)
 	}
 	for name, want := range map[string][2]bool{
