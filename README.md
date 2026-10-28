@@ -246,7 +246,11 @@ can change the sign-up and monthly credit grants, the maximum TTL and the public
   `TMPHOSTIO_MCP_DOMAIN`) that serves only `/mcp`, its OAuth metadata and
   its OAuth register and token endpoints, so
   MCP clients connect to `https://mcp.tmphost.io/mcp`. Other hosts get a 404;
-  localhost always reaches the app.
+  localhost always reaches the app. The app and MCP hosts also publish the
+  server's manifest (the MCP Registry `server.json`, naming the MCP endpoint)
+  at `/.well-known/mcp.json` and `/mcp.json`, and a browser that opens `/mcp`
+  without a token gets a setup page (MCP clients still get the 401 that starts
+  their OAuth sign-in).
 - **TLS**: serve HTTPS on its own port (default 443) and redirect the app port
   to it. Certificates come from Let's Encrypt automatically (lego, TLS-ALPN-01
   challenge, so Let's Encrypt must reach the server on port 443), are renewed
