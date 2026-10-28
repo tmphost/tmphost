@@ -55,7 +55,7 @@ const (
 	_listFilesDescription      = `List a folder's files with their paths, sizes and public URLs, and the folder's url and expiry.`
 	_getURLDescription         = `Build the public URL of a folder, a directory in it (path) or a file (fileName, optional path) without uploading anything. pinMode says when a PIN guards the folder; pass its pin (from uploadFile or addPinToFolder) to get a url that carries it as ?pin=, so visitors skip the PIN page. The server keeps only a hash of a PIN, so it cannot put one in the url by itself.`
 	_extendFolderDescription   = `Make a folder expire later by extendBy, such as 1h; its remaining lifetime can't exceed the max TTL. Returns the new expiresAt. Costs, for each file in the folder, 1 credit per started MB per started 30 minutes of the added time; an empty folder is free.`
-	_addPinToFolderDescription = `Give a folder a new 6 digit PIN that visitors must enter, returned in pin; it replaces the folder's old PIN. Fails when the owner's account PIN already guards every folder.`
+	_addPinToFolderDescription = `Give one of your folders a new 6 digit PIN that visitors must enter before they see its files; it replaces the folder's old PIN. Returns the new pin (shown only this once: the server keeps just a hash, so give it to the user now or pass it to getUrl), the folder's url and expiresAt, and pinMode folder. Fails when the owner's account PIN already guards every folder.`
 )
 
 // _instructions tell an agent when and how to use the server.
@@ -139,7 +139,7 @@ type (
 
 	// FolderInput is the arguments of the tools that take only a folder.
 	FolderInput struct {
-		FolderID string `json:"folderId" jsonschema:"folder id, such as 1a2b3c4d"`
+		FolderID string `json:"folderId" jsonschema:"id of a folder you own, as uploadFile returned it in folderId, such as 1a2b3c4d"`
 	}
 
 	// ListFilesOutput is listFiles' result.
@@ -196,11 +196,11 @@ type (
 
 	// AddPinToFolderOutput is addPinToFolder's result.
 	AddPinToFolderOutput struct {
-		FolderID  string `json:"folderId"`
-		URL       string `json:"url"`
-		ExpiresAt string `json:"expiresAt"`
-		PinMode   string `json:"pinMode"`
-		Pin       string `json:"pin"`
+		FolderID  string `json:"folderId" jsonschema:"the folder's id, as passed in"`
+		URL       string `json:"url" jsonschema:"the folder's public URL; visitors are asked for the PIN unless ?pin=<pin> is appended"`
+		ExpiresAt string `json:"expiresAt" jsonschema:"when the folder expires, as an RFC 3339 UTC time"`
+		PinMode   string `json:"pinMode" jsonschema:"the PIN that now guards the folder: folder, for its own PIN"`
+		Pin       string `json:"pin" jsonschema:"the folder's new 6 digit PIN; it cannot be read back later"`
 	}
 
 	tools struct {
