@@ -157,3 +157,26 @@ func TestPluginPrivacyPolicy(t *testing.T) {
 	assert.Equal(t, "./.claude-plugin/icon.png", manifest.Icon)
 	assert.Contains(t, readFile(t, filepath.Join(dir, "README.md")), "[Privacy Policy](https://tmphost.io/privacy)")
 }
+
+// The plugins are Apache-2.0, unlike the AGPL server: every plugin/<client>
+// directory carries the license text, and every manifest names it.
+func TestPluginLicense(t *testing.T) {
+	root := repoRoot(t)
+	dirs, err := os.ReadDir(filepath.Join(root, "plugin"))
+	require.NoError(t, err)
+	require.NotEmpty(t, dirs)
+	for _, dir := range dirs {
+		t.Run(dir.Name(), func(t *testing.T) {
+			text := readFile(t, filepath.Join(root, "plugin", dir.Name(), "LICENSE"))
+			assert.Contains(t, text, "Apache License\n                           Version 2.0, January 2004")
+		})
+	}
+
+	for _, manifest := range []string{"plugin/claude/.claude-plugin/plugin.json", "plugin/codex/plugin.json"} {
+		var m struct {
+			License string `json:"license"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(readFile(t, filepath.Join(root, manifest))), &m))
+		assert.Equal(t, "Apache-2.0", m.License, manifest)
+	}
+}

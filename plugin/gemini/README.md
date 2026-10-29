@@ -68,3 +68,8 @@ its folder's remaining lifetime; extending costs the same for the added time.
 This table is checked against the server in CI (see
 `backend/internal/handler/mcp/plugin_docs_test.go`): a tool added to the
 server without being documented here fails the build.
+
+## License
+
+This plugin is licensed under the [Apache License 2.0](LICENSE). The tmphost
+server it connects to is AGPL-3.0-only.
