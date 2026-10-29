@@ -204,6 +204,7 @@ func TestListTools_SingleTypes(t *testing.T) {
 	assert.Equal(t, map[string]any{"type": "null"}, branches[0])
 	assert.Equal(t, "array", branches[1].(map[string]any)["type"])
 	assert.Equal(t, "object", branches[1].(map[string]any)["items"].(map[string]any)["type"], "the array branch keeps the items")
+	assert.NotEmpty(t, branches[1].(map[string]any)["items"].(map[string]any)["description"], "each files entry is described")
 }
 
 // assertSingleTypes fails on any `type` keyword in a schema that is not a
