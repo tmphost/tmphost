@@ -54,7 +54,7 @@ const (
 	_downloadFileDescription   = `Read a file from one of your folders. Name it by fileName and path as listFiles returns them. Returns the file's folderId, fileName, path and size in bytes, with its content in base64Content or, for UTF-8 text with format textContent, in textContent; a file that is not UTF-8 fails with format textContent.`
 	_listFilesDescription      = `List the files in one of your folders. Returns the folder's url, expiresAt and pinMode (when a PIN guards it), and files: one entry per file, sorted by full path, with its fileName, the directory path that holds it, its size in bytes, its public url and the agent that last wrote it. Pass a file's fileName and path to downloadFile or getUrl.`
 	_getURLDescription         = `Build the public URL of one of your folders, a directory in it (path) or a file in it (fileName, optional path) without uploading anything; it does not check that the directory or file exists (use listFiles for that). Returns the url, the folder's folderId and expiresAt (the link stops working then), the fileName and path it was built for, and pinMode when a PIN guards the folder. Pass the pin from uploadFile or addPinToFolder to get a url that carries it as ?pin=, so visitors skip the PIN page; the server keeps only a hash of a PIN, so it cannot put one in the url by itself, and it does not check the pin you pass. Fails with pin when no PIN guards the folder or it is guarded by an authenticator (totp) code.`
-	_extendFolderDescription   = `Make a folder expire later by extendBy, such as 1h; its remaining lifetime can't exceed the max TTL. Returns the folder's url, its new expiresAt and the creditsSpent on this call. Costs, for each file in the folder, 1 credit per started MB per started 30 minutes of the added time; an empty folder is free. Fails, adding no time, when the user lacks the credits.`
+	_extendFolderDescription   = `Make a folder expire later by extendBy, given in whole minutes such as 1h; its remaining lifetime can't exceed the max TTL. Returns the folder's url, its new expiresAt and the creditsSpent on this call. Costs, for each file in the folder, 1 credit per started MB per started 30 minutes of the added time; an empty folder is free. Fails, adding no time, when the user lacks the credits.`
 	_addPinToFolderDescription = `Give one of your folders a new 6 digit PIN that visitors must enter before they see its files; it replaces the folder's old PIN. Returns the new pin (shown only this once: the server keeps just a hash, so give it to the user now or pass it to getUrl), the folder's url and expiresAt, and pinMode folder. Fails when the owner's account PIN already guards every folder.`
 )
 
@@ -183,24 +183,24 @@ type (
 	// ExtendFolderInput is extendFolder's arguments.
 	ExtendFolderInput struct {
 		FolderID string `json:"folderId" jsonschema:"id of a folder you own, as uploadFile returned it in folderId, such as 1a2b3c4d"`
-		ExtendBy string `json:"extendBy" jsonschema:"time to add to the folder's current expiry, in whole minutes written as a Go duration such as 30m, 1h or 1h30m"`
+		ExtendBy string `json:"extendBy" jsonschema:"how much longer the folder should live, added to its current expiry, such as 30m, 1h or 1h30m; the credits charged grow with this added time"`
 	}
 
 	// ExtendFolderOutput is extendFolder's result.
 	ExtendFolderOutput struct {
 		FolderID     string `json:"folderId" jsonschema:"the folder's id, as passed in"`
-		URL          string `json:"url" jsonschema:"the folder's public URL, unchanged by the extension"`
-		ExpiresAt    string `json:"expiresAt" jsonschema:"when the folder now expires, as an RFC 3339 UTC time"`
-		CreditsSpent int    `json:"creditsSpent" jsonschema:"credits this call took from the user's balance; 0 for an empty folder"`
+		URL          string `json:"url" jsonschema:"the folder's public URL, the same as before the extension; its links keep working until expiresAt"`
+		ExpiresAt    string `json:"expiresAt" jsonschema:"the folder's new expiry, its old one plus extendBy, as an RFC 3339 UTC time; tell the user the files stay up until then"`
+		CreditsSpent int    `json:"creditsSpent" jsonschema:"credits this call took from the user's balance for the added time; 0 for an empty folder"`
 	}
 
 	// AddPinToFolderOutput is addPinToFolder's result.
 	AddPinToFolderOutput struct {
 		FolderID  string `json:"folderId" jsonschema:"the folder's id, as passed in"`
-		URL       string `json:"url" jsonschema:"the folder's public URL; visitors are asked for the PIN unless ?pin=<pin> is appended"`
-		ExpiresAt string `json:"expiresAt" jsonschema:"when the folder expires, as an RFC 3339 UTC time"`
-		PinMode   string `json:"pinMode" jsonschema:"the PIN that now guards the folder: folder, for its own PIN"`
-		Pin       string `json:"pin" jsonschema:"the folder's new 6 digit PIN; it cannot be read back later"`
+		URL       string `json:"url" jsonschema:"the folder's public URL, unchanged; visitors now get a PIN page there unless the link carries ?pin=<pin> (getUrl with pin builds one)"`
+		ExpiresAt string `json:"expiresAt" jsonschema:"when the folder expires, as an RFC 3339 UTC time; adding a PIN does not change it"`
+		PinMode   string `json:"pinMode" jsonschema:"always folder: the folder's own PIN now guards it, as listFiles and getUrl will report"`
+		Pin       string `json:"pin" jsonschema:"the new 6 digit PIN visitors must enter; any older PIN of the folder stops working. Give it to the user with the url now: the server keeps only a hash and cannot return it again"`
 	}
 
 	tools struct {
