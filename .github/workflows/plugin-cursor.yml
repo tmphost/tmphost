@@ -65,6 +65,16 @@ jobs:
       - name: Check the submission rules and OAuth discovery
         run: node .github/scripts/validate-cursor-plugin.mjs --live
 
+      # The validator of Cursor's official plugin template
+      # (github.com/cursor/plugin-template), pinned, run on the marketplace.
+      - name: Run the plugin template's validator
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/validate-template.mjs" \
+            "https://raw.githubusercontent.com/cursor/plugin-template/${CURSOR_TEMPLATE_SHA}/scripts/validate-template.mjs"
+          node "$RUNNER_TEMP/validate-template.mjs"
+        env:
+          CURSOR_TEMPLATE_SHA: 46216072ac5750f782f95bb325b4d12b7c3ae9c9
+
   docs:
     name: Documented tools match the server
     runs-on: ubuntu-latest

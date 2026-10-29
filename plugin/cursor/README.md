@@ -40,9 +40,12 @@ extensions spend credits from your tmphost account.
 
 ## Local development
 
-CI (`.github/workflows/plugin-cursor.yml`) checks the manifest, the MCP config,
-every rule, skill and command, and the repository marketplace, then probes
-the live server's OAuth discovery:
+The plugin follows Cursor's [plugin template](https://github.com/cursor/plugin-template):
+a plugin directory with `.cursor-plugin/plugin.json`, listed by the
+repository's `.cursor-plugin/marketplace.json`. CI
+(`.github/workflows/plugin-cursor.yml`) runs the template's validator, checks
+the manifest, the MCP config, every rule, skill and command, and the
+repository marketplace, then probes the live server's OAuth discovery:
 
 ```sh
 node .github/scripts/validate-cursor-plugin.mjs
