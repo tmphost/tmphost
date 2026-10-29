@@ -1,0 +1,96 @@
+# Copyright 2026 Contextual, Inc. https://tmphost.io
+# This notice may not be modified or removed.
+# SPDX-License-Identifier: AGPL-3.0-only
+
+name: Cursor plugin
+
+# plugin/cursor is a Cursor Plugin, listed by the repository marketplace in
+# .cursor-plugin. Cursor has no validator to run, so this checks it against
+# the marketplace's submission checklist (.github/scripts/cursor-plugin.mjs)
+# and probes the live MCP server's OAuth discovery, as Cursor signs in.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.cursor-plugin/**'
+      - 'plugin/cursor/**'
+      - 'plugin/claude/.claude-plugin/plugin.json'
+      - 'plugin/codex/mcp.json'
+      - 'gemini-extension.json'
+      - 'backend/internal/handler/mcp/**'
+      - '.github/scripts/**'
+      - '.github/workflows/plugin-cursor.yml'
+  pull_request:
+    paths:
+      - '.cursor-plugin/**'
+      - 'plugin/cursor/**'
+      - 'plugin/claude/.claude-plugin/plugin.json'
+      - 'plugin/codex/mcp.json'
+      - 'gemini-extension.json'
+      - 'backend/internal/handler/mcp/**'
+      - '.github/scripts/**'
+      - '.github/workflows/plugin-cursor.yml'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  validate:
+    name: Validate the plugin and marketplace
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+
+      - name: Test the validator (100% coverage)
+        run: >-
+          node --test --experimental-test-coverage
+          --test-coverage-include=.github/scripts/cursor-plugin.mjs
+          --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100
+          .github/scripts/cursor-plugin.test.mjs
+
+      # The manifest, mcp.json, every rule, skill and command, the marketplace
+      # entry, the same MCP server as the other plugins, and the live server's
+      # 401 + OAuth discovery (DCR and PKCE).
+      - name: Check the submission rules and OAuth discovery
+        run: node .github/scripts/validate-cursor-plugin.mjs --live
+
+      # The validator of Cursor's official plugin template
+      # (github.com/cursor/plugin-template), pinned, run on the marketplace.
+      - name: Run the plugin template's validator
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/validate-template.mjs" \
+            "https://raw.githubusercontent.com/cursor/plugin-template/${CURSOR_TEMPLATE_SHA}/scripts/validate-template.mjs"
+          node "$RUNNER_TEMP/validate-template.mjs"
+        env:
+          CURSOR_TEMPLATE_SHA: 46216072ac5750f782f95bb325b4d12b7c3ae9c9
+
+  docs:
+    name: Documented tools match the server
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Check the skill, rule, commands and README against the MCP server
+        working-directory: backend
+        run: go test ./internal/handler/mcp/ -run 'TestPluginDocs' -v

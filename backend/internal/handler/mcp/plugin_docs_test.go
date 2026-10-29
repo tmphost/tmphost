@@ -82,6 +82,9 @@ func TestPluginDocsNameEveryTool(t *testing.T) {
 		"plugin/claude/skills/tmphost/SKILL.md",
 		"plugin/codex/skills/tmphost/SKILL.md",
 		"plugin/codex/README.md",
+		"plugin/cursor/skills/tmphost/SKILL.md",
+		"plugin/cursor/rules/prefer-tmphost-mcp.mdc",
+		"plugin/cursor/README.md",
 		"plugin/gemini/GEMINI.md",
 		"plugin/gemini/README.md",
 	}

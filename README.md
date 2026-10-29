@@ -179,6 +179,19 @@ package against OpenAI's directory submission rules and the Agent Plugins
 schemas, installs it with the Codex CLI, and uploads the ZIP to submit; see
 [plugin/codex](plugin/codex/README.md).
 
+## Cursor plugin
+
+[plugin/cursor](plugin/cursor) is a Cursor plugin with the MCP server, the
+`tmphost` skill, a rule that routes "share this" requests to it, and the
+`/share-file` and `/share-site` commands. This repository is its marketplace
+([.cursor-plugin/marketplace.json](.cursor-plugin/marketplace.json)), so it
+can be submitted at [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish)
+or imported as a team marketplace.
+
+Enable `tmphost` in **Cursor Settings → Tools & MCP** and sign in through the
+browser. CI checks the plugin against the marketplace's submission checklist
+and probes the server's OAuth discovery; see [plugin/cursor](plugin/cursor/README.md).
+
 ## Development
 
 ```sh

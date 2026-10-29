@@ -61,6 +61,7 @@ jobs:
           test "$url" = "https://mcp.tmphost.io/mcp"
           test "$(jq -r '.mcpServers.tmphost.url' plugin/claude/.claude-plugin/plugin.json)" = "$url"
           test "$(jq -r '.mcpServers.tmphost.url' gemini-extension.json)" = "$url"
+          test "$(jq -r '.mcpServers.tmphost.url' plugin/cursor/mcp.json)" = "$url"
 
       - name: Set the version from the tag
         if: startsWith(github.ref, 'refs/tags/v')
