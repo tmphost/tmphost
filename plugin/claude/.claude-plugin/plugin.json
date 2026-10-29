@@ -1,6 +1,6 @@
 {
   "name": "tmphost",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Host files at temporary public URLs on tmphost.io (or your own tmphost server) from Claude Code: upload, download, list and link files in folders that expire after a TTL.",
   "icon": "./.claude-plugin/icon.png",
   "author": {
@@ -10,7 +10,7 @@
   "homepage": "https://tmphost.io",
   "privacyPolicyUrl": "https://tmphost.io/privacy",
   "repository": "https://github.com/tmphost/tmphost",
-  "license": "AGPL-3.0-only",
+  "license": "Apache-2.0",
   "keywords": ["file-hosting", "upload", "share", "mcp", "temporary"],
   "mcpServers": {
     "tmphost": {
