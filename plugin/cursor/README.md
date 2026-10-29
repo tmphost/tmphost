@@ -64,3 +64,8 @@ Bump `version` in `.cursor-plugin/plugin.json` whenever the plugin changes.
 
 [Privacy Policy](https://tmphost.io/privacy) ·
 [Terms of Service](https://tmphost.io/tos)
+
+## License
+
+This plugin is licensed under the [Apache License 2.0](LICENSE). The tmphost
+server it connects to is AGPL-3.0-only.
