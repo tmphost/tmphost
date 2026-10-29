@@ -139,7 +139,7 @@ type (
 
 	// FolderInput is the arguments of the tools that take only a folder.
 	FolderInput struct {
-		FolderID string `json:"folderId" jsonschema:"id of a folder you own: the 8 lowercase letters and digits that uploadFile returned in folderId, such as 1a2b3c4d"`
+		FolderID string `json:"folderId" jsonschema:"id of a folder you own, as uploadFile returned it in folderId, such as 1a2b3c4d"`
 	}
 
 	// ListFilesOutput is listFiles' result.
@@ -148,7 +148,7 @@ type (
 		URL       string     `json:"url" jsonschema:"the folder's public URL, ending with a slash; it serves index.html when the folder has one at its root"`
 		ExpiresAt string     `json:"expiresAt" jsonschema:"when the folder and its files expire, as an RFC 3339 UTC time"`
 		PinMode   string     `json:"pinMode,omitempty" jsonschema:"the PIN visitors must enter: folder for the folder's own PIN, static or totp for the owner's account PIN; absent when no PIN guards the folder"`
-		Files     []FileInfo `json:"files" jsonschema:"the folder's files, sorted by full path; empty when it has none"`
+		Files     []FileInfo `json:"files" jsonschema:"the folder's files, one entry per file sorted by full path; an empty array, never null, when the folder has none"`
 	}
 
 	// FileInfo is a file in a listFiles listing.
@@ -228,7 +228,7 @@ func New(p Params) http.Handler {
 	t := &tools{folders: p.Folders}
 	mcp.AddTool(server, &mcp.Tool{Name: ToolUploadFile, Title: "Upload a file", Description: _uploadFileDescription, InputSchema: schemaFor[UploadFileInput](), OutputSchema: schemaFor[UploadFileOutput](), Annotations: writeAnnotations("Upload a file", true, true), Icons: icons()}, handle(t.uploadFile))
 	mcp.AddTool(server, &mcp.Tool{Name: ToolDownloadFile, Title: "Download a file", Description: _downloadFileDescription, InputSchema: schemaFor[DownloadFileInput](), OutputSchema: schemaFor[DownloadFileOutput](), Annotations: readAnnotations("Download a file"), Icons: icons()}, handle(t.downloadFile))
-	mcp.AddTool(server, &mcp.Tool{Name: ToolListFiles, Title: "List a folder's files", Description: _listFilesDescription, InputSchema: schemaFor[FolderInput](), OutputSchema: schemaFor[ListFilesOutput](), Annotations: readAnnotations("List a folder's files"), Icons: icons()}, handle(t.listFiles))
+	mcp.AddTool(server, &mcp.Tool{Name: ToolListFiles, Title: "List a folder's files", Description: _listFilesDescription, InputSchema: schemaFor[FolderInput](), OutputSchema: listFilesSchema(), Annotations: readAnnotations("List a folder's files"), Icons: icons()}, handle(t.listFiles))
 	mcp.AddTool(server, &mcp.Tool{Name: ToolGetURL, Title: "Get a public URL", Description: _getURLDescription, InputSchema: schemaFor[GetURLInput](), OutputSchema: schemaFor[GetURLOutput](), Annotations: readAnnotations("Get a public URL"), Icons: icons()}, handle(t.getURL))
 	mcp.AddTool(server, &mcp.Tool{Name: ToolExtendFolder, Title: "Extend a folder", Description: _extendFolderDescription, InputSchema: schemaFor[ExtendFolderInput](), OutputSchema: schemaFor[ExtendFolderOutput](), Annotations: writeAnnotations("Extend a folder", false, true), Icons: icons()}, handle(t.extendFolder))
 	mcp.AddTool(server, &mcp.Tool{Name: ToolAddPinToFolder, Title: "Add a PIN to a folder", Description: _addPinToFolderDescription, InputSchema: schemaFor[FolderInput](), OutputSchema: schemaFor[AddPinToFolderOutput](), Annotations: writeAnnotations("Add a PIN to a folder", true, false), Icons: icons()}, handle(t.addPinToFolder))
@@ -298,6 +298,15 @@ func readAnnotations(title string) *mcp.ToolAnnotations {
 // publishes to, or keeps on, the open web.
 func writeAnnotations(title string, destructive, openWorld bool) *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{Title: title, DestructiveHint: new(destructive), OpenWorldHint: new(openWorld)}
+}
+
+// listFilesSchema is listFiles' output schema, with each files entry
+// described too.
+func listFilesSchema() *jsonschema.Schema {
+	s := schemaFor[ListFilesOutput]()
+	// singleTypes moved the array into the second anyOf branch.
+	s.Properties["files"].AnyOf[1].Items.Description = "one file in the folder: pass its fileName and path to downloadFile or getUrl, or give its url to the user"
+	return s
 }
 
 // schemaFor infers a tool's input or output schema, limiting format to the
