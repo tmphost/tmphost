@@ -1,0 +1,18 @@
+{
+  "name": "tmphost",
+  "owner": {
+    "name": "tmphost",
+    "email": "dev@tmphost.io"
+  },
+  "metadata": {
+    "description": "Cursor plugins for tmphost.io temporary file hosting."
+  },
+  "plugins": [
+    {
+      "name": "tmphost",
+      "source": "./plugin/cursor",
+      "description": "Host files at temporary public URLs on tmphost.io from Cursor.",
+      "category": "productivity"
+    }
+  ]
+}

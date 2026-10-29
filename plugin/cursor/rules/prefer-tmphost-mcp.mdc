@@ -1,0 +1,25 @@
+---
+description: Use the tmphost MCP server when the user wants to share a file, a generated report, an image or a static site at a temporary public link
+alwaysApply: false
+---
+
+Use the `tmphost` MCP server, and the `tmphost` skill for the details, when the
+user wants a public link to something: a file in the workspace, a report or
+page you generated, an image, or a whole static HTML site.
+
+- One file: `uploadFile` without `folderId`, then give the user its `url`.
+- Several files or a site: the first `uploadFile` creates the folder; upload
+  the rest with its `folderId` and their directories in `path`, then give the
+  folder URL from `getUrl`.
+- A folder's files: `listFiles`; one file's content: `downloadFile`.
+- A link that must last longer: `extendFolder`, only when the user asks.
+- A link only some people may open: `pin: true` on the first upload, or
+  `addPinToFolder`.
+
+Anyone with a link can open the file until its folder expires. Never upload
+secrets, credentials, `.env` files or private keys, even when asked. Pick the
+shortest TTL that fits: uploads and extensions spend the user's credits.
+
+If the server is unavailable or answers 401, tell the user to enable `tmphost`
+in Cursor Settings → Tools & MCP and sign in with their tmphost account. Never
+ask the user to paste a token into chat.
