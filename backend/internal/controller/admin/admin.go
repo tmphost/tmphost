@@ -1,6 +1,6 @@
 // Copyright 2026 Contextual, Inc. https://tmphost.io
 // This notice may not be modified or removed.
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-tmphost-Commercial
 
 // Package admin reports on every account for the root-only admin page:
 // totals and daily stats, the users with their credits and usage, and

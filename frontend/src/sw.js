@@ -1,6 +1,6 @@
 // Copyright 2026 Contextual, Inc. https://tmphost.io
 // This notice may not be modified or removed.
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-tmphost-Commercial
 
 // The service worker: it keeps the built app shell in the cache, so the app
 // installs as a PWA and loads offline, and it downloads each new version in

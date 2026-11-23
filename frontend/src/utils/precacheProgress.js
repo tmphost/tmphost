@@ -1,6 +1,6 @@
 // Copyright 2026 Contextual, Inc. https://tmphost.io
 // This notice may not be modified or removed.
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-tmphost-Commercial
 
 // Shared by the service worker and the page, so it imports nothing: whatever
 // this file pulls in ends up inside sw.js.

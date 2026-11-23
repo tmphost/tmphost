@@ -1,6 +1,6 @@
 // Copyright 2026 Contextual, Inc. https://tmphost.io
 // This notice may not be modified or removed.
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-tmphost-Commercial
 
 /**
  * The rules a Cursor Plugin must pass before it is submitted to the Cursor

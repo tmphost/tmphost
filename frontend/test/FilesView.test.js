@@ -1,6 +1,6 @@
 // Copyright 2026 Contextual, Inc. https://tmphost.io
 // This notice may not be modified or removed.
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-tmphost-Commercial
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RouterLinkStub, config, flushPromises, mount } from '@vue/test-utils'

@@ -307,3 +307,12 @@ docker run -p 2027:2027 -v tmphost-data:/data \
 ```
 
 Settings and the SQLite database live in the `/data` volume.
+
+## License
+
+tmphost is dual-licensed (`SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-tmphost-Commercial`):
+
+- **Open source:** [AGPL-3.0-only](LICENSE).
+- **Commercial:** a binary-only [commercial licence](LICENSE-COMMERCIAL) from Contextual, Inc., for proprietary use without the AGPL's obligations. Contact [dev@tmphost.io](mailto:dev@tmphost.io).
+
+The plugins under [`plugin/`](plugin) keep their own Apache-2.0 licence.

@@ -20,4 +20,5 @@ pointing at its MCP domain or app URL instead:
 ## License
 
 This plugin is licensed under the [Apache License 2.0](LICENSE). The tmphost
-server it connects to is AGPL-3.0-only.
+server it connects to is dual-licensed under AGPL-3.0-only or a commercial
+licence (`AGPL-3.0-only OR LicenseRef-tmphost-Commercial`).

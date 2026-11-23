@@ -1,6 +1,6 @@
 // Copyright 2026 Contextual, Inc. https://tmphost.io
 // This notice may not be modified or removed.
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-tmphost-Commercial
 
 // Package oauth signs the CLI in to a tmphost server with OAuth 2.1: the
 // authorization code flow with PKCE and a loopback redirect, plus refresh.
