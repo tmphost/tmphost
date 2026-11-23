@@ -1,6 +1,6 @@
 # Copyright 2026 Contextual, Inc. https://tmphost.io
 # This notice may not be modified or removed.
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-tmphost-Commercial
 
 openapi: 3.1.0
 info:
@@ -23,7 +23,7 @@ info:
     Errors from `/api/v1` and `/auth` are JSON `{"error": "<message>"}`;
     errors from `/oauth2` follow RFC 6749 (`{"error", "error_description"}`).
   license:
-    name: AGPL-3.0-only
+    name: AGPL-3.0-only OR LicenseRef-tmphost-Commercial
     url: https://www.gnu.org/licenses/agpl-3.0.html
 servers:
   - url: https://app.tmphost.io

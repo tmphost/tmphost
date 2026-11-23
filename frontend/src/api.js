@@ -1,6 +1,6 @@
 // Copyright 2026 Contextual, Inc. https://tmphost.io
 // This notice may not be modified or removed.
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-tmphost-Commercial
 
 // The Go server injects the base path the app is served under.
 export const BASE_PATH = (window.__TMPHOST_BASE_PATH__ || '').replace(/\/$/, '')
