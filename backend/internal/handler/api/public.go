@@ -21,8 +21,15 @@ import (
 
 // _sandbox keeps uploaded pages working (scripts, forms, popups) but in an
 // opaque origin, so they can't read or set cookies of any tmphost origin,
-// or call the API as the visitor, even when served on the app's origin.
+// or call the API as the visitor. Pages served on the app's origin, below
+// /files/, always get it.
 const _sandbox = "sandbox allow-scripts allow-forms allow-popups allow-modals allow-downloads"
+
+// _hostSandbox is _sandbox plus allow-same-origin, for pages on a folder's
+// own host. That host is already an origin of its own, apart from the app
+// and every other folder, so its pages may keep it: they can import their
+// own files and use storage (Cache API, localStorage, IndexedDB).
+const _hostSandbox = _sandbox + " allow-same-origin"
 
 // Public serves folders to anyone: on folder hosts,
 // <folderID>-<userID>.<domain>, with subdomains on, else below
@@ -108,7 +115,7 @@ func (h *Public) send(c fiber.Ctx, rq *entity.OpenPublicFileRequest, missing fib
 		return c.SendStatus(fiber.StatusNotModified)
 	}
 	c.Set(fiber.HeaderContentType, rs.ContentType)
-	c.Set(fiber.HeaderContentSecurityPolicy, _sandbox)
+	c.Set(fiber.HeaderContentSecurityPolicy, sandbox(rq))
 	c.Set(fiber.HeaderXContentTypeOptions, "nosniff")
 	return c.SendStream(rs.Body, int(rs.Size))
 }
@@ -148,7 +155,7 @@ func (h *Public) sendError(c fiber.Ctx, err error, missing fiber.Handler) error 
 
 // setPinCookie keeps a visitor's token for a folder until the folder
 // expires: on the folder's own host, or below its path on the app's.
-// Behind HTTPS it is SameSite=None, so the sandboxed pages of the folder,
+// Behind HTTPS it is SameSite=None, so the sandboxed pages below /files/,
 // whose origin is opaque, still send it with the files they load.
 func (h *Public) setPinCookie(c fiber.Ctx, rq *entity.OpenPublicFileRequest, unlock *entity.UnlockFolderResponse) {
 	path := "/"
@@ -168,6 +175,15 @@ func (h *Public) setPinCookie(c fiber.Ctx, rq *entity.OpenPublicFileRequest, unl
 		Secure:   h.cookieSecure,
 		SameSite: sameSite,
 	})
+}
+
+// sandbox is the CSP of a folder's files: same-origin on the folder's own
+// host, opaque below /files/ on the app's, where rq names the owner.
+func sandbox(rq *entity.OpenPublicFileRequest) string {
+	if rq.UserID != 0 {
+		return _sandbox
+	}
+	return _hostSandbox
 }
 
 // folderPath is the path of the folder a /files/<userID>/<folderID>/...

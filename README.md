@@ -90,7 +90,11 @@ test fails when a route is missing from it, so keep it in step with
   (`TMPHOSTIO_FILES_SUBDOMAINS`, `TMPHOSTIO_FILES_PUBLIC_DOMAIN`, which defaults
   to the sites domain; needs wildcard DNS and a certificate, which the
   built-in TLS obtains when it is the sites domain). Both are served with `Content-Security-Policy:
-  sandbox`, so hosted pages never run with the app's origin.
+  sandbox`, so hosted pages never run with the app's origin. On a folder's
+  own subdomain the sandbox adds `allow-same-origin`: the folder is an origin
+  of its own there, so its pages can import their own files (ES modules) and
+  use the Cache API, localStorage and IndexedDB. Below `/files/` they stay in
+  an opaque origin.
 - A Markdown file (`.md`, `.markdown`) is served as is, or with
   `?format=html` as a reading page: GitHub-flavoured Markdown (tables, task
   lists, strikethrough, footnotes) in a wide serif column that follows the
