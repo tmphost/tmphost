@@ -24,7 +24,7 @@ var (
 
 // Version is the tmphost release, as in server.json and frontend/package.json;
 // the MCP server reports it in its serverInfo.
-const Version = "0.1.3"
+const Version = "0.1.4"
 
 // Media types of the icons.
 const (
